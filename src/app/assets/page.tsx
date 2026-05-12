@@ -74,8 +74,8 @@ export default function AssetsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`削除失敗 (HTTP ${res.status})`);
-      // refetch by reloading the page (simple and reliable)
-      window.location.reload();
+      // Optimistic UI: remove the deleted item from the list without full reload
+      setUploadedAssets((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       alert(`削除失敗: ${err}`);
     }
