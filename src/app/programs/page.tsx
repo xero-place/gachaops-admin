@@ -8,8 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fmtRelative, fmtDuration } from '@/lib/format';
-import { Search, Plus, Layers, Clock, Eye } from 'lucide-react';
+import { Search, Plus, Layers, Clock, Eye, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
+
+type ScenePreview = {
+  scene_id: string;
+  order_index: number;
+  duration_sec: number;
+  asset_type: 'video' | 'image' | 'gif' | null;
+  thumbnail_url: string | null;
+};
 
 type Program = {
   id: string;
@@ -21,6 +29,7 @@ type Program = {
   scene_count?: number;
   widget_count?: number;
   thumbnail_url?: string | null;
+  scene_previews?: ScenePreview[];
   created_at: string;
   updated_at: string;
 };
@@ -103,10 +112,43 @@ export default function ProgramsPage() {
           {filtered.map((p) => (
             <Card key={p.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all">
               <Link href={`/programs/${p.id}`}>
-                <div className="aspect-video bg-muted relative">
-                  {p.thumbnail_url && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={p.thumbnail_url} alt={p.name} className="w-full h-full object-cover" />
+                <div className="aspect-video bg-muted relative p-3 flex items-center justify-center overflow-hidden">
+                  {p.scene_previews && p.scene_previews.length > 0 ? (
+                    <div className="flex items-center gap-1 max-w-full overflow-x-auto">
+                      {p.scene_previews.map((scene, i) => (
+                        <div key={scene.scene_id} className="flex items-center gap-1 flex-shrink-0">
+                          <div className="relative w-14 h-14 rounded overflow-hidden bg-black/60 flex-shrink-0">
+                            {scene.thumbnail_url ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={scene.thumbnail_url}
+                                alt={`シーン ${i + 1}`}
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                {scene.asset_type === 'video' ? (
+                                  <Film className="h-5 w-5 text-muted-foreground" />
+                                ) : (
+                                  <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                                )}
+                              </div>
+                            )}
+                            <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-br">
+                              {i + 1}
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-[8px] text-center px-0.5 leading-tight">
+                              {scene.duration_sec}s
+                            </div>
+                          </div>
+                          {i < p.scene_previews!.length - 1 && (
+                            <ChevronRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">シーンなし</div>
                   )}
                   {!p.published && (
                     <Badge variant="warn" className="absolute top-2 left-2">下書き</Badge>
