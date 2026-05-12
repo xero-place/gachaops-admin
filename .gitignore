@@ -7,3 +7,6 @@ node_modules/
 
 # Phase 10: exclude any .env variants
 .env.local*
+
+# Backup files (Claude session work)
+*.bak_*
