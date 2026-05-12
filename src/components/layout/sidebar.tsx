@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -84,11 +85,18 @@ export function Sidebar() {
     <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r bg-card/40">
       <div className="flex h-14 items-center px-5 border-b">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-black text-xs tracking-tighter">
-            GO
+          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white">
+            <Image
+              src="/logo-gtchax.png"
+              alt="GTCHAXAPP"
+              width={28}
+              height={28}
+              className="object-contain"
+              priority
+            />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">GachaOps</div>
+            <div className="text-sm font-semibold">GTCHAXAPP</div>
             <div className="text-[10px] text-muted-foreground tracking-wider uppercase">
               admin · v0.1
             </div>

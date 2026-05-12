@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'GachaOps 管理画面',
-  description: 'ガチャサイネージ統合管理プラットフォーム',
+  title: 'GTCHAXAPP 管理画面',
+  description: 'GTCHAXAPP - サイネージ統合管理プラットフォーム',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
