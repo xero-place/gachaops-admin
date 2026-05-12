@@ -123,7 +123,20 @@ export function useAdminAlerts(): {
     };
   }, []);
 
-  const clear = () => setAlerts([]);
+  const clear = async () => {
+    // Clear on server-side (Redis) so it doesn't come back on reload
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+      const token = tokenStore.getAccess();
+      await fetch(`${apiBase}/alerts/clear`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.error('Failed to clear alerts on server:', err);
+    }
+    setAlerts([]);
+  };
 
   return { alerts, connected, clear };
 }
