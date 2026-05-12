@@ -54,7 +54,7 @@ export function AlertCenter() {
           </span>
         )}
         {!connected && (
-          <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-yellow-500" />
+          <span className="absolute top-0 left-0 h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
         )}
       </Button>
 
