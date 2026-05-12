@@ -43,7 +43,10 @@ type Scene = {
   duration_sec: number;
   order_index: number;
   background_color: string | null;
+  widget_count?: number;
   widgets?: Widget[];
+  primary_asset_type?: 'video' | 'image' | 'gif' | null;
+  primary_thumbnail_url?: string | null;
 };
 
 type Program = {
@@ -251,39 +254,75 @@ export default function ProgramDetailPage() {
                   シーンがまだありません。「シーン追加」ボタンから動画/画像を追加してください。
                 </div>
               ) : (
-                scenes.map((s, i) => (
-                  <div key={s.id} className="flex items-center gap-3 p-3 border rounded-md hover:bg-accent/40">
+(() => {
+                  const n = scenes.length;
+                  const thumbSize =
+                    n <= 2 ? 'w-24 h-24' :
+                    n <= 4 ? 'w-20 h-20' :
+                    n <= 6 ? 'w-16 h-16' :
+                    n <= 8 ? 'w-14 h-14' :
+                              'w-12 h-12';
+                  const iconSize =
+                    n <= 2 ? 'h-7 w-7' :
+                    n <= 4 ? 'h-6 w-6' :
+                    n <= 6 ? 'h-5 w-5' :
+                              'h-4 w-4';
+                  return scenes.map((sc, i) => (
+                  <div key={sc.id} className="flex items-center gap-3 p-3 border rounded-md hover:bg-accent/40">
                     <div className="flex flex-col gap-0.5">
                       <button
                         className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        onClick={() => handleMoveScene(s.id, 'up')}
+                        onClick={() => handleMoveScene(sc.id, 'up')}
                         disabled={i === 0 || busy}
                       >
                         <ChevronUp className="h-3 w-3" />
                       </button>
                       <button
                         className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                        onClick={() => handleMoveScene(s.id, 'down')}
+                        onClick={() => handleMoveScene(sc.id, 'down')}
                         disabled={i === scenes.length - 1 || busy}
                       >
                         <ChevronDown className="h-3 w-3" />
                       </button>
                     </div>
-                    <div className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold" style={{ backgroundColor: s.background_color ?? '#475569', color: 'white' }}>
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{s.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {fmtDuration(s.duration_sec * 1000)}
-                        {s.widgets && s.widgets.length > 0 && ` · ${s.widgets.length} ウィジェット`}
+                    <div className={`relative ${thumbSize} rounded overflow-hidden bg-black/60 flex-shrink-0`}>
+                      {sc.primary_thumbnail_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={sc.primary_thumbnail_url}
+                          alt={sc.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: sc.background_color ?? '#475569' }}>
+                          {sc.primary_asset_type === 'video' ? (
+                            <Film className={`${iconSize} text-white/80`} />
+                          ) : sc.primary_asset_type === 'image' || sc.primary_asset_type === 'gif' ? (
+                            <ImageIcon className={`${iconSize} text-white/80`} />
+                          ) : (
+                            <span className="text-white font-bold">{i + 1}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-br">
+                        {i + 1}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-[9px] text-center px-1 leading-tight">
+                        {sc.duration_sec}s
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteScene(s.id, s.name)} disabled={busy}>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{sc.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {fmtDuration(sc.duration_sec * 1000)}
+                        {sc.widget_count && sc.widget_count > 0 ? ` · ${sc.widget_count} ウィジェット` : ''}
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteScene(sc.id, sc.name)} disabled={busy}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                ))
+                ));})()
               )}
             </CardContent>
           </Card>
