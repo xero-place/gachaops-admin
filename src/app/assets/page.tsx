@@ -68,7 +68,7 @@ export default function AssetsPage() {
     if (!confirm(`「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`)) return;
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const token = tokenStore.getAccess();
       const res = await fetch(`${apiBase}/assets/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
