@@ -15,12 +15,13 @@ import type { Store, Device } from '@/types/domain';
  * is a deliberately abstract silhouette — accurate enough to place 8 markers,
  * not geographically authoritative.
  */
-function project(lat: number, lng: number, w = 720, h = 540) {
-  // Japan bounding box (approximate)
-  const minLng = 128.5;
-  const maxLng = 142.5;
-  const minLat = 31;
-  const maxLat = 38.5;
+function project(lat: number, lng: number, w = 1000, h = 846) {
+  // Japan bounding box matched to simplemaps.com SVG viewBox (1000x846).
+  // Calibrated against Tokyo (35.6762, 139.6503) → roughly (560, 480) on SVG.
+  const minLng = 122.5;
+  const maxLng = 153.5;
+  const minLat = 24;
+  const maxLat = 46;
   const x = ((lng - minLng) / (maxLng - minLng)) * w;
   const y = ((maxLat - lat) / (maxLat - minLat)) * h;
   return { x, y };
@@ -57,7 +58,7 @@ export default function DevicesMapPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardContent className="p-4">
-              <svg viewBox="0 0 720 540" className="w-full">
+              <svg viewBox="0 0 1000 846" className="w-full">
                 {/* Stylized Japan silhouette - rough bezier shapes */}
                 <defs>
                   <linearGradient id="oceanG" x1="0" y1="0" x2="0" y2="1">
@@ -68,22 +69,19 @@ export default function DevicesMapPage() {
                     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(220 20% 15%)" strokeWidth="0.5" />
                   </pattern>
                 </defs>
-                <rect width="720" height="540" fill="url(#oceanG)" />
-                <rect width="720" height="540" fill="url(#grid)" />
+                <rect width="1000" height="846" fill="url(#oceanG)" />
+                <rect width="1000" height="846" fill="url(#grid)" />
 
-                {/* Schematic land masses */}
-                <g fill="hsl(220 18% 22%)" stroke="hsl(220 18% 28%)" strokeWidth="1">
-                  {/* Hokkaido */}
-                  <path d="M 510 50 Q 580 40 610 90 Q 620 130 580 145 Q 540 150 500 130 Q 480 100 510 50 Z" />
-                  {/* Honshu */}
-                  <path d="M 230 280 Q 310 240 380 220 Q 470 200 540 220 L 560 250 Q 540 270 480 290 Q 420 300 360 320 Q 300 340 240 320 Z" />
-                  {/* Kanto bulge */}
-                  <path d="M 480 270 Q 520 260 540 290 Q 530 320 500 320 Q 470 310 480 270 Z" />
-                  {/* Shikoku */}
-                  <path d="M 280 360 Q 330 350 350 380 Q 330 400 280 395 Q 260 380 280 360 Z" />
-                  {/* Kyushu */}
-                  <path d="M 180 380 Q 230 370 240 410 Q 230 450 200 460 Q 160 450 160 410 Q 160 390 180 380 Z" />
-                </g>
+                {/* Accurate Japan map (simplemaps.com - Free for Commercial Use) */}
+                <image
+                  href="/japan-map.svg"
+                  x="0"
+                  y="0"
+                  width="1000"
+                  height="846"
+                  opacity="0.55"
+                  style={{ filter: 'invert(0.85) hue-rotate(180deg) brightness(0.7)' }}
+                />
 
                 {/* Store markers */}
                 {stores.map((s) => {
