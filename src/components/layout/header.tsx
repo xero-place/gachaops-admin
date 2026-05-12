@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Bell, ChevronDown, LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Search, ChevronDown, LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
+import { AlertCenter } from '@/components/domain/alert-center';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -64,9 +65,7 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
             ⌘K
           </kbd>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Bell className="h-4 w-4" />
-        </Button>
+        <AlertCenter />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
