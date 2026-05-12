@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { assets } from '@/mocks/fixtures';
 import { fmtBytes, fmtDuration, fmtRelative } from '@/lib/format';
-import { Search, Upload, Grid2x2, List, Image, Film, FileAudio, FileCode2 } from 'lucide-react';
+import { Search, Upload, Grid2x2, List, Image, Film, FileAudio, FileCode2, Trash2 } from 'lucide-react';
 import type { AssetType } from '@/types/domain';
 
 const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> = {
@@ -64,6 +64,27 @@ export default function AssetsPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`)) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const res = await fetch(`${apiBase}/assets/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`削除失敗 (HTTP ${res.status})`);
+      // refetch
+      if (typeof fetchAssets === 'function') {
+        await fetchAssets();
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      alert(`削除失敗: ${err}`);
+    }
+  };
+
 
   const handleUploadClick = () => {
     if (uploading) return;
@@ -217,7 +238,7 @@ ${err?.message ?? '不明なエラー'}`);
           {filtered.map((a) => {
             const Icon = TYPE_ICON[a.type];
             return (
-              <Card key={a.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer">
+              <Card key={a.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer group relative">
                 <div className="aspect-square bg-muted flex items-center justify-center relative">
                   {a.thumbnail_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -228,6 +249,17 @@ ${err?.message ?? '不明なエラー'}`);
                   <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] uppercase">
                     {a.type}
                   </Badge>
+                  <button
+                    className="absolute top-2 right-2 p-1.5 rounded-md bg-destructive/90 hover:bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(a.id, a.name);
+                    }}
+                    title="削除"
+                    aria-label="削除"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 <div className="p-3">
                   <div className="text-xs font-medium truncate" title={a.name}>{a.name}</div>
