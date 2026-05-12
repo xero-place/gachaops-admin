@@ -74,12 +74,8 @@ export default function AssetsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`削除失敗 (HTTP ${res.status})`);
-      // refetch
-      if (typeof fetchAssets === 'function') {
-        await fetchAssets();
-      } else {
-        window.location.reload();
-      }
+      // refetch by reloading the page (simple and reliable)
+      window.location.reload();
     } catch (err) {
       alert(`削除失敗: ${err}`);
     }
