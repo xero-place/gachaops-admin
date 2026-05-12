@@ -122,7 +122,7 @@ export default function DevicesPage() {
       offline: devices.filter((d) => d.status === 'offline').length,
       maintenance: devices.filter((d) => d.status === 'maintenance').length,
     };
-  }, []);
+  }, [devices]);
 
   if (loading) {
     return (
