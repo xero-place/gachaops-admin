@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { assets } from '@/mocks/fixtures';
 import { fmtBytes, fmtDuration, fmtRelative } from '@/lib/format';
-import { Search, Upload, Grid2x2, List, Image, Film, FileAudio, FileCode2, Trash2 } from 'lucide-react';
+import { Search, Upload, Grid2x2, List, Image, Film, FileAudio, FileCode2, Trash2, X } from 'lucide-react';
 import type { AssetType } from '@/types/domain';
 
 const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> = {
@@ -46,6 +46,7 @@ export default function AssetsPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedAssets, setUploadedAssets] = useState<typeof assets>([]);
+  const [previewAsset, setPreviewAsset] = useState<typeof assets[0] | null>(null);
 
   // Fetch real assets from API on mount (replaces mock fixtures)
   useEffect(() => {
@@ -234,8 +235,13 @@ ${err?.message ?? '不明なエラー'}`);
           {filtered.map((a) => {
             const Icon = TYPE_ICON[a.type];
             return (
-              <Card key={a.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all cursor-pointer group relative">
-                <div className="aspect-square bg-muted flex items-center justify-center relative">
+              <Card key={a.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all group relative">
+                <button
+                  type="button"
+                  onClick={() => setPreviewAsset(a)}
+                  className="aspect-square bg-muted flex items-center justify-center relative w-full cursor-pointer"
+                  title="クリックで拡大表示"
+                >
                   {a.thumbnail_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={a.thumbnail_url} alt={a.name} className="w-full h-full object-cover" />
@@ -256,7 +262,7 @@ ${err?.message ?? '不明なエラー'}`);
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
-                </div>
+                </button>
                 <div className="p-3">
                   <div className="text-xs font-medium truncate" title={a.name}>{a.name}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-between">
@@ -321,6 +327,51 @@ ${err?.message ?? '不明なエラー'}`);
             </TableBody>
           </Table>
         </Card>
+      )}
+      {previewAsset && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 sm:p-8"
+          onClick={() => setPreviewAsset(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white hover:bg-white/10 rounded-full p-2 z-10"
+            onClick={(e) => { e.stopPropagation(); setPreviewAsset(null); }}
+            aria-label="閉じる"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div
+            className="flex flex-col items-center gap-3 max-w-[95vw] max-h-[95vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewAsset.type === 'video' ? (
+              <video
+                src={previewAsset.url}
+                controls
+                autoPlay
+                playsInline
+                className="object-contain"
+                style={{ maxWidth: '95vw', maxHeight: '85vh' }}
+              />
+            ) : (previewAsset.type === 'image' || previewAsset.type === 'gif') ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={previewAsset.url}
+                alt={previewAsset.name}
+                className="object-contain"
+                style={{ maxWidth: '95vw', maxHeight: '85vh' }}
+              />
+            ) : (
+              <div className="text-white text-sm">プレビュー対応外: {previewAsset.type}</div>
+            )}
+            <div className="text-white text-sm bg-black/60 px-4 py-2 rounded">
+              {previewAsset.name} · {fmtBytes(previewAsset.size)}
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   );
