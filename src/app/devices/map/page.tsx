@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { stores, devices } from '@/mocks/fixtures';
 import { Building2 } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { Store, Device } from '@/types/domain';
 
 /**
  * Equirectangular projection over a Japan-shaped bounding box. We're not using
@@ -27,6 +28,28 @@ function project(lat: number, lng: number, w = 720, h = 540) {
 
 export default function DevicesMapPage() {
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
+  
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [s, d] = await Promise.all([
+          api.get<{ items?: Store[] } | Store[]>('/stores?limit=100'),
+          api.get<{ items?: Device[] } | Device[]>('/devices?limit=200'),
+        ]);
+        if (cancelled) return;
+        const storesArr = Array.isArray(s) ? s : (s.items ?? []);
+        const devicesArr = Array.isArray(d) ? d : (d.items ?? []);
+        setStores(storesArr);
+        setDevices(devicesArr);
+      } catch (e) {
+        console.warn('Map data fetch failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
