@@ -40,18 +40,63 @@ export function useAdminAlerts(): {
   useEffect(() => {
     let cancelled = false;
 
-    const connect = () => {
+    // Decode JWT payload (best-effort, no signature check) to detect expiry
+    const isTokenExpired = (token: string): boolean => {
+      try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return true;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (!payload.exp) return false;
+        // Refresh 30s before actual expiry to avoid race
+        return Date.now() / 1000 > payload.exp - 30;
+      } catch {
+        return true;
+      }
+    };
+
+    // Refresh access token using refresh token. Returns new access token or null.
+    const refreshAccessToken = async (): Promise<string | null> => {
+      const refresh = tokenStore.getRefresh();
+      if (!refresh) return null;
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+        const res = await fetch(`${apiBase}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        tokenStore.set(data.access_token, data.refresh_token, tokenStore.getUser() ?? undefined);
+        return data.access_token as string;
+      } catch {
+        return null;
+      }
+    };
+
+    const connect = async () => {
       if (cancelled) return;
-      const token = tokenStore.getAccess();
+      let token = tokenStore.getAccess();
       if (!token) {
         // Not logged in - retry in 5s
         retryTimerRef.current = setTimeout(connect, 5000);
         return;
       }
 
+      // Proactively refresh if expired or near-expiry
+      if (isTokenExpired(token)) {
+        console.log('[admin-ws] access token expired, refreshing...');
+        const fresh = await refreshAccessToken();
+        if (!fresh) {
+          // Refresh failed - retry later
+          retryTimerRef.current = setTimeout(connect, 10000);
+          return;
+        }
+        token = fresh;
+      }
+
       // Derive WS URL from API base URL
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
-      // Convert https://api.xero-place.com/v1 -> wss://api.xero-place.com/ws/v2/admin
       let wsUrl: string;
       try {
         const url = new URL(apiBase);
@@ -65,6 +110,7 @@ export function useAdminAlerts(): {
       try {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
+        let rejectedAuth = false;
 
         ws.onopen = () => {
           if (cancelled) {
@@ -80,9 +126,7 @@ export function useAdminAlerts(): {
           try {
             const data = JSON.parse(event.data) as AdminAlert;
             setAlerts((prev) => {
-              // Dedupe by alert_id
               if (prev.some((a) => a.alert_id === data.alert_id)) return prev;
-              // Keep last 50
               return [...prev, data].slice(-50);
             });
           } catch (e) {
@@ -91,12 +135,21 @@ export function useAdminAlerts(): {
         };
 
         ws.onerror = () => {
-          // ignore - onclose handles reconnect
+          // ignore - onclose handles reconnect; mark for auth refresh probe
+          rejectedAuth = true;
         };
 
-        ws.onclose = () => {
+        ws.onclose = async (ev) => {
           if (cancelled) return;
           setConnected(false);
+
+          // If closed almost immediately (within 2s of open attempt), likely auth issue.
+          // Try refreshing the token before next reconnect.
+          if (rejectedAuth || (ev.code !== 1000 && retryCountRef.current === 0)) {
+            console.log('[admin-ws] possible auth failure, attempting token refresh');
+            await refreshAccessToken();
+          }
+
           const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
           retryCountRef.current += 1;
           console.log(`[admin-ws] disconnected, retry in ${delay}ms`);

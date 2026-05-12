@@ -113,41 +113,51 @@ export default function ProgramsPage() {
             <Card key={p.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all">
               <Link href={`/programs/${p.id}`}>
                 <div className="aspect-video bg-muted relative p-3 flex items-center justify-center overflow-hidden">
-                  {p.scene_previews && p.scene_previews.length > 0 ? (
-                    <div className="flex items-center gap-1 max-w-full overflow-x-auto">
-                      {p.scene_previews.map((scene, i) => (
-                        <div key={scene.scene_id} className="flex items-center gap-1 flex-shrink-0">
-                          <div className="relative w-14 h-14 rounded overflow-hidden bg-black/60 flex-shrink-0">
-                            {scene.thumbnail_url ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img
-                                src={scene.thumbnail_url}
-                                alt={`シーン ${i + 1}`}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                {scene.asset_type === 'video' ? (
-                                  <Film className="h-5 w-5 text-muted-foreground" />
-                                ) : (
-                                  <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                                )}
+                  {p.scene_previews && p.scene_previews.length > 0 ? (() => {
+                    const n = p.scene_previews.length;
+                    // Dynamic sizing: bigger for fewer scenes, smaller for many
+                    const cfg =
+                      n <= 2  ? { thumb: 'w-28 h-28', icon: 'h-8 w-8',    badge: 'w-5 h-5 text-[12px]', dur: 'text-[10px]', arrow: 'h-4 w-4', gap: 'gap-2' }
+                    : n <= 4  ? { thumb: 'w-20 h-20', icon: 'h-6 w-6',    badge: 'w-5 h-5 text-[11px]', dur: 'text-[9px]',  arrow: 'h-4 w-4', gap: 'gap-1.5' }
+                    : n <= 6  ? { thumb: 'w-16 h-16', icon: 'h-5 w-5',    badge: 'w-4 h-4 text-[10px]', dur: 'text-[8px]',  arrow: 'h-3 w-3', gap: 'gap-1' }
+                    : n <= 8  ? { thumb: 'w-14 h-14', icon: 'h-4 w-4',    badge: 'w-4 h-4 text-[9px]',  dur: 'text-[8px]',  arrow: 'h-3 w-3', gap: 'gap-1' }
+                    :           { thumb: 'w-12 h-12', icon: 'h-3.5 w-3.5',badge: 'w-3.5 h-3.5 text-[9px]', dur: 'text-[7px]', arrow: 'h-2.5 w-2.5', gap: 'gap-0.5' };
+                    return (
+                      <div className={`flex items-center ${cfg.gap} max-w-full overflow-x-auto`}>
+                        {p.scene_previews.map((scene, i) => (
+                          <div key={scene.scene_id} className={`flex items-center ${cfg.gap} flex-shrink-0`}>
+                            <div className={`relative ${cfg.thumb} rounded overflow-hidden bg-black/60 flex-shrink-0`}>
+                              {scene.thumbnail_url ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={scene.thumbnail_url}
+                                  alt={`シーン ${i + 1}`}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  {scene.asset_type === 'video' ? (
+                                    <Film className={`${cfg.icon} text-muted-foreground`} />
+                                  ) : (
+                                    <ImageIcon className={`${cfg.icon} text-muted-foreground`} />
+                                  )}
+                                </div>
+                              )}
+                              <div className={`absolute top-0 left-0 bg-primary text-primary-foreground font-bold ${cfg.badge} flex items-center justify-center rounded-br`}>
+                                {i + 1}
                               </div>
+                              <div className={`absolute bottom-0 left-0 right-0 bg-black/75 text-white ${cfg.dur} text-center px-0.5 leading-tight`}>
+                                {scene.duration_sec}s
+                              </div>
+                            </div>
+                            {i < p.scene_previews!.length - 1 && (
+                              <ChevronRight className={`${cfg.arrow} text-muted-foreground flex-shrink-0`} />
                             )}
-                            <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-br">
-                              {i + 1}
-                            </div>
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-[8px] text-center px-0.5 leading-tight">
-                              {scene.duration_sec}s
-                            </div>
                           </div>
-                          {i < p.scene_previews!.length - 1 && (
-                            <ChevronRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
+                        ))}
+                      </div>
+                    );
+                  })() : (
                     <div className="text-xs text-muted-foreground">シーンなし</div>
                   )}
                   {!p.published && (
