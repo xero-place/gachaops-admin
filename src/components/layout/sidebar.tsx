@@ -143,7 +143,11 @@ export function Sidebar() {
       <div className="border-t p-3 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-2">
           <span className="live-dot" />
-          <span>モックモード (NEXT_PUBLIC_API_BASE_URL 未設定)</span>
+          <span>
+            {process.env.NEXT_PUBLIC_API_BASE_URL
+              ? '実 API モード (本番)'
+              : 'モックモード (NEXT_PUBLIC_API_BASE_URL 未設定)'}
+          </span>
         </div>
       </div>
     </aside>
