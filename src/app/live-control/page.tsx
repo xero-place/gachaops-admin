@@ -36,6 +36,8 @@ import {
   PlayCircle,
   Wifi,
   Loader2,
+  AlertTriangle,
+  PowerOff,
 } from 'lucide-react';
 
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
@@ -75,6 +77,36 @@ export default function LiveControlPage() {
   const overrides = useLiveStore((s) => s.overrides);
   const history = useLiveStore((s) => s.history);
   const restorePlan = useLiveStore((s) => s.restorePlan);
+
+  // Tier 2-E: Emergency stop state + handler
+  const [emergencyStopBusy, setEmergencyStopBusy] = useState(false);
+
+  const handleEmergencyStop = async () => {
+    if (emergencyStopBusy) return;
+    const ok = window.confirm(
+      `🚨 全マシン緊急停止を実行しますか?\n\n` +
+      `この操作は:\n` +
+      `・自社の全 online デバイスに停止コマンドを送信\n` +
+      `・全画面が「準備中」表示 (真っ黒画面ではない)\n` +
+      `・取り消しは「全マシン一斉切替」で個別動画を再送信\n\n` +
+      `⚠️ 緊急時のみ使用してください`
+    );
+    if (!ok) return;
+    setEmergencyStopBusy(true);
+    try {
+      const res = await api.post<{ status: string; target_count: number; sent_count: number }>(
+        '/devices/emergency_stop',
+        {}
+      );
+      window.alert(
+        `✅ 緊急停止完了\n\n対象: ${res.target_count}台\n送信: ${res.sent_count}台`
+      );
+    } catch (e: any) {
+      window.alert(`❌ 失敗: ${e?.message ?? '不明なエラー'}`);
+    } finally {
+      setEmergencyStopBusy(false);
+    }
+  };
   const [scope, setScope] = useState<LiveControlScope | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [storeSearch, setStoreSearch] = useState('');
@@ -191,6 +223,34 @@ export default function LiveControlPage() {
               </div>
               <span className="text-xs text-muted-foreground font-normal">複数台ピックアップして切替</span>
             </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Tier 2-E: 緊急操作カード (全マシン即停止) */}
+      <Card className="mt-4 border-red-500/40 bg-red-500/5">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-4 w-4" />緊急操作
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            想定外の事態に全マシンを即停止 (画面は「準備中」表示)
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="destructive"
+            size="lg"
+            className="w-full gap-2"
+            onClick={handleEmergencyStop}
+            disabled={emergencyStopBusy}
+          >
+            {emergencyStopBusy ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <PowerOff className="h-5 w-5" />
+            )}
+            {emergencyStopBusy ? '停止中...' : '🚨 全マシン緊急停止'}
           </Button>
         </CardContent>
       </Card>
