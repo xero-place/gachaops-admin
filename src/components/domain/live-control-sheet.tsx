@@ -13,7 +13,7 @@
  * (auto-revert to plan mode after a duration).
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { programs } from '@/mocks/fixtures';
+import { tokenStore } from '@/lib/token-store';
 import { useLiveStore } from '@/stores/live-control-store';
 import { fmtDuration } from '@/lib/format';
 import { Search, Zap, Clock, AlertCircle } from 'lucide-react';
@@ -56,6 +56,34 @@ export function LiveControlSheet({
   const [duration, setDuration] = useState('30');
   const applySwitch = useLiveStore((s) => s.applySwitch);
 
+  // Fetch programs from API when dialog opens
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoadingPrograms(true);
+    (async () => {
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+        const token = tokenStore.getAccess();
+        const res = await fetch(`${apiBase}/programs?limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setPrograms((data.items ?? data ?? []) as Program[]);
+      } catch (err) {
+        console.error('[live-control-sheet] failed to fetch programs:', err);
+        if (!cancelled) setPrograms([]);
+      } finally {
+        if (!cancelled) setLoadingPrograms(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
+
   // Only published programs can be sent live
   const eligible = useMemo(() => {
     return programs.filter((p) => {
@@ -66,7 +94,7 @@ export function LiveControlSheet({
       }
       return true;
     });
-  }, [search]);
+  }, [programs, search]);
 
   const selected = selectedProgramId ? programs.find((p) => p.id === selectedProgramId) : null;
 
