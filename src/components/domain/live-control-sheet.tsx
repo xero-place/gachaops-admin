@@ -1,0 +1,297 @@
+'use client';
+
+/**
+ * LiveControlSheet — the central reusable dialog for "change what's playing
+ * on these devices, right now".
+ *
+ * Used from:
+ *   - device detail page (single device scope)
+ *   - device list page (multi-device, after row selection)
+ *   - /live-control center page (any scope)
+ *
+ * Two modes: immediate (swap and stay until restored), or time-limited
+ * (auto-revert to plan mode after a duration).
+ */
+
+import { useState, useMemo } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { programs } from '@/mocks/fixtures';
+import { useLiveStore } from '@/stores/live-control-store';
+import { fmtDuration } from '@/lib/format';
+import { Search, Zap, Clock, AlertCircle } from 'lucide-react';
+import type { Program } from '@/types/domain';
+
+export interface LiveControlScope {
+  /** Device IDs that will receive the command */
+  device_ids: string[];
+  /** Human-readable label, e.g. "渋谷スクランブル店 (8台)" */
+  label: string;
+}
+
+export function LiveControlSheet({
+  open,
+  onOpenChange,
+  scope,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scope: LiveControlScope | null;
+}) {
+  const [step, setStep] = useState<'pick' | 'confirm'>('pick');
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [mode, setMode] = useState<'immediate' | 'expiring'>('immediate');
+  const [duration, setDuration] = useState('30');
+  const applySwitch = useLiveStore((s) => s.applySwitch);
+
+  // Only published programs can be sent live
+  const eligible = useMemo(() => {
+    return programs.filter((p) => {
+      if (!p.published) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+  }, [search]);
+
+  const selected = selectedProgramId ? programs.find((p) => p.id === selectedProgramId) : null;
+
+  const reset = () => {
+    setStep('pick');
+    setSelectedProgramId(null);
+    setSearch('');
+    setMode('immediate');
+    setDuration('30');
+  };
+
+  const close = () => {
+    onOpenChange(false);
+    setTimeout(reset, 200);
+  };
+
+  const onConfirm = () => {
+    if (!scope || !selected) return;
+    let expires_at: string | null = null;
+    if (mode === 'expiring') {
+      const minutes = parseInt(duration, 10) || 30;
+      expires_at = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+    }
+    applySwitch({
+      device_ids: scope.device_ids,
+      program_id: selected.id,
+      program_name: selected.name,
+      expires_at,
+      scope_label: scope.label,
+      applied_by: 'admin@gachaops.example',
+    });
+    close();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />映像を切り替え
+          </DialogTitle>
+          <DialogDescription>
+            対象端末で再生中の映像を即座に差し替えます。<br />
+            <span className="text-foreground">{scope?.label ?? ''}</span> の <strong>{scope?.device_ids.length ?? 0} 台</strong> が対象です。
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 'pick' && (
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="プログラム名で検索..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-9"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+              {eligible.map((p) => (
+                <ProgramOption
+                  key={p.id}
+                  program={p}
+                  selected={selectedProgramId === p.id}
+                  onSelect={() => setSelectedProgramId(p.id)}
+                />
+              ))}
+              {eligible.length === 0 && (
+                <div className="col-span-full text-center text-sm text-muted-foreground py-8">
+                  該当する公開済プログラムがありません
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-md bg-muted/40 border p-2 text-[11px] text-muted-foreground">
+              下書き状態のプログラムは配信できません。先に公開してから切替してください。
+            </div>
+          </div>
+        )}
+
+        {step === 'confirm' && selected && scope && (
+          <div className="space-y-4">
+            <div className="rounded-md border bg-card p-3 flex gap-3">
+              {selected.thumbnail_url && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={selected.thumbnail_url} alt="" className="h-16 w-28 rounded object-cover shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">{selected.name}</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  {selected.scene_count} シーン · {fmtDuration(selected.total_duration_sec * 1000)}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setStep('pick')}>
+                変更
+              </Button>
+            </div>
+
+            <Tabs value={mode} onValueChange={(v) => setMode(v as 'immediate' | 'expiring')}>
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="immediate" className="gap-1.5">
+                  <Zap className="h-3.5 w-3.5" />即時切替
+                </TabsTrigger>
+                <TabsTrigger value="expiring" className="gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />期限指定
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="immediate" className="mt-3">
+                <div className="rounded-md border bg-card p-3 text-xs space-y-1.5">
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-primary" />すぐ切り替えて、そのまま継続
+                  </div>
+                  <p className="text-muted-foreground">
+                    対象端末は <strong>手動モード</strong> に変わります。<br />
+                    元の時間割に戻すには、後で「計画モードに戻す」ボタンを押してください。
+                  </p>
+                </div>
+              </TabsContent>
+              <TabsContent value="expiring" className="mt-3 space-y-3">
+                <div className="rounded-md border bg-card p-3 text-xs space-y-1.5">
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-primary" />指定時間後、自動で計画モードに戻る
+                  </div>
+                  <p className="text-muted-foreground">
+                    キャンペーンや臨時告知に最適。期限が来ると元の時間割が自動で再開します。
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="duration">継続時間 (分)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="duration"
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="w-32"
+                    />
+                    <div className="flex gap-1">
+                      {[15, 30, 60, 120].map((m) => (
+                        <Button
+                          key={m}
+                          type="button"
+                          variant={duration === String(m) ? 'secondary' : 'outline'}
+                          size="sm"
+                          className="h-9 px-2.5 text-xs"
+                          onClick={() => setDuration(String(m))}
+                        >
+                          {m}分
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    終了予定: <span className="font-mono">
+                      {new Date(Date.now() + (parseInt(duration) || 0) * 60 * 1000).toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' })}
+                    </span>
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {scope.device_ids.length > 5 && (
+              <div className="rounded-md bg-warn/10 border border-warn/30 p-2.5 flex items-start gap-2 text-xs">
+                <AlertCircle className="h-4 w-4 text-warn shrink-0 mt-0.5" />
+                <span>
+                  <strong>{scope.device_ids.length} 台</strong> の端末に同時送信します。
+                  オフライン端末はオンライン復帰時に適用されます。
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>キャンセル</Button>
+          {step === 'pick' ? (
+            <Button onClick={() => setStep('confirm')} disabled={!selectedProgramId}>
+              次へ
+            </Button>
+          ) : (
+            <Button onClick={onConfirm} className="gap-1.5">
+              <Zap className="h-3.5 w-3.5" />
+              {scope?.device_ids.length ?? 0} 台に送信
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProgramOption({
+  program,
+  selected,
+  onSelect,
+}: {
+  program: Program;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`text-left rounded-md border bg-card p-2.5 transition-all flex gap-2.5 ${
+        selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
+      }`}
+    >
+      {program.thumbnail_url && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={program.thumbnail_url} alt="" className="h-12 w-20 rounded object-cover shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-medium truncate">{program.name}</div>
+        <div className="text-[10.5px] text-muted-foreground mt-0.5 flex items-center gap-2">
+          <span>{program.scene_count} シーン</span>
+          <span>·</span>
+          <span>{fmtDuration(program.total_duration_sec * 1000)}</span>
+        </div>
+        {selected && (
+          <Badge variant="default" className="mt-1.5 text-[10px] h-4 px-1.5">選択中</Badge>
+        )}
+      </div>
+    </button>
+  );
+}
