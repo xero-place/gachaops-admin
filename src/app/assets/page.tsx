@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, type ChangeEvent } from 'react';
+import { api } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,8 +41,115 @@ export default function AssetsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
+  // Upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedAssets, setUploadedAssets] = useState<typeof assets>([]);
+
+  // Fetch real assets from API on mount (replaces mock fixtures)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ items?: any[]; data?: any[] } | any[]>('/assets?limit=100');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? res.data ?? []);
+        if (Array.isArray(arr) && arr.length > 0) {
+          setUploadedAssets(arr as any);
+        }
+      } catch (e) {
+        console.warn('Asset fetch failed, falling back to mock data:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleUploadClick = () => {
+    if (uploading) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so the same file can be selected again later
+    e.target.value = '';
+
+    // 1 GB limit
+    const MAX_BYTES = 1024 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      window.alert(`ファイルサイズが大きすぎます (${(file.size / 1024 / 1024).toFixed(1)} MB)
+最大: 1024 MB (1 GB)`);
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const token = tokenStore.getAccess();
+      if (!token) {
+        throw new Error('未ログインです。再度ログインしてください。');
+      }
+
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 201) {
+            try {
+              const newAsset = JSON.parse(xhr.responseText);
+              setUploadedAssets((prev) => [newAsset, ...prev]);
+              resolve();
+            } catch (err) {
+              reject(new Error('レスポンス解析失敗'));
+            }
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText);
+              reject(new Error(err.detail ?? err.title ?? `HTTP ${xhr.status}`));
+            } catch {
+              reject(new Error(`HTTP ${xhr.status}`));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error('ネットワークエラー'));
+        xhr.ontimeout = () => reject(new Error('タイムアウト'));
+        xhr.open('POST', `${apiBase}/assets/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.timeout = 30 * 60 * 1000; // 30 分
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
+        xhr.send(formData);
+      });
+
+      window.alert(`✅ アップロード完了
+
+ファイル: ${file.name}
+サイズ: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+    } catch (err: any) {
+      window.alert(`❌ アップロード失敗
+
+${err?.message ?? '不明なエラー'}`);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const sourceAssets = uploadedAssets.length > 0 ? uploadedAssets : assets;
   const filtered = useMemo(() => {
-    return assets.filter((a) => {
+    return sourceAssets.filter((a) => {
       if (typeFilter !== 'all' && a.type !== typeFilter) return false;
       if (search) {
         const s = search.toLowerCase();
@@ -48,7 +157,7 @@ export default function AssetsPage() {
       }
       return true;
     });
-  }, [search, typeFilter]);
+  }, [search, typeFilter, sourceAssets]);
 
   const totalSize = filtered.reduce((a, x) => a + x.size, 0);
 
@@ -89,8 +198,16 @@ export default function AssetsPage() {
           <div className="ml-auto text-xs text-muted-foreground">
             {filtered.length} 件 / {fmtBytes(totalSize)}
           </div>
-          <Button size="sm" className="gap-1.5">
-            <Upload className="h-3.5 w-3.5" />アップロード
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*,image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button size="sm" className="gap-1.5" onClick={handleUploadClick} disabled={uploading}>
+            <Upload className="h-3.5 w-3.5" />
+            {uploading ? `アップロード中 ${uploadProgress}%` : 'アップロード'}
           </Button>
         </CardContent>
       </Card>
