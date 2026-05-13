@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,13 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Search, Boxes, Package, AlertTriangle } from 'lucide-react';
-import { inventories, stores } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type Store = {
+  id: string;
+  name: string;
+};
 import { fmtRelative } from '@/lib/format';
 import {
   Select,
@@ -37,11 +43,38 @@ import {
 import type { Inventory } from '@/types/domain';
 
 export default function InventoriesPage() {
+  const [inventories, setInventories] = useState<Inventory[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [storeFilter, setStoreFilter] = useState<string>('all');
   const [lowOnly, setLowOnly] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState<Inventory | null>(null);
   const [replenishCount, setReplenishCount] = useState<number>(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [iRes, sRes] = await Promise.all([
+          api.get<{items?: Inventory[]} | Inventory[]>('/inventories?limit=500'),
+          api.get<{items?: Store[]} | Store[]>('/stores?limit=200'),
+        ]);
+        if (cancelled) return;
+        const iArr = Array.isArray(iRes) ? iRes : (iRes.items ?? []);
+        const sArr = Array.isArray(sRes) ? sRes : (sRes.items ?? []);
+        // Augment inventories with store_name from devices (best-effort)
+        const augmented = iArr.map((inv) => ({ ...inv, store_name: inv.store_name ?? '' }));
+        setInventories(augmented);
+        setStores(sArr);
+      } catch (e) {
+        console.error('[inventories] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = useMemo(() => {
     return inventories.filter((i) => {
@@ -64,6 +97,16 @@ export default function InventoriesPage() {
     low: inventories.filter((i) => i.current_count <= i.low_threshold).length,
     empty: inventories.filter((i) => i.current_count === 0).length,
   }), []);
+
+  if (loading) {
+    return (
+      <AppShell title="在庫" breadcrumb={['ホーム', '在庫']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="在庫" breadcrumb={['ホーム', '在庫']}>

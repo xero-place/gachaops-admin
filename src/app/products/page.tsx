@@ -12,11 +12,60 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { products } from '@/mocks/fixtures';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type Product = {
+  id: string;
+  customer_id?: string;
+  name: string;
+  category: string;
+  default_price_yen: number;
+  thumbnail_s3_key?: string | null;
+  thumbnail_url?: string | null;
+  active: boolean;
+  created_at?: string;
+};
 import { fmtYen } from '@/lib/format';
 import { Plus } from 'lucide-react';
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: Product[]} | Product[]>('/products?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        // Map thumbnail_s3_key to thumbnail_url if needed
+        const mapped = arr.map((p) => ({
+          ...p,
+          thumbnail_url: p.thumbnail_url ?? (p.thumbnail_s3_key ? `https://api.xero-place.com/videos/${p.thumbnail_s3_key}` : null),
+        }));
+        setProducts(mapped);
+      } catch (e) {
+        console.error('[products] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="商品マスタ" breadcrumb={['ホーム', '商品']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="商品マスタ" breadcrumb={['ホーム', '商品']}>
       <div className="flex items-center justify-between mb-4">

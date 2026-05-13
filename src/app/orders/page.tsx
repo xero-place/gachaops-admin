@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { OrderStatusBadge } from '@/components/domain/status-badges';
-import { orders } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import { Search, Receipt, RotateCcw } from 'lucide-react';
 import type { Order, OrderStatus } from '@/types/domain';
@@ -45,9 +46,28 @@ const STATUSES: { value: OrderStatus | 'all'; label: string }[] = [
 ];
 
 export default function OrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [providerFilter, setProviderFilter] = useState<string>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: Order[]} | Order[]>('/orders?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setOrders(arr);
+      } catch (e) {
+        console.error('[orders] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState('');
 
@@ -84,6 +104,16 @@ export default function OrdersPage() {
     setRefundTarget(null);
     setRefundReason('');
   };
+
+  if (loading) {
+    return (
+      <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
