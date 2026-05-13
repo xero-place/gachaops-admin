@@ -76,10 +76,7 @@ function LoginForm() {
                     priority
                   />
                 </div>
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-muted-foreground">参加型デジタルガチャ什器</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">© 株式会社ゼロプレイス</p>
-                </div>
+
               </div>
             </div>
 
@@ -89,13 +86,13 @@ function LoginForm() {
                 <div className="rounded-2xl border bg-card/95 backdrop-blur shadow-2xl p-8">
                   {/* Logo + Title */}
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="h-14 w-14 rounded-xl overflow-hidden bg-background flex items-center justify-center shrink-0 ring-1 ring-border">
+                    <div className="h-14 w-14 flex items-center justify-center shrink-0">
                       <Image
-                        src="/branding/gi-logo.png"
+                        src="/branding/gi-logo-white.png"
                         alt="GTCHA X"
                         width={56}
                         height={56}
-                        className="w-full h-full object-contain p-1"
+                        className="w-full h-full object-contain"
                         priority
                       />
                     </div>
