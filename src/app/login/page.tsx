@@ -86,17 +86,15 @@ function LoginForm() {
                 <div className="rounded-2xl border bg-card/95 backdrop-blur shadow-2xl p-8">
                   {/* Logo + Title */}
                   <div className="flex flex-col items-center mb-6">
-                    <div className="w-full bg-white rounded-xl py-4 px-6 mb-3">
-                      <Image
-                        src="/branding/gtcha-x-full-logo-white.png"
-                        alt="GTCHA X"
-                        width={400}
-                        height={200}
-                        className="w-full h-auto object-contain"
-                        priority
-                      />
-                    </div>
-                    <p className="text-sm text-muted-foreground">管理画面ログイン</p>
+                    <Image
+                      src="/branding/gtcha-x-text-logo.png"
+                      alt="GTCHA X"
+                      width={220}
+                      height={60}
+                      className="h-12 w-auto object-contain mb-2"
+                      priority
+                    />
+                    <p className="text-xs text-muted-foreground">管理画面ログイン</p>
                   </div>
 
                   {/* Form */}
