@@ -67,7 +67,7 @@ export const useLiveStore = create<LiveStore>((set) => ({
     // the UI feedback comes from the optimistic override below. If it
     // fails the user sees the error in the network tab; the override
     // remains visible.
-    if (!api.isMockMode) {
+    if (true) {
       api.post('/devices/bulk', {
         device_ids,
         command: {
@@ -119,7 +119,7 @@ export const useLiveStore = create<LiveStore>((set) => ({
     });
   },
   restorePlan: ({ device_ids, scope_label, applied_by }) => {
-    if (!api.isMockMode) {
+    if (true) {
       api.post('/devices/bulk', {
         device_ids,
         command: { type: 'stop', payload: {

@@ -30,7 +30,7 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
     router.replace('/login');
   };
 
-  const displayName = user?.name || (api.isMockMode ? '運営 太郎' : 'ゲスト');
+  const displayName = user?.name || (false ? '運営 太郎' : 'ゲスト');
   const initial = displayName.slice(0, 1);
 
   return (
@@ -44,13 +44,13 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
         )}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        {!api.isMockMode && (
+        {!false && (
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-ok/15 text-ok">
             <span className="h-1.5 w-1.5 rounded-full bg-ok" />
             LIVE API
           </span>
         )}
-        {api.isMockMode && (
+        {false && (
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-warn/15 text-warn">
             MOCK
           </span>
@@ -95,7 +95,7 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
               <SettingsIcon className="h-3.5 w-3.5 mr-2" />
               設定
             </DropdownMenuItem>
-            {!api.isMockMode && (
+            {!false && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className="text-destructive">

@@ -25,7 +25,6 @@ export function useDeviceWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (api.isMockMode) return;
     const access = tokenStore.getAccess();
     if (!access) return;
 
