@@ -5,12 +5,11 @@
  *   - 401 auto-refresh with the stored refresh token (retry once)
  *
  * Configuration:
- *   NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/v1   ← real backend
- *   (unset)                                              ← in-process mock at /api/v1
+ *   NEXT_PUBLIC_API_BASE_URL=https://api.xero-place.com/v1   ← real backend (required)
  */
 import { tokenStore } from './token-store';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 
 export class ApiError extends Error {
   constructor(
@@ -117,7 +116,6 @@ export const api = {
   delete: <T,>(path: string, init?: RequestInit) =>
     call<T>('DELETE', path, undefined, init),
   baseUrl: BASE_URL,
-  isMockMode: BASE_URL === '/api/v1',
 };
 
 // ─── Auth helpers ───

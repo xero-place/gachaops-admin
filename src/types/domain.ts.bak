@@ -1,5 +1,6 @@
 /**
  * Shared domain types. These mirror the OpenAPI v0.1 schemas (Step B) so the
+ * mock and the real API are interchangeable from the UI's perspective.
  *
  * Naming:
  *   - snake_case fields exactly as wire format (matches OpenAPI YAML)

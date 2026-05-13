@@ -278,7 +278,7 @@ function simulate(type: string, payload: unknown): Record<string, unknown> {
   }
   if (type === 'play_program') return { now_playing: 'prg_1', resumed: true };
   if (type === 'reboot') return { will_reboot_in_sec: 5 };
-  if (type === 'capture_screenshot') return { screenshot_url: '/api/_mock/screenshot.svg?t=' + Date.now() };
+  if (type === 'capture_screenshot') return { screenshot_url: '' };
   if (type === 'sync_assets') return { synced_count: 12, failed_count: 0 };
   return {};
 }

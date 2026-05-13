@@ -46,8 +46,7 @@ export default function AssetsPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedAssets, setUploadedAssets] = useState<Asset[]>([]);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
-
-  // Fetch real assets from API on mount (replaces mock fixtures)
+  // Fetch assets from API on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -59,7 +58,6 @@ export default function AssetsPage() {
           setUploadedAssets(arr as any);
         }
       } catch (e) {
-        console.warn('Asset fetch failed, falling back to mock data:', e);
       }
     })();
     return () => { cancelled = true; };

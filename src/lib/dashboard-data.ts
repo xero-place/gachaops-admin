@@ -1,11 +1,5 @@
 /**
- * Dashboard data hooks. Works against both the in-process mock and the
- * real backend.
- *
- * The mock returns a richer shape than the real backend (includes
- * device_maintenance, store_total, revenue_7d_yen). We normalise to
- * a single TypeScript type and fill in missing fields with zeros when
- * talking to the real backend.
+ * Dashboard data hooks. Fetches overview data from the production API.
  */
 'use client';
 
@@ -35,7 +29,6 @@ interface RawOverview {
   revenue_today_yen?: number;
   revenue_7d_yen?: number;
   active_tasks?: number;
-  // Real backend uses low_stock_count, mock uses low_stock_inventories
   low_stock_count?: number;
   low_stock_inventories?: number;
 }

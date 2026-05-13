@@ -337,7 +337,6 @@ export default function LiveControlPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[440px] overflow-y-auto pr-1">
                     {groupsFiltered.map((g) => {
-                      // For mock: assume all online devices in stores under this group's prefecture
                       // belong to it. For demo: just take half of online devices.
                       const groupDeviceIds =
                         g.id === 'grp_kanto'

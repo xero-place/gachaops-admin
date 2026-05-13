@@ -100,7 +100,6 @@ export default function OrdersPage() {
   }, [filtered]);
 
   const submitRefund = () => {
-    // mock: just close. In real wiring this calls POST /orders/{id}/refund
     setRefundTarget(null);
     setRefundReason('');
   };

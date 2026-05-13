@@ -18,8 +18,6 @@
  *   - Cancelled on unmount.
  *
  * Mock mode:
- *   - In mock mode (api.isMockMode), this hook is a no-op. Production-only
- *     for now; mock data could be added later if needed for development.
  */
 import { useEffect, useRef } from 'react';
 import { tokenStore } from '@/lib/token-store';
@@ -36,11 +34,6 @@ export function useLivePlayback() {
   const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (api.isMockMode) {
-      // In mock mode, no real SSE; just set fake "everything idle" state
-      // so the UI doesn't break.
-      return;
-    }
     const access = tokenStore.getAccess();
     if (!access) return;
 

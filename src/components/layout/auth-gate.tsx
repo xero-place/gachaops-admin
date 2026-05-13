@@ -8,7 +8,6 @@ import { Loader2 } from 'lucide-react';
 
 /**
  * Wraps protected pages. If the user has no access token AND we're not in
- * mock mode, redirect to /login. In mock mode, the UI works without auth
  * so this gate is a no-op.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -17,11 +16,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Mock mode: skip auth entirely
-    if (api.isMockMode) {
-      setReady(true);
-      return;
-    }
+
     if (!tokenStore.isAuthenticated()) {
       const next = encodeURIComponent(pathname);
       router.replace(`/login?next=${next}`);

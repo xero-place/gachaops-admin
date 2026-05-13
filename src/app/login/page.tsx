@@ -132,7 +132,7 @@ function LoginForm() {
               <strong>デモ用:</strong> admin@gachaops.example / admin1234
             </p>
             <p>
-              API: <code className="font-mono">{process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api/v1 (mock)'}</code>
+              API: <code className="font-mono">{process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1'}</code>
             </p>
           </div>
         </CardContent>

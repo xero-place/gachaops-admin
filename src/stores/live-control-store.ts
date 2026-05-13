@@ -5,7 +5,6 @@
  *
  * Behaviour:
  *   - In MOCK mode: pure client-side state, makes the UI feel like it
- *     mutated the fixtures.
  *   - In LIVE API mode: ALSO posts a real /devices/bulk command so the
  *     backend forwards play_program to all selected devices over WS.
  *     The local override is still kept for immediate UI feedback while
@@ -156,7 +155,6 @@ export const useLiveStore = create<LiveStore>((set) => ({
 }));
 
 /**
- * Apply overrides on top of fixture data so the UI shows the latest state.
  * Filters out expired overrides automatically.
  */
 export function applyOverridesToDevice<T extends Device>(d: T, overrides: Record<string, LiveOverride>): T {

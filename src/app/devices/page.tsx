@@ -73,7 +73,6 @@ export default function DevicesPage() {
   const overrides = useLiveStore((s) => s.overrides);
   const restorePlan = useLiveStore((s) => s.restorePlan);
 
-  // Apply overrides on top of base fixture so play_mode / current_program reflect switches
   const effectiveDevices = useMemo(() => applyOverridesToDevices(devices, overrides), [devices, overrides]);
 
   const filtered = useMemo(() => {
