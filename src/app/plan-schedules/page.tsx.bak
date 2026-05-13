@@ -19,8 +19,8 @@ type PlanSlot = {
   weekday: number;
   time_from: string;
   time_to: string;
-  program_id: string;
-  program_name: string;
+  program_id?: string;
+  program_name?: string;
 };
 
 type PlanSchedule = {

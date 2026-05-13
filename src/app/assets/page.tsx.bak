@@ -164,7 +164,7 @@ ${err?.message ?? '不明なエラー'}`);
     }
   };
 
-  const sourceAssets = uploadedAssets;
+  const sourceAssets = uploadedAssets.length > 0 ? uploadedAssets : assets;
   const filtered = useMemo(() => {
     return sourceAssets.filter((a) => {
       if (typeFilter !== 'all' && a.type !== typeFilter) return false;

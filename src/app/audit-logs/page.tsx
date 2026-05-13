@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,32 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { auditLogs, users } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type AuditLog = {
+  id: string;
+  customer_id?: string;
+  user_id: string | null;
+  user_email?: string | null;
+  user_name?: string | null;
+  action: AuditAction;
+  resource_type: string;
+  resource_id: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  before?: unknown;
+  after?: unknown;
+  diff?: unknown;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
 import { fmtDate } from '@/lib/format';
 import { Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -49,6 +74,42 @@ const ACTION_VARIANT: Record<AuditAction, 'ok' | 'default' | 'destructive' | 'wa
 };
 
 export default function AuditLogsPage() {
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [aRes, uRes] = await Promise.all([
+          api.get<{items?: AuditLog[]} | AuditLog[]>('/audit-logs?limit=200'),
+          api.get<{items?: User[]} | User[]>('/users?limit=200'),
+        ]);
+        if (cancelled) return;
+        const aArr = Array.isArray(aRes) ? aRes : (aRes.items ?? []);
+        const uArr = Array.isArray(uRes) ? uRes : (uRes.items ?? []);
+        setAuditLogs(aArr);
+        setUsers(uArr);
+      } catch (e) {
+        console.error('[audit-logs] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="監査ログ" breadcrumb={['ホーム', '監査ログ']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<string>('all');

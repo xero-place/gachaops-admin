@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { apkReleases } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
 import { fmtBytes, fmtDate, fmtRelative } from '@/lib/format';
 import {
   Smartphone,
@@ -39,6 +40,36 @@ const CHANNEL_VARIANT: Record<string, 'ok' | 'warn' | 'muted'> = {
 };
 
 export default function ApkPage() {
+  const [apkReleases, setApkReleases] = useState<ApkRelease[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: ApkRelease[]} | ApkRelease[]>('/apk/releases?limit=100');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setApkReleases(arr);
+      } catch (e) {
+        console.error('[apk] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="APK 配布" breadcrumb={['ホーム', 'APK']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   const [distributeTarget, setDistributeTarget] = useState<ApkRelease | null>(null);
   const [distributeMode, setDistributeMode] = useState('staged');
 
