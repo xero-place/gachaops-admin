@@ -85,13 +85,13 @@ function LoginForm() {
               <div className="w-full max-w-md">
                 <div className="rounded-2xl border bg-card/95 backdrop-blur shadow-2xl p-8">
                   {/* Logo + Title */}
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="h-14 w-14 flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-16 w-16 flex items-center justify-center shrink-0 bg-white rounded-xl p-2">
                       <Image
                         src="/branding/gi-logo-white.png"
                         alt="GTCHA X"
-                        width={56}
-                        height={56}
+                        width={64}
+                        height={64}
                         className="w-full h-full object-contain"
                         priority
                       />
