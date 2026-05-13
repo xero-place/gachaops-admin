@@ -103,6 +103,15 @@ export interface Device {
   /** Currently playing program, if any */
   current_program_id: string | null;
   current_program_name: string | null;
+  /** Real-time playback state (updated via SSE every 2s) */
+  playback?: {
+    state: 'playing' | 'paused' | 'idle';
+    position_ms: number;
+    duration_ms: number;
+    memory_mb: number;
+    asset_url?: string;
+    updated_at_ms: number;
+  } | null;
   /** % of disk used by cached assets */
   storage_used_percent: number | null;
   /** App version on device */

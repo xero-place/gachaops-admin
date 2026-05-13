@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { usePlaybackStream } from '@/hooks/use-playback-stream';
+import { PlaybackStatus } from '@/components/domain/playback-status';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,6 +39,7 @@ import type { DeviceStatus } from '@/types/domain';
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 
 export default function DevicesPage() {
+  const { states: playbackStates } = usePlaybackStream();
   const [devices, setDevices] = useState<Device[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,6 +248,11 @@ export default function DevicesPage() {
                 </TableCell>
                 <TableCell className="text-xs">
                   {d.current_program_name ?? <span className="text-muted-foreground">—</span>}
+                  {playbackStates[d.id] && (
+                    <div className="mt-1.5">
+                      <PlaybackStatus playback={playbackStates[d.id]} compact />
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs tabular-nums">
                   <div className="flex items-center gap-1.5">

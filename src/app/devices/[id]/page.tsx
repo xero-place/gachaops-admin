@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePlaybackStream } from '@/hooks/use-playback-stream';
+import { PlaybackStatus } from '@/components/domain/playback-status';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
@@ -160,6 +162,7 @@ export default function DeviceDetailPage() {
   }
   if (fetchFailed || !baseDetail) notFound();
   // Augment with defaults required by Device type
+  const { states: playbackStates } = usePlaybackStream();
   const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
   const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
   const override = overrides[detail.id];
@@ -252,6 +255,11 @@ export default function DeviceDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground font-mono">{detail.current_program_id}</div>
+                        {playbackStates[detail.id] && (
+                          <div className="mt-3 pt-3 border-t">
+                            <PlaybackStatus playback={playbackStates[detail.id]} />
+                          </div>
+                        )}
                         {override && (
                           <div className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
                             <div className="flex items-center gap-1.5">
