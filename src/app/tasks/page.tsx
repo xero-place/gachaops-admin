@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,21 +15,72 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TaskStatusBadge } from '@/components/domain/status-badges';
-import { tasks } from '@/mocks/fixtures';
+import type { TaskStatus } from '@/types/domain';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type Task = {
+  id: string;
+  customer_id?: string;
+  name: string;
+  status: TaskStatus;
+  payload_type: string;
+  payload_ref_id: string;
+  payload_ref_name: string;
+  scheduled_at: string | null;
+  total: number;
+  succeeded: number;
+  failed: number;
+  in_progress: number;
+  pending: number;
+  created_by: string | null;
+  created_at: string;
+};
 import { fmtDate, fmtRelative } from '@/lib/format';
 import { Search, Activity, Plus } from 'lucide-react';
 
 export default function TasksPage() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: Task[]} | Task[]>('/tasks?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setTasks(arr);
+      } catch (e) {
+        console.error('[tasks] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const filtered = useMemo(() => {
     if (!search) return tasks;
     const s = search.toLowerCase();
     return tasks.filter(
       (t) =>
         t.name.toLowerCase().includes(s) ||
-        t.payload_ref_name.toLowerCase().includes(s),
+        (t.payload_ref_name?.toLowerCase().includes(s) ?? false),
     );
-  }, [search]);
+  }, [tasks, search]);
+
+  if (loading) {
+    return (
+      <AppShell title="配信タスク" breadcrumb={['ホーム', '配信タスク']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
 
   return (
     <AppShell title="配信タスク" breadcrumb={['ホーム', '配信タスク']}>

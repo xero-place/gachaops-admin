@@ -12,7 +12,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { users } from '@/mocks/fixtures';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type User = {
+  id: string;
+  customer_id?: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  two_factor_enabled: boolean;
+  last_login_at?: string | null;
+  created_at?: string;
+};
 import { fmtRelative } from '@/lib/format';
 import { Plus, ShieldCheck, ShieldAlert } from 'lucide-react';
 import type { UserRole } from '@/types/domain';
@@ -31,6 +44,36 @@ const ROLE_VARIANT: Record<UserRole, 'default' | 'destructive' | 'ok' | 'muted'>
 };
 
 export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: User[]} | User[]>('/users?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setUsers(arr);
+      } catch (e) {
+        console.error('[users] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="ユーザ" breadcrumb={['ホーム', 'ユーザ']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="ユーザ" breadcrumb={['ホーム', 'ユーザ']}>
       <div className="flex items-center justify-between mb-4">

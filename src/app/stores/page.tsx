@@ -12,12 +12,66 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { stores, devices } from '@/mocks/fixtures';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type Store = {
+  id: string;
+  customer_id?: string;
+  name: string;
+  address: string;
+  prefecture?: string | null;
+  postal_code?: string | null;
+  phone?: string | null;
+  created_at: string;
+};
+type Device = {
+  id: string;
+  store_id?: string | null;
+  status: string;
+};
 import { fmtDate } from '@/lib/format';
 import { Plus, Building2, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
 export default function StoresPage() {
+  const [stores, setStores] = useState<Store[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [sRes, dRes] = await Promise.all([
+          api.get<{items?: Store[]} | Store[]>('/stores?limit=200'),
+          api.get<{items?: Device[]} | Device[]>('/devices?limit=500'),
+        ]);
+        if (cancelled) return;
+        const sArr = Array.isArray(sRes) ? sRes : (sRes.items ?? []);
+        const dArr = Array.isArray(dRes) ? dRes : (dRes.items ?? []);
+        setStores(sArr);
+        setDevices(dArr);
+      } catch (e) {
+        console.error('[stores] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="店舗" breadcrumb={['ホーム', '店舗']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="店舗" breadcrumb={['ホーム', '店舗']}>
       <div className="flex items-center justify-between mb-4">

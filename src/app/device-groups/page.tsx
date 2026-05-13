@@ -4,10 +4,58 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { deviceGroups } from '@/mocks/fixtures';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
+type DeviceGroup = {
+  id: string;
+  customer_id?: string;
+  name: string;
+  description?: string | null;
+  parent_id: string | null;
+  members_count?: number;
+  device_count: number;
+  child_group_count: number;
+  linked?: boolean;
+  type?: string;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+};
 import { Layers3, ChevronRight, Plus, Link2 } from 'lucide-react';
 
 export default function DeviceGroupsPage() {
+  const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: DeviceGroup[]} | DeviceGroup[]>('/device-groups?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setDeviceGroups(arr);
+      } catch (e) {
+        console.error('[device-groups] fetch failed:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   // Build tree
   const roots = deviceGroups.filter((g) => g.parent_id === null);
   const childrenOf = (id: string) => deviceGroups.filter((g) => g.parent_id === id);
@@ -28,7 +76,7 @@ export default function DeviceGroupsPage() {
         <CardContent>
           <ul className="space-y-1">
             {roots.map((root) => (
-              <GroupNode key={root.id} group={root} childrenList={childrenOf(root.id)} depth={0} />
+              <GroupNode key={root.id} group={root} childrenList={childrenOf(root.id)} depth={0} allGroups={deviceGroups} />
             ))}
           </ul>
         </CardContent>
@@ -41,10 +89,12 @@ function GroupNode({
   group,
   childrenList,
   depth,
+  allGroups,
 }: {
-  group: typeof deviceGroups[number];
-  childrenList: typeof deviceGroups;
+  group: DeviceGroup;
+  childrenList: DeviceGroup[];
   depth: number;
+  allGroups: DeviceGroup[];
 }) {
   return (
     <li>
@@ -78,8 +128,9 @@ function GroupNode({
             <GroupNode
               key={c.id}
               group={c}
-              childrenList={deviceGroups.filter((x) => x.parent_id === c.id)}
+              childrenList={allGroups.filter((x) => x.parent_id === c.id)}
               depth={depth + 1}
+              allGroups={allGroups}
             />
           ))}
         </ul>
