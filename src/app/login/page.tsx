@@ -92,6 +92,9 @@ function LoginForm() {
                       width={220}
                       height={60}
                       className="h-12 w-auto object-contain mb-2"
+                      style={{
+                        filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.15))',
+                      }}
                       priority
                     />
                     <p className="text-xs text-muted-foreground">管理画面ログイン</p>
