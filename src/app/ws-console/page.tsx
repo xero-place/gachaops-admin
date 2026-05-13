@@ -14,7 +14,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { devices } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
+
+type Device = {
+  id: string;
+  name: string;
+  serial: string;
+  store_name?: string;
+  status?: string;
+};
 import { Send, Trash2, TerminalSquare, ArrowDownLeft, ArrowUpRight, Wifi, WifiOff } from 'lucide-react';
 
 /**
@@ -55,7 +63,24 @@ const TEMPLATES: CommandTemplate[] = [
 ];
 
 export default function WsConsolePage() {
-  const [selectedDevice, setSelectedDevice] = useState(devices[0]?.id ?? '');
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{items?: Device[]} | Device[]>('/devices?limit=200');
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        setDevices(arr);
+        if (arr.length > 0) setSelectedDevice(arr[0].id);
+      } catch (e) {
+        console.error('[ws-console] fetch devices failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [connected, setConnected] = useState(false);
   const [commandType, setCommandType] = useState(TEMPLATES[0].type);
   const [payload, setPayload] = useState(JSON.stringify(TEMPLATES[0].payload, null, 2));

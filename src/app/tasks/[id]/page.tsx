@@ -1,4 +1,8 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { notFound, useParams } from 'next/navigation';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,10 +16,39 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { TaskStatusBadge } from '@/components/domain/status-badges';
-import { tasks, taskDeviceRuns } from '@/mocks/fixtures';
+import { api } from '@/lib/api';
 import { fmtDate, fmtRelative } from '@/lib/format';
-import { ArrowLeft, Pause, RotateCcw, Activity } from 'lucide-react';
-import Link from 'next/link';
+import { ArrowLeft, Pause, RotateCcw, Activity, Loader2 } from 'lucide-react';
+import type { TaskStatus } from '@/types/domain';
+
+type Task = {
+  id: string;
+  name: string;
+  status: TaskStatus;
+  payload_type: string;
+  payload_ref_id: string;
+  payload_ref_name: string;
+  scheduled_at: string | null;
+  total: number;
+  succeeded: number;
+  failed: number;
+  in_progress: number;
+  pending: number;
+  created_by: string | null;
+  created_at: string;
+};
+
+type TaskRun = {
+  id: string;
+  task_id: string;
+  device_id: string;
+  device_name?: string;
+  status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error?: string | null;
+  attempts?: number;
+};
 
 const RUN_VARIANT: Record<string, 'ok' | 'destructive' | 'default' | 'muted'> = {
   completed: 'ok',
@@ -30,144 +63,131 @@ const RUN_LABEL: Record<string, string> = {
   pending: '待機',
 };
 
-export default function TaskDetailPage({ params }: { params: { id: string } }) {
-  const task = tasks.find((t) => t.id === params.id);
-  if (!task) notFound();
-  const runs = taskDeviceRuns(task.id);
+export default function TaskDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+
+  const [task, setTask] = useState<Task | null>(null);
+  const [runs, setRuns] = useState<TaskRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFoundFlag, setNotFoundFlag] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const t = await api.get<Task>(`/tasks/${id}`);
+        if (cancelled) return;
+        setTask(t);
+        try {
+          const r = await api.get<{items?: TaskRun[]} | TaskRun[]>(`/tasks/${id}/runs?limit=200`);
+          const rArr = Array.isArray(r) ? r : (r.items ?? []);
+          if (!cancelled) setRuns(rArr);
+        } catch {
+          // runs endpoint may not exist - that's fine
+          if (!cancelled) setRuns([]);
+        }
+      } catch (e) {
+        console.error('[tasks/[id]] fetch failed:', e);
+        if (!cancelled) setNotFoundFlag(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <AppShell title="配信タスク詳細" breadcrumb={['ホーム', '配信タスク', id]}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (notFoundFlag || !task) {
+    notFound();
+  }
 
   const progress = task.total === 0 ? 0 : Math.round(((task.succeeded + task.failed) / task.total) * 100);
 
   return (
-    <AppShell title={task.name} breadcrumb={['ホーム', '配信タスク', task.id]}>
-      <div className="mb-4 flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
+    <AppShell title={task.name} breadcrumb={['ホーム', '配信タスク', task.name]}>
+      <div className="mb-4">
+        <Button asChild variant="ghost" size="sm">
           <Link href="/tasks"><ArrowLeft className="h-3.5 w-3.5 mr-1" />一覧へ戻る</Link>
         </Button>
-        <div className="ml-auto flex gap-2">
-          {task.status === 'distributing' && (
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Pause className="h-3.5 w-3.5" />中止
-            </Button>
-          )}
-          {(task.status === 'failed' || task.status === 'partial_success') && (
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <RotateCcw className="h-3.5 w-3.5" />失敗端末を再配信
-            </Button>
-          )}
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-base">{task.name}</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1 font-mono">{task.id}</p>
-                </div>
-                <TaskStatusBadge status={task.status} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" />配信進捗
+              </CardTitle>
+              <TaskStatusBadge status={task.status} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <RunStat label="成功" value={task.succeeded} accent="ok" />
-                <RunStat label="失敗" value={task.failed} accent="destructive" />
-                <RunStat label="配信中" value={task.in_progress} accent="primary" />
-                <RunStat label="待機" value={task.pending} accent="muted" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">全体進捗</span>
-                  <span className="tabular-nums">{progress}% ({task.succeeded + task.failed} / {task.total})</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm font-mono text-muted-foreground tabular-nums">{task.succeeded + task.failed}/{task.total} ({progress}%)</span>
+            </div>
+            <div className="grid grid-cols-4 gap-3 text-xs">
+              <div><div className="text-muted-foreground">成功</div><div className="text-base font-semibold text-ok">{task.succeeded}</div></div>
+              <div><div className="text-muted-foreground">失敗</div><div className="text-base font-semibold text-destructive">{task.failed}</div></div>
+              <div><div className="text-muted-foreground">配信中</div><div className="text-base font-semibold text-primary">{task.in_progress}</div></div>
+              <div><div className="text-muted-foreground">待機</div><div className="text-base font-semibold text-muted-foreground">{task.pending}</div></div>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader><CardTitle className="text-sm">端末別配信ステータス</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>端末</TableHead>
-                    <TableHead>状態</TableHead>
-                    <TableHead>開始</TableHead>
-                    <TableHead>完了</TableHead>
-                    <TableHead>エラー</TableHead>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">タスク情報</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div><span className="text-muted-foreground">ID</span><div className="font-mono">{task.id}</div></div>
+            <div><span className="text-muted-foreground">タイプ</span><div className="font-mono">{task.payload_type}</div></div>
+            <div><span className="text-muted-foreground">対象</span><div>{task.payload_ref_name || task.payload_ref_id}</div></div>
+            <div><span className="text-muted-foreground">予約</span><div>{task.scheduled_at ? fmtDate(task.scheduled_at) : 'なし'}</div></div>
+            <div><span className="text-muted-foreground">作成</span><div>{fmtRelative(task.created_at)}</div></div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {runs.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">配信結果 ({runs.length} 件)</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>端末</TableHead>
+                  <TableHead>状態</TableHead>
+                  <TableHead>開始</TableHead>
+                  <TableHead>完了</TableHead>
+                  <TableHead>試行回数</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-xs">{r.device_name || r.device_id}</TableCell>
+                    <TableCell><Badge variant={RUN_VARIANT[r.status] ?? 'muted'}>{RUN_LABEL[r.status] ?? r.status}</Badge></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.started_at ? fmtRelative(r.started_at) : '—'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.completed_at ? fmtRelative(r.completed_at) : '—'}</TableCell>
+                    <TableCell className="text-xs">{r.attempts ?? 0}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((r) => (
-                    <TableRow key={r.device_id}>
-                      <TableCell className="text-xs">{r.device_name}</TableCell>
-                      <TableCell>
-                        <Badge variant={RUN_VARIANT[r.status]}>{RUN_LABEL[r.status]}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{fmtRelative(r.started_at)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{fmtRelative(r.completed_at)}</TableCell>
-                      <TableCell className="text-xs text-destructive max-w-[200px] truncate">{r.error_message ?? '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                  {runs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
-                        対象端末がありません
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">タスク情報</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-xs">
-              <KV label="ペイロード種別" value={task.payload_type.toUpperCase()} mono />
-              <KV label="ペイロード" value={task.payload_ref_name} />
-              <KV label="参照ID" value={task.payload_ref_id} mono />
-              <KV label="予定実行" value={fmtDate(task.scheduled_at)} />
-              <KV label="作成日時" value={fmtDate(task.created_at)} />
-              <KV label="作成者" value={task.created_by} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Activity className="h-3.5 w-3.5" />リアルタイム</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                配信中タスクは WebSocket で進捗が自動更新されます。Step D の `task.progress` イベントで端末ごとの完了通知を受信。
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </AppShell>
-  );
-}
-
-function RunStat({ label, value, accent }: { label: string; value: number; accent: 'ok' | 'destructive' | 'primary' | 'muted' }) {
-  const c = accent === 'ok' ? 'text-ok' : accent === 'destructive' ? 'text-destructive' : accent === 'primary' ? 'text-primary' : 'text-muted-foreground';
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`text-xl font-semibold tabular-nums mt-1 ${c}`}>{value}</div>
-    </div>
-  );
-}
-
-function KV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className={`text-right ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
-    </div>
   );
 }

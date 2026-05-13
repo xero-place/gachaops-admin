@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/table';
 import { DeviceStatusBadge, PlayModeBadge, TaskStatusBadge } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
-import { deviceDetail } from '@/mocks/fixtures';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
 import { fmtDate, fmtRelative, WEEKDAYS_JA } from '@/lib/format';
 import { api } from '@/lib/api';
@@ -37,16 +36,84 @@ import {
   Zap,
   Undo2,
   Clock,
+  Loader2,
 } from 'lucide-react';
+
+import type { TaskStatus as _TS } from '@/types/domain';
+
+type RecentTaskRun = {
+  task_id: string;
+  task_name: string;
+  status: _TS;
+  started_at: string;
+};
+
+type DeviceDetail = {
+  id: string;
+  customer_id: string;
+  store_id: string;
+  store_name?: string;
+  name: string;
+  serial: string;
+  play_mode: 'plan' | 'manual' | 'idle';
+  status: 'online' | 'offline' | 'maintenance';
+  last_heartbeat_at: string | null;
+  current_program_id: string | null;
+  current_program_name?: string | null;
+  storage_used_percent?: number | null;
+  app_version?: string | null;
+  android_version?: string | null;
+  ip_address?: string | null;
+  volume: number;
+  brightness: number;
+  group_ids: string[];
+  manual_override_expires_at?: string | null;
+  recent_task_runs?: RecentTaskRun[];
+  recent_screenshots?: Array<{ url: string; taken_at?: string; captured_at?: string; thumbnail_url?: string }>;
+  power_schedule?: Array<{ weekday: number; on_at: string; off_at: string }>;
+  power_schedules?: Array<{ id?: string; weekday: number; on_at?: string; off_at?: string; on_time?: string; off_time?: string; power_on_time?: string; power_off_time?: string; enabled?: boolean }>;
+  manual_override_program_id?: string | null;
+  manual_override_program_name?: string | null;
+  cpu_usage_percent?: number | null;
+  memory_usage_percent?: number | null;
+  uptime_seconds?: number | null;
+  signal_strength?: number | null;
+  network_type?: string | null;
+  device_model?: string | null;
+  resolution?: string | null;
+  orientation?: string | null;
+  brand?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
 
 export default function DeviceDetailPage() {
   const params = useParams<{ id: string }>();
-  const baseDetail = deviceDetail(params.id);
+  const [baseDetail, setBaseDetail] = useState<DeviceDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchFailed, setFetchFailed] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
   const restorePlan = useLiveStore((s) => s.restorePlan);
   const [tab, setTab] = useState('overview');
   // Tier 1-I: Force-refresh state
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const d = await api.get<DeviceDetail>(`/devices/${params.id}`);
+        if (cancelled) return;
+        setBaseDetail(d);
+      } catch (e) {
+        console.error('[devices/[id]] fetch failed:', e);
+        if (!cancelled) setFetchFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [params.id]);
 
   // Tier 1-I: Force-refresh handler (remote power-cycle equivalent)
   const handleForceRefresh = async () => {
@@ -82,8 +149,19 @@ export default function DeviceDetailPage() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  if (!baseDetail) notFound();
-  const detail = applyOverridesToDevice(baseDetail, overrides);
+  if (loading) {
+    return (
+      <AppShell title="端末詳細" breadcrumb={['ホーム', '端末', params.id]}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+  if (fetchFailed || !baseDetail) notFound();
+  // Augment with defaults required by Device type
+  const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
+  const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
   const override = overrides[detail.id];
   const isManual = detail.play_mode === 'manual';
 
@@ -227,7 +305,7 @@ export default function DeviceDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {detail.recent_screenshots.map((s, i) => (
+                    {(detail.recent_screenshots ?? []).map((s, i) => (
                       <div key={i} className="rounded-md border overflow-hidden">
                         <div className="aspect-[9/16] bg-muted">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -262,7 +340,7 @@ export default function DeviceDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detail.power_schedules.map((s) => (
+                      {(detail.power_schedules ?? []).map((s) => (
                         <TableRow key={s.id}>
                           <TableCell className="text-sm font-medium">{WEEKDAYS_JA[s.weekday]}曜日</TableCell>
                           <TableCell className="font-mono text-sm">{s.power_on_time}</TableCell>
@@ -291,7 +369,7 @@ export default function DeviceDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detail.recent_task_runs.map((r) => (
+                      {(detail.recent_task_runs ?? []).map((r) => (
                         <TableRow key={r.task_id}>
                           <TableCell>
                             <Link href={`/tasks/${r.task_id}`} className="text-sm hover:underline">{r.task_name}</Link>
@@ -315,7 +393,7 @@ export default function DeviceDetailPage() {
             <CardContent className="space-y-3 text-xs">
               <KV label="ID" value={detail.id} mono />
               <KV label="シリアル" value={detail.serial} mono />
-              <KV label="店舗" value={detail.store_name} />
+              <KV label="店舗" value={detail.store_name ?? ""} />
               <KV label="最終接続" value={fmtRelative(detail.last_heartbeat_at)} />
               <KV label="作成" value={fmtDate(detail.created_at)} />
             </CardContent>
