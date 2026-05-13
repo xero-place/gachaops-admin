@@ -85,21 +85,18 @@ function LoginForm() {
               <div className="w-full max-w-md">
                 <div className="rounded-2xl border bg-card/95 backdrop-blur shadow-2xl p-8">
                   {/* Logo + Title */}
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="h-16 w-16 flex items-center justify-center shrink-0 bg-white rounded-xl p-2">
+                  <div className="flex flex-col items-center mb-6">
+                    <div className="w-full bg-white rounded-xl py-4 px-6 mb-3">
                       <Image
-                        src="/branding/gi-logo-white.png"
+                        src="/branding/gtcha-x-full-logo-white.png"
                         alt="GTCHA X"
-                        width={64}
-                        height={64}
-                        className="w-full h-full object-contain"
+                        width={400}
+                        height={200}
+                        className="w-full h-auto object-contain"
                         priority
                       />
                     </div>
-                    <div>
-                      <h1 className="text-xl font-bold tracking-tight">GTCHA X</h1>
-                      <p className="text-xs text-muted-foreground">管理画面ログイン</p>
-                    </div>
+                    <p className="text-sm text-muted-foreground">管理画面ログイン</p>
                   </div>
 
                   {/* Form */}
