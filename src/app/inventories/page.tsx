@@ -90,7 +90,7 @@ export default function InventoriesPage() {
       }
       return true;
     });
-  }, [search, storeFilter, lowOnly]);
+  }, [inventories, search, storeFilter, lowOnly]);
 
   const stats = useMemo(() => ({
     total: inventories.length,
