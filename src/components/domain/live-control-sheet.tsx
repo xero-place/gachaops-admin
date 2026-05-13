@@ -30,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { tokenStore } from '@/lib/token-store';
 import { useLiveStore } from '@/stores/live-control-store';
 import { fmtDuration } from '@/lib/format';
-import { Search, Zap, Clock, AlertCircle } from 'lucide-react';
+import { Search, Zap, Clock, AlertCircle, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
 import type { Program } from '@/types/domain';
 
 export interface LiveControlScope {
@@ -294,23 +294,27 @@ function ProgramOption({
   selected,
   onSelect,
 }: {
-  program: Program;
+  program: Program & { scene_previews?: Array<{ scene_id: string; order_index: number; duration_sec: number; asset_type: string | null; thumbnail_url: string | null }> };
   selected: boolean;
   onSelect: () => void;
 }) {
+  const previews = program.scene_previews ?? [];
+  const n = previews.length;
+  const cfg =
+    n <= 2 ? { thumb: 'w-16 h-16', icon: 'h-5 w-5', badge: 'w-4 h-4 text-[10px]', dur: 'text-[9px]', arrow: 'h-3 w-3' }
+  : n <= 4 ? { thumb: 'w-12 h-12', icon: 'h-4 w-4', badge: 'w-3.5 h-3.5 text-[9px]', dur: 'text-[8px]', arrow: 'h-3 w-3' }
+  : n <= 6 ? { thumb: 'w-10 h-10', icon: 'h-3.5 w-3.5', badge: 'w-3.5 h-3.5 text-[8px]', dur: 'text-[7px]', arrow: 'h-2.5 w-2.5' }
+  :          { thumb: 'w-8 h-8', icon: 'h-3 w-3', badge: 'w-3 h-3 text-[7px]', dur: 'text-[7px]', arrow: 'h-2 w-2' };
+
   return (
     <button
       onClick={onSelect}
-      className={`text-left rounded-md border bg-card p-2.5 transition-all flex gap-2.5 ${
+      className={`text-left rounded-md border bg-card p-3 transition-all flex flex-col gap-2 ${
         selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
       }`}
     >
-      {program.thumbnail_url && (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={program.thumbnail_url} alt="" className="h-12 w-20 rounded object-cover shrink-0" />
-      )}
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium truncate">{program.name}</div>
+        <div className="text-sm font-medium truncate">{program.name}</div>
         <div className="text-[10.5px] text-muted-foreground mt-0.5 flex items-center gap-2">
           <span>{program.scene_count} シーン</span>
           <span>·</span>
@@ -320,6 +324,37 @@ function ProgramOption({
           <Badge variant="default" className="mt-1.5 text-[10px] h-4 px-1.5">選択中</Badge>
         )}
       </div>
+      {previews.length > 0 && (
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {previews.map((scene, i) => (
+            <div key={scene.scene_id} className="flex items-center gap-1 flex-shrink-0">
+              <div className={`relative ${cfg.thumb} rounded overflow-hidden bg-black/60 flex-shrink-0`}>
+                {scene.thumbnail_url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={scene.thumbnail_url} alt={`シーン ${i + 1}`} className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    {scene.asset_type === 'video' ? (
+                      <Film className={`${cfg.icon} text-muted-foreground`} />
+                    ) : (
+                      <ImageIcon className={`${cfg.icon} text-muted-foreground`} />
+                    )}
+                  </div>
+                )}
+                <div className={`absolute top-0 left-0 bg-primary text-primary-foreground font-bold ${cfg.badge} flex items-center justify-center rounded-br`}>
+                  {i + 1}
+                </div>
+                <div className={`absolute bottom-0 left-0 right-0 bg-black/75 text-white ${cfg.dur} text-center px-0.5 leading-tight`}>
+                  {scene.duration_sec}s
+                </div>
+              </div>
+              {i < previews.length - 1 && (
+                <ChevronRight className={`${cfg.arrow} text-muted-foreground flex-shrink-0`} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </button>
   );
 }
