@@ -129,7 +129,7 @@ export default function AuditLogsPage() {
       }
       return true;
     });
-  }, [search, actionFilter, userFilter]);
+  }, [auditLogs, search, actionFilter, userFilter]);
 
   return (
     <AppShell title="監査ログ" breadcrumb={['ホーム', '監査ログ']}>

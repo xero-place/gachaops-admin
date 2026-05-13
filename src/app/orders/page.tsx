@@ -87,7 +87,7 @@ export default function OrdersPage() {
       }
       return true;
     });
-  }, [search, statusFilter, providerFilter]);
+  }, [orders, search, statusFilter, providerFilter]);
 
   const totals = useMemo(() => {
     const paid = filtered.filter((o) => o.status === 'paid');
