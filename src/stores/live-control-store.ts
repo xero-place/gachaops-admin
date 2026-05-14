@@ -73,10 +73,8 @@ export const useLiveStore = create<LiveStore>((set) => ({
         command: {
           type: 'play_program',
           payload: {
-            asset_url: 'https://www.w3schools.com/html/movie.mp4',
-            asset_type: 'video',
-            // Phase D 緊急対応: モーダルがモックの prg_1 を返すため prg_summer に強制上書き
-            program_id: 'prg_summer',
+            // ★ v11.6 修正: asset_url ハードコード削除、サーバが DB から正規 URL を解決 ★
+            program_id,
           },
           expires_at,
         },
@@ -122,9 +120,7 @@ export const useLiveStore = create<LiveStore>((set) => ({
     if (true) {
       api.post('/devices/bulk', {
         device_ids,
-        command: { type: 'stop', payload: {
-            asset_url: 'https://www.w3schools.com/html/movie.mp4',
-            asset_type: 'video',} },
+        command: { type: 'stop', payload: {} },
       }).catch((e) => {
         console.error('bulk stop failed', e);
       });
