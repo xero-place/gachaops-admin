@@ -402,6 +402,15 @@ function AddSceneModal({
   const [filter, setFilter] = useState<'all' | 'video' | 'image'>('all');
   const [creating, setCreating] = useState(false);
 
+  // Session 13: 選択中の asset を取得し、動画なら durationSec を実長に自動セット
+  const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
+  const isVideo = selectedAsset?.type === 'video';
+  useEffect(() => {
+    if (isVideo && selectedAsset?.duration_ms && selectedAsset.duration_ms > 0) {
+      setDurationSec(Math.ceil(selectedAsset.duration_ms / 1000));
+    }
+  }, [selectedAssetId, isVideo, selectedAsset?.duration_ms]);
+
   useEffect(() => {
     const fetchAssets = async () => {
       try {
@@ -449,8 +458,7 @@ function AddSceneModal({
       if (!sceneRes.ok) throw new Error(`シーン作成失敗 (HTTP ${sceneRes.status})`);
       const scene = await sceneRes.json();
       
-      // 2. ウィジェット追加 (動画 / 画像)
-      const selectedAsset = assets.find((a) => a.id === selectedAssetId);
+      // 2. ウィジェット追加 (動画 / 画像) — selectedAsset は上で取得済み
       const widgetType = selectedAsset?.type === 'image' || selectedAsset?.type === 'gif' ? 'image' : 'video';
       
       const widgetRes = await fetch(`${apiBase}/programs/${programId}/scenes/${scene.id}/widgets`, {
@@ -497,9 +505,15 @@ function AddSceneModal({
                 value={durationSec}
                 onChange={(e) => setDurationSec(Number(e.target.value))}
                 className="mt-1.5"
+                readOnly={isVideo}
+                disabled={isVideo}
               />
               <div className="text-xs text-muted-foreground mt-1">
-                動画はファイル全体、画像は指定秒数表示します
+                {isVideo
+                  ? 'ファイル実長で再生されます (編集不可)'
+                  : selectedAsset
+                    ? '画像の表示秒数を指定してください'
+                    : '動画はファイル全体、画像は指定秒数表示します'}
               </div>
             </div>
           </div>
