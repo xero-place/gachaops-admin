@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
@@ -402,14 +402,26 @@ function AddSceneModal({
   const [filter, setFilter] = useState<'all' | 'video' | 'image'>('all');
   const [creating, setCreating] = useState(false);
 
-  // Session 13: 選択中の asset を取得し、動画なら durationSec を実長に自動セット
+  // Session 13: 選択中の asset を取得し、種別に応じて durationSec を自動調整
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
   const isVideo = selectedAsset?.type === 'video';
+  const isImage = selectedAsset?.type === 'image' || selectedAsset?.type === 'gif';
+  // 動画→実長セット, 画像/gif→10秒にリセット (前の動画値が残らないように)
+  // ※ 画像から別の画像への遷移時は値を保持したいので、type の変化のみを検知
+  const prevAssetTypeRef = React.useRef<string | null>(null);
   useEffect(() => {
+    const curType = selectedAsset?.type ?? null;
+    const prevType = prevAssetTypeRef.current;
     if (isVideo && selectedAsset?.duration_ms && selectedAsset.duration_ms > 0) {
+      // 動画を選択 → 実長を set (動画 → 別動画 も毎回 set される)
       setDurationSec(Math.ceil(selectedAsset.duration_ms / 1000));
+    } else if (isImage && prevType !== 'image' && prevType !== 'gif') {
+      // 未選択/動画 → 画像 に切り替わった瞬間のみ 10 秒にリセット
+      // 画像 → 画像 はユーザの編集値を保持
+      setDurationSec(10);
     }
-  }, [selectedAssetId, isVideo, selectedAsset?.duration_ms]);
+    prevAssetTypeRef.current = curType;
+  }, [selectedAssetId, isVideo, isImage, selectedAsset?.type, selectedAsset?.duration_ms]);
 
   useEffect(() => {
     const fetchAssets = async () => {
