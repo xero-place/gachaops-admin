@@ -222,7 +222,7 @@ export default function ProgramDetailPage() {
     );
   }
 
-  const totalDuration = scenes.reduce((sum, s) => sum + s.duration_sec, 0);
+  const totalDuration = scenes.reduce((sum, s) => sum + getDisplayDurationSec(s), 0);
 
   return (
     <AppShell title={program.name} breadcrumb={['ホーム', 'プログラム', program.id]}>

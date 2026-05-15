@@ -17,7 +17,22 @@ type ScenePreview = {
   duration_sec: number;
   asset_type: 'video' | 'image' | 'gif' | null;
   thumbnail_url: string | null;
+  asset_duration_ms?: number | null;
 };
+
+// Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
+function getDisplayDurationSec(sp: ScenePreview): number {
+  if (sp.asset_type === 'video' && sp.asset_duration_ms && sp.asset_duration_ms > 0) {
+    return Math.ceil(sp.asset_duration_ms / 1000);
+  }
+  return sp.duration_sec;
+}
+
+// Session 13: プログラム全体の合計秒数 (動画は実長、画像/gif は duration_sec)
+function getProgramTotalSec(scenePreviews?: ScenePreview[], fallback?: number): number {
+  if (!scenePreviews || scenePreviews.length === 0) return fallback ?? 0;
+  return scenePreviews.reduce((sum, sp) => sum + getDisplayDurationSec(sp), 0);
+}
 
 type Program = {
   id: string;
@@ -147,7 +162,7 @@ export default function ProgramsPage() {
                                 {i + 1}
                               </div>
                               <div className={`absolute bottom-0 left-0 right-0 bg-black/75 text-white ${cfg.dur} text-center px-0.5 leading-tight`}>
-                                {scene.duration_sec}s
+                                {getDisplayDurationSec(scene)}s
                               </div>
                             </div>
                             {i < p.scene_previews!.length - 1 && (
@@ -168,7 +183,7 @@ export default function ProgramsPage() {
                   )}
                   <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
                     <Clock className="h-3 w-3" />
-                    {fmtDuration(p.total_duration_sec * 1000)}
+                    {fmtDuration(getProgramTotalSec(p.scene_previews, p.total_duration_sec) * 1000)}
                   </Badge>
                 </div>
               </Link>
