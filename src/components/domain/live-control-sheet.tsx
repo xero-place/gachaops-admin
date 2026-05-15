@@ -186,7 +186,7 @@ export function LiveControlSheet({
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{selected.name}</div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {selected.scene_count} シーン · {fmtDuration(selected.total_duration_sec * 1000)}
+                  {selected.scene_count} シーン · {fmtDuration(getProgramTotalSec((selected as Program & { scene_previews?: Array<{ asset_type: string | null; duration_sec: number; asset_duration_ms?: number | null }> }).scene_previews, selected.total_duration_sec) * 1000)}
                 </div>
               </div>
               <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" onClick={() => setStep('pick')}>
@@ -289,12 +289,26 @@ export function LiveControlSheet({
   );
 }
 
+// Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
+function getDisplayDurationSec(sp: { asset_type: string | null; duration_sec: number; asset_duration_ms?: number | null }): number {
+  if (sp.asset_type === 'video' && sp.asset_duration_ms && sp.asset_duration_ms > 0) {
+    return Math.ceil(sp.asset_duration_ms / 1000);
+  }
+  return sp.duration_sec;
+}
+
+// Session 13: プログラム全体の合計秒数 (動画は実長、画像/gif は duration_sec)
+function getProgramTotalSec(scenePreviews: Array<{ asset_type: string | null; duration_sec: number; asset_duration_ms?: number | null }> | undefined, fallback: number): number {
+  if (!scenePreviews || scenePreviews.length === 0) return fallback;
+  return scenePreviews.reduce((sum, sp) => sum + getDisplayDurationSec(sp), 0);
+}
+
 function ProgramOption({
   program,
   selected,
   onSelect,
 }: {
-  program: Program & { scene_previews?: Array<{ scene_id: string; order_index: number; duration_sec: number; asset_type: string | null; thumbnail_url: string | null }> };
+  program: Program & { scene_previews?: Array<{ scene_id: string; order_index: number; duration_sec: number; asset_type: string | null; thumbnail_url: string | null; asset_duration_ms?: number | null }> };
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -318,7 +332,7 @@ function ProgramOption({
         <div className="text-[10.5px] text-muted-foreground mt-0.5 flex items-center gap-2">
           <span>{program.scene_count} シーン</span>
           <span>·</span>
-          <span>{fmtDuration(program.total_duration_sec * 1000)}</span>
+          <span>{fmtDuration(getProgramTotalSec(previews, program.total_duration_sec) * 1000)}</span>
         </div>
         {selected && (
           <Badge variant="default" className="mt-1.5 text-[10px] h-4 px-1.5">選択中</Badge>
@@ -345,7 +359,7 @@ function ProgramOption({
                   {i + 1}
                 </div>
                 <div className={`absolute bottom-0 left-0 right-0 bg-black/75 text-white ${cfg.dur} text-center px-0.5 leading-tight`}>
-                  {scene.duration_sec}s
+                  {getDisplayDurationSec(scene)}s
                 </div>
               </div>
               {i < previews.length - 1 && (
