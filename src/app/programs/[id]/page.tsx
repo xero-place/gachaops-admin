@@ -47,7 +47,16 @@ type Scene = {
   widgets?: Widget[];
   primary_asset_type?: 'video' | 'image' | 'gif' | null;
   primary_thumbnail_url?: string | null;
+  primary_asset_duration_ms?: number | null;
 };
+
+// Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
+function getDisplayDurationSec(sc: Scene): number {
+  if (sc.primary_asset_type === 'video' && sc.primary_asset_duration_ms && sc.primary_asset_duration_ms > 0) {
+    return Math.ceil(sc.primary_asset_duration_ms / 1000);
+  }
+  return sc.duration_sec;
+}
 
 type Program = {
   id: string;
@@ -308,13 +317,13 @@ export default function ProgramDetailPage() {
                         {i + 1}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-[9px] text-center px-1 leading-tight">
-                        {sc.duration_sec}s
+                        {getDisplayDurationSec(sc)}s
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{sc.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {fmtDuration(sc.duration_sec * 1000)}
+                        {fmtDuration(getDisplayDurationSec(sc) * 1000)}
                         {sc.widget_count && sc.widget_count > 0 ? ` · ${sc.widget_count} ウィジェット` : ''}
                       </div>
                     </div>
