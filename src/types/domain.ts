@@ -379,3 +379,86 @@ export interface DeviceStat {
   uptime_hours: number;
   play_count: number;
 }
+
+// ===== Gacha (Phase G-3+5-E, Session 39) =====
+// 排出順 → 演出マッピング + L1 デフォルト演出設定の UI 型定義
+// 既存スタイル踏襲: interface XxxOut/XxxIn, snake_case 列名 (DB 一致)
+
+/**
+ * 演出パック (gacha_effect_packs)
+ * HTML5 演出 5 種 (normal/bronze/silver/gold/rainbow) を表現。
+ * Session 40+ で CRUD UI 対応予定。Session 39 は読み取りのみ。
+ */
+export interface GachaEffectPack {
+  id: string;
+  customer_id: string | null;
+  code: string;
+  name: string;
+  description: string | null;
+  /** 'html5' | 'mp4' */
+  effect_type: string;
+  html_template: string | null;
+  asset_id: string | null;
+  /** 演出表示時間 (ミリ秒) */
+  duration_ms: number;
+  /** 1=normal, 2=bronze, 3=silver, 4=gold, 5=rainbow */
+  tier: number;
+  bgm_url: string | null;
+  is_builtin: boolean;
+  is_active: boolean;
+}
+
+/**
+ * 抽選プール (gacha_pools)
+ * 1 プール = 複数マシンで共有可能。Session 39 ではプール単位で演出設定。
+ */
+export interface GachaPool {
+  id: string;
+  customer_id: string;
+  program_id: string | null;
+  name: string;
+  description: string | null;
+  /** L1 デフォルト演出: マッピング未設定時のフォールバック */
+  default_effect_pack_id: string | null;
+  max_ball_number: number;
+  price_per_draw: number;
+  accepted_payment_methods: string[];
+  is_active: boolean;
+}
+
+/**
+ * 排出順 → 演出マッピング (gacha_draw_order_effects)
+ * 1〜100 の各排出順に演出パックを割り当て。
+ * UNIQUE (pool_id, draw_order)。
+ */
+export interface GachaDrawOrderEffect {
+  id: number;
+  pool_id: string;
+  draw_order: number;
+  effect_pack_id: string;
+  prize_name: string | null;
+  prize_value: number | null;
+  notes: string | null;
+}
+
+/**
+ * bulk upsert リクエスト 1 項目
+ */
+export interface GachaDrawOrderEffectBulkItem {
+  draw_order: number;
+  effect_pack_id: string;
+  prize_name?: string | null;
+  prize_value?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * bulk upsert レスポンス
+ */
+export interface GachaDrawOrderEffectBulkResult {
+  pool_id: string;
+  inserted: number;
+  updated: number;
+  deleted: number;
+  total_after: number;
+}
