@@ -368,8 +368,8 @@ export default function VideoSourcesPage() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {(['server', 'hdmi1', 'hdmi2', 'usb', 'youtube'] as SourceType[]).map(
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {(['server', 'hdmi1', 'hdmi2', 'usb'] as SourceType[]).map(
                     (src) => (
                       <Button
                         key={src}
@@ -395,20 +395,6 @@ export default function VideoSourcesPage() {
                   )}
                 </div>
 
-                {/* YouTube URL 入力欄 */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="youtube-url" className="text-xs">
-                    YouTube URL (YouTube ボタンで送信)
-                  </Label>
-                  <Input
-                    id="youtube-url"
-                    type="text"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    className="text-xs"
-                  />
-                </div>
 
                 {/* 送信結果 */}
                 {lastResult && (
