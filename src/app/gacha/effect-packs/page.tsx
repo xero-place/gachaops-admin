@@ -1,23 +1,32 @@
 'use client';
 
 /**
- * /gacha/effect-packs — 演出パック管理ページ (Phase G-3+5-E #3, Session 41 / R3)
+ * /gacha/effect-packs — 演出パック管理ページ (Phase G-3+5-E #3)
  *
  * 顧客 admin (lv2_admin 以上) が、演出パックの:
  *   - 一覧表示 (組み込み 5 種 normal/bronze/silver/gold/rainbow + 自社パック)
- *   - 演出秒数 (duration_ms) の変更 ← R3 の主目的
- *   - 名称・説明・BGM URL・有効/無効の編集
+ *   - 演出秒数 (duration_ms) の変更                          ← R3 (Session 41)
+ *   - 名称・説明・BGM URL・有効/無効の編集                    ← R3 (Session 41)
+ *   - 演出パックの新規作成                                    ← R1 (Session 42)
+ *   - 演出パックの削除 (参照中は確認の上 force 削除)           ← R1 (Session 42)
  *
- * バックエンド API (Session 41 で追加、すべて lv2_admin 以上必須):
- *   - GET /v1/gacha/effect-packs            (一覧: 自社パック + builtin)
- *   - PUT /v1/gacha/effect-packs/{pack_id}  (部分更新)
+ * バックエンド API (すべて lv2_admin 以上必須):
+ *   - GET    /v1/gacha/effect-packs            (一覧: 自社パック + builtin)
+ *   - POST   /v1/gacha/effect-packs            (新規作成, Session 42)
+ *   - PUT    /v1/gacha/effect-packs/{pack_id}  (部分更新)
+ *   - DELETE /v1/gacha/effect-packs/{pack_id}  (削除, ?force=true, Session 42)
  *
  * 権限の注意:
- *   - builtin パック (is_builtin=true) は lv1_super のみ編集可。
+ *   - builtin パック (is_builtin=true) は lv1_super のみ編集可・削除不可。
  *     lv2_admin が builtin を編集しようとするとサーバが 403 を返す。
- *   - 演出パックの新規作成 (POST) / 削除 (DELETE) は R1 の領分 → Session 42 以降。
+ *   - 新規作成されるパックは常に is_builtin=false、customer_id=自顧客。
  *
- * 雛形: /gacha/draw-effects/page.tsx (Session 39) と同一の作法・スタイル。
+ * 削除の注意 (R1):
+ *   演出パックを削除すると、それを参照する排出順マッピング
+ *   (gacha_draw_order_effects) は DB の FK=CASCADE で連鎖削除される。
+ *   サーバは削除前に参照を集計し、参照があれば blocked=true を返す。
+ *   その場合 UI は件数を明示し、ユーザが了承したときのみ ?force=true で
+ *   再度削除を呼ぶ。
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -47,9 +56,11 @@ import {
   Save,
   CheckCircle2,
   Lock,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
-/** duration_ms の許容範囲 (バックエンド EffectPackUpdate と一致させること) */
+/** duration_ms の許容範囲 (バックエンド EffectPackUpdate / EffectPackCreate と一致させること) */
 const DURATION_MS_MIN = 500;
 const DURATION_MS_MAX = 60000;
 
@@ -71,6 +82,17 @@ const TIER_LABEL: Record<number, string> = {
   5: 'レインボー',
 };
 
+/** DELETE /effect-packs/{id} のレスポンス形 (バックエンド EffectPackDeleteResult) */
+interface EffectPackDeleteResult {
+  deleted: boolean;
+  pack_id: string;
+  blocked: boolean;
+  draw_order_effect_refs: number;
+  pool_refs: number;
+  customer_refs: number;
+  detail: string | null;
+}
+
 export default function GachaEffectPacksPage() {
   // ─── 状態 ───
   const [packs, setPacks] = useState<GachaEffectPack[]>([]);
@@ -87,6 +109,27 @@ export default function GachaEffectPacksPage() {
   const [editBgmUrl, setEditBgmUrl] = useState<string>('');
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
   const [editSaving, setEditSaving] = useState(false);
+
+  // ─── 新規作成ダイアログ状態 (R1) ───
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createCode, setCreateCode] = useState<string>('');
+  const [createName, setCreateName] = useState<string>('');
+  const [createEffectType, setCreateEffectType] = useState<string>('html5');
+  const [createTier, setCreateTier] = useState<string>('1');
+  const [createDurationMs, setCreateDurationMs] = useState<string>('5000');
+  const [createDescription, setCreateDescription] = useState<string>('');
+  const [createBgmUrl, setCreateBgmUrl] = useState<string>('');
+  const [createHtmlTemplate, setCreateHtmlTemplate] = useState<string>('');
+  const [createAssetId, setCreateAssetId] = useState<string>('');
+  const [createSaving, setCreateSaving] = useState(false);
+
+  // ─── 削除確認ダイアログ状態 (R1) ───
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<GachaEffectPack | null>(null);
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
+  // 参照集計でブロックされたときのみ値が入る (force 削除の確認に使う)
+  const [deleteBlockedInfo, setDeleteBlockedInfo] =
+    useState<EffectPackDeleteResult | null>(null);
 
   // ─── 現在のユーザロール (builtin 編集可否の判定に使用) ───
   const currentRole = useMemo(() => tokenStore.getUser()?.role ?? '', []);
@@ -118,6 +161,12 @@ export default function GachaEffectPacksPage() {
   const canEdit = useCallback(
     (pack: GachaEffectPack) => isSuperAdmin || !pack.is_builtin,
     [isSuperAdmin],
+  );
+
+  // ─── この演出パックを削除できるか (builtin は誰も削除不可) ───
+  const canDelete = useCallback(
+    (pack: GachaEffectPack) => !pack.is_builtin,
+    [],
   );
 
   // ─── 編集ダイアログを開く ───
@@ -194,6 +243,127 @@ export default function GachaEffectPacksPage() {
     }
   };
 
+  // ─── 新規作成ダイアログを開く (R1) ───
+  const openCreateDialog = () => {
+    setCreateCode('');
+    setCreateName('');
+    setCreateEffectType('html5');
+    setCreateTier('1');
+    setCreateDurationMs('5000');
+    setCreateDescription('');
+    setCreateBgmUrl('');
+    setCreateHtmlTemplate('');
+    setCreateAssetId('');
+    setCreateDialogOpen(true);
+  };
+
+  // ─── 新規作成ダイアログ: 保存 (R1) ───
+  const handleCreateSave = async () => {
+    // 入力バリデーション (サーバ側 EffectPackCreate と一致させる)
+    if (!createCode.trim()) {
+      setError('コード (code) は必須です');
+      return;
+    }
+    if (!createName.trim()) {
+      setError('演出名は必須です');
+      return;
+    }
+    const durationMs = parseInt(createDurationMs, 10);
+    if (isNaN(durationMs) || durationMs < DURATION_MS_MIN || durationMs > DURATION_MS_MAX) {
+      setError(
+        `演出秒数は ${DURATION_MS_MIN}〜${DURATION_MS_MAX} ミリ秒の範囲で指定してください`,
+      );
+      return;
+    }
+    const tier = parseInt(createTier, 10);
+    if (isNaN(tier) || tier < 1 || tier > 5) {
+      setError('tier は 1〜5 で指定してください');
+      return;
+    }
+    if (createEffectType === 'mp4' && !createAssetId.trim()) {
+      setError('mp4 演出には素材 ID (asset_id) が必須です');
+      return;
+    }
+
+    setCreateSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        code: createCode.trim(),
+        name: createName.trim(),
+        effect_type: createEffectType,
+        tier,
+        duration_ms: durationMs,
+      };
+      if (createDescription.trim()) body.description = createDescription.trim();
+      if (createBgmUrl.trim()) body.bgm_url = createBgmUrl.trim();
+      if (createEffectType === 'html5' && createHtmlTemplate.trim()) {
+        body.html_template = createHtmlTemplate.trim();
+      }
+      if (createEffectType === 'mp4') {
+        body.asset_id = createAssetId.trim();
+      }
+
+      const created = await api.post<GachaEffectPack>('/gacha/effect-packs', body);
+      // 一覧に追加して tier 順に並べ直す
+      setPacks((prev) =>
+        [...prev, created].sort((a, b) => a.tier - b.tier),
+      );
+      setSuccessMsg(`演出パック「${created.name}」を作成しました`);
+      setCreateDialogOpen(false);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (e) {
+      const msg =
+        e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
+      setError(`作成失敗: ${msg}`);
+    } finally {
+      setCreateSaving(false);
+    }
+  };
+
+  // ─── 削除確認ダイアログを開く (R1) ───
+  const openDeleteDialog = (pack: GachaEffectPack) => {
+    setDeleteTarget(pack);
+    setDeleteBlockedInfo(null);
+    setDeleteDialogOpen(true);
+  };
+
+  // ─── 削除実行 (R1)。force=false で呼び、参照があれば blocked 情報を保持。───
+  const handleDelete = async (force: boolean) => {
+    if (!deleteTarget) return;
+    setDeleteDeleting(true);
+    setError(null);
+    try {
+      const path = force
+        ? `/gacha/effect-packs/${deleteTarget.id}?force=true`
+        : `/gacha/effect-packs/${deleteTarget.id}`;
+      const result = await api.delete<EffectPackDeleteResult>(path);
+
+      if (result.blocked) {
+        // 参照あり: 削除されていない。件数を表示して force 確認に切り替える。
+        setDeleteBlockedInfo(result);
+      } else if (result.deleted) {
+        // 削除成功
+        setPacks((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+        setSuccessMsg(
+          result.draw_order_effect_refs > 0
+            ? `「${deleteTarget.name}」を削除しました (排出順マッピング ${result.draw_order_effect_refs} 件も削除)`
+            : `「${deleteTarget.name}」を削除しました`,
+        );
+        setDeleteDialogOpen(false);
+        setDeleteTarget(null);
+        setDeleteBlockedInfo(null);
+        setTimeout(() => setSuccessMsg(null), 4000);
+      }
+    } catch (e) {
+      const msg =
+        e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
+      setError(`削除失敗: ${msg}`);
+    } finally {
+      setDeleteDeleting(false);
+    }
+  };
+
   return (
     <AppShell title="演出パック管理" breadcrumb={['ガチャ', '演出パック']}>
       <div className="space-y-6">
@@ -205,14 +375,20 @@ export default function GachaEffectPacksPage() {
                 <Sparkles className="h-5 w-5 text-purple-500" />
                 演出パック一覧
               </CardTitle>
-              <Button onClick={reloadPacks} disabled={loading} variant="outline">
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                <span className="ml-2">再読み込み</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={openCreateDialog} disabled={loading}>
+                  <Plus className="h-4 w-4" />
+                  <span className="ml-1">新規作成</span>
+                </Button>
+                <Button onClick={reloadPacks} disabled={loading} variant="outline">
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">再読み込み</span>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -221,7 +397,7 @@ export default function GachaEffectPacksPage() {
               や名称をここで変更できます。
               {!isSuperAdmin && (
                 <span className="block mt-1">
-                  組み込み演出 (ロックアイコン) は変更できません。自社で追加した演出のみ編集可能です。
+                  組み込み演出 (ロックアイコン) は変更・削除できません。自社で追加した演出のみ編集・削除可能です。
                 </span>
               )}
             </p>
@@ -257,7 +433,7 @@ export default function GachaEffectPacksPage() {
                     <th className="px-3 py-2 text-right w-28">演出秒数</th>
                     <th className="px-3 py-2 text-left">説明</th>
                     <th className="px-3 py-2 text-center w-20">状態</th>
-                    <th className="px-3 py-2 text-right w-24">操作</th>
+                    <th className="px-3 py-2 text-right w-36">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -273,6 +449,7 @@ export default function GachaEffectPacksPage() {
                   )}
                   {packs.map((pack) => {
                     const editable = canEdit(pack);
+                    const deletable = canDelete(pack);
                     return (
                       <tr key={pack.id} className="border-t">
                         <td className="px-3 py-2">
@@ -315,7 +492,7 @@ export default function GachaEffectPacksPage() {
                             </Badge>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -329,6 +506,25 @@ export default function GachaEffectPacksPage() {
                           >
                             <Pencil className="h-3 w-3" />
                             <span className="ml-1 text-xs">編集</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!deletable}
+                            onClick={() => openDeleteDialog(pack)}
+                            title={
+                              deletable
+                                ? '削除'
+                                : '組み込み演出は削除できません'
+                            }
+                            className={
+                              deletable
+                                ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                : ''
+                            }
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span className="ml-1 text-xs">削除</span>
                           </Button>
                         </td>
                       </tr>
@@ -424,6 +620,242 @@ export default function GachaEffectPacksPage() {
               )}
               <span className="ml-2">保存</span>
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── 新規作成ダイアログ (R1) ─── */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>演出パックの新規作成</DialogTitle>
+            <DialogDescription>
+              自社の演出パックを新しく追加します。組み込み演出は作成できません。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>コード (code) ※自社内で一意</Label>
+              <Input
+                value={createCode}
+                onChange={(e) => setCreateCode(e.target.value)}
+                placeholder="例: my_custom_gold"
+                maxLength={80}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                半角英数字推奨。同じコードが既にあると作成できません。
+              </p>
+            </div>
+            <div>
+              <Label>演出名</Label>
+              <Input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="例: 限定ゴールド演出"
+                maxLength={200}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>種別</Label>
+                <select
+                  value={createEffectType}
+                  onChange={(e) => setCreateEffectType(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="html5">html5</option>
+                  <option value="mp4">mp4</option>
+                </select>
+              </div>
+              <div>
+                <Label>tier (1-5)</Label>
+                <select
+                  value={createTier}
+                  onChange={(e) => setCreateTier(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {[1, 2, 3, 4, 5].map((t) => (
+                    <option key={t} value={t}>
+                      {t} ({TIER_LABEL[t]})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label>演出秒数 (ミリ秒)</Label>
+              <Input
+                type="number"
+                min={DURATION_MS_MIN}
+                max={DURATION_MS_MAX}
+                step={500}
+                value={createDurationMs}
+                onChange={(e) => setCreateDurationMs(e.target.value)}
+                placeholder="例: 5000"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {DURATION_MS_MIN}〜{DURATION_MS_MAX} ミリ秒の範囲。
+              </p>
+            </div>
+            <div>
+              <Label>説明 (任意)</Label>
+              <Input
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                placeholder="例: 周年記念の特別演出"
+              />
+            </div>
+            {createEffectType === 'html5' ? (
+              <div>
+                <Label>HTML テンプレート (任意)</Label>
+                <Input
+                  value={createHtmlTemplate}
+                  onChange={(e) => setCreateHtmlTemplate(e.target.value)}
+                  placeholder="例: <div class='effect'>...</div>"
+                />
+              </div>
+            ) : (
+              <div>
+                <Label>素材 ID (asset_id) ※mp4 は必須</Label>
+                <Input
+                  value={createAssetId}
+                  onChange={(e) => setCreateAssetId(e.target.value)}
+                  placeholder="例: ast_xxxxxxxxxxxx"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  「素材」ページにアップロード済みの動画素材の ID を入力してください。
+                </p>
+              </div>
+            )}
+            <div>
+              <Label>BGM URL (任意)</Label>
+              <Input
+                value={createBgmUrl}
+                onChange={(e) => setCreateBgmUrl(e.target.value)}
+                placeholder="例: https://..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateDialogOpen(false)}
+              disabled={createSaving}
+            >
+              キャンセル
+            </Button>
+            <Button onClick={handleCreateSave} disabled={createSaving}>
+              {createSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              <span className="ml-2">作成</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── 削除確認ダイアログ (R1) ─── */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>演出パックの削除</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `「${deleteTarget.name}」(${deleteTarget.id}) を削除します。`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteBlockedInfo ? (
+            // ── 参照ありでブロックされた → force 確認 ──
+            <div className="space-y-3">
+              <div className="p-3 rounded bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium mb-1">この演出パックは使用中です。</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-xs">
+                      <li>
+                        排出順マッピング: {deleteBlockedInfo.draw_order_effect_refs} 件
+                        {deleteBlockedInfo.draw_order_effect_refs > 0 && (
+                          <span className="text-red-600 font-medium">
+                            {' '}
+                            ← 一緒に削除されます
+                          </span>
+                        )}
+                      </li>
+                      <li>
+                        プールのデフォルト演出: {deleteBlockedInfo.pool_refs} 件
+                        {deleteBlockedInfo.pool_refs > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            (未設定に戻ります)
+                          </span>
+                        )}
+                      </li>
+                      <li>
+                        アカウントのデフォルト演出: {deleteBlockedInfo.customer_refs} 件
+                        {deleteBlockedInfo.customer_refs > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            (未設定に戻ります)
+                          </span>
+                        )}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                強制削除すると、上記の排出順マッピングも一緒に削除されます。
+                この操作は取り消せません。本当に削除しますか?
+              </p>
+            </div>
+          ) : (
+            // ── 通常の削除確認 ──
+            <p className="text-sm text-muted-foreground">
+              この演出パックを削除します。もしこの演出が排出順マッピングやデフォルト演出に
+              使われている場合は、削除前に件数をお知らせします。
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteDeleting}
+            >
+              キャンセル
+            </Button>
+            {deleteBlockedInfo ? (
+              <Button
+                onClick={() => handleDelete(true)}
+                disabled={deleteDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                <span className="ml-2">強制削除する</span>
+              </Button>
+            ) : (
+              <Button
+                onClick={() => handleDelete(false)}
+                disabled={deleteDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                <span className="ml-2">削除</span>
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
