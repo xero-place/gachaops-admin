@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
       { href: '/video-sources', label: '映像ソース', icon: Tv2, badge: 'NEW' },
       { href: '/gacha/draw-effects', label: 'ガチャ演出', icon: Sparkles, badge: 'NEW' },
+      { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
       { href: '/devices', label: '端末', icon: Monitor },
       { href: '/devices/map', label: '端末マップ', icon: MapPinned },
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
