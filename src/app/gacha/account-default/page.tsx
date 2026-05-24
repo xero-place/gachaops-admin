@@ -271,7 +271,7 @@ export default function GachaAccountDefaultPage() {
                     className="w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value={UNSET_VALUE}>(未設定 — 組み込み演出にフォールバック)</option>
-                    {packs.map((pack) => (
+                    {packs.filter((pack) => pack.effect_type !== 'html5').map((pack) => (
                       <option key={pack.id} value={pack.id}>
                         {pack.name} ({TIER_LABEL[pack.tier] ?? `tier ${pack.tier}`}
                         {pack.is_active ? '' : '・無効'})

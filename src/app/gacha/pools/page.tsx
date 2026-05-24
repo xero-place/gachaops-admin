@@ -603,7 +603,7 @@ export default function GachaPoolsPage() {
                 onChange={(e) => setFormDefaultPackId(e.target.value)}
               >
                 <option value="">未設定</option>
-                {packs.map((p) => (
+                {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
