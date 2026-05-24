@@ -454,7 +454,7 @@ export default function GachaDrawEffectsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">(未設定 = フォールバック)</SelectItem>
-                      {packs.map((p) => (
+                      {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
                         </SelectItem>
@@ -592,7 +592,7 @@ export default function GachaDrawEffectsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {packs.map((p) => (
+                  {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
@@ -683,7 +683,7 @@ export default function GachaDrawEffectsPage() {
                   <SelectValue placeholder="演出パックを選択..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {packs.map((p) => (
+                  {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
