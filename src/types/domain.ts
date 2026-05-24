@@ -427,6 +427,20 @@ export interface GachaPool {
 }
 
 /**
+ * ガチャ什器の状態 (gacha_machines)
+ * 1 device = 1 machine。pool_id でどのプールに属すかを表す (Session 51)。
+ */
+export interface GachaMachine {
+  device_id: string;
+  pool_id: string | null;
+  total_balls: number;
+  remaining_balls: number;
+  low_stock_threshold: number;
+  draw_count: number;
+  status: string;
+}
+
+/**
  * 排出順 → 演出マッピング (gacha_draw_order_effects)
  * 1〜100 の各排出順に演出パックを割り当て。
  * UNIQUE (pool_id, draw_order)。
