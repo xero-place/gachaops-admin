@@ -60,10 +60,6 @@ import {
   Trash2,
 } from 'lucide-react';
 
-/** duration_ms の許容範囲 (バックエンド EffectPackUpdate / EffectPackCreate と一致させること) */
-const DURATION_MS_MIN = 500;
-const DURATION_MS_MAX = 60000;
-
 /** tier (1-5) → 色テーマ */
 const TIER_COLOR: Record<number, string> = {
   1: 'bg-slate-100 text-slate-700 border-slate-300',
@@ -105,7 +101,6 @@ export default function GachaEffectPacksPage() {
   const [editPackId, setEditPackId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>('');
   const [editDescription, setEditDescription] = useState<string>('');
-  const [editDurationMs, setEditDurationMs] = useState<string>('');
   const [editBgmUrl, setEditBgmUrl] = useState<string>('');
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
   const [editSaving, setEditSaving] = useState(false);
@@ -116,7 +111,6 @@ export default function GachaEffectPacksPage() {
   const [createName, setCreateName] = useState<string>('');
   const [createEffectType, setCreateEffectType] = useState<string>('mp4');
   const [createTier, setCreateTier] = useState<string>('1');
-  const [createDurationMs, setCreateDurationMs] = useState<string>('5000');
   const [createDescription, setCreateDescription] = useState<string>('');
   const [createBgmUrl, setCreateBgmUrl] = useState<string>('');
   const [createHtmlTemplate, setCreateHtmlTemplate] = useState<string>('');
@@ -198,7 +192,6 @@ export default function GachaEffectPacksPage() {
     setEditPackId(pack.id);
     setEditName(pack.name);
     setEditDescription(pack.description ?? '');
-    setEditDurationMs(pack.duration_ms.toString());
     setEditBgmUrl(pack.bgm_url ?? '');
     setEditIsActive(pack.is_active);
     setEditDialogOpen(true);
@@ -214,16 +207,6 @@ export default function GachaEffectPacksPage() {
   const handleEditSave = async () => {
     if (!editPackId) return;
 
-    // duration_ms バリデーション (サーバ側 Field(ge/le) と一致)
-    const durationMs = parseInt(editDurationMs, 10);
-    if (isNaN(durationMs) || durationMs < DURATION_MS_MIN || durationMs > DURATION_MS_MAX) {
-      setError(
-        `演出秒数は ${DURATION_MS_MIN}〜${DURATION_MS_MAX} ミリ秒 (${DURATION_MS_MIN / 1000}〜${
-          DURATION_MS_MAX / 1000
-        } 秒) の範囲で指定してください`,
-      );
-      return;
-    }
     if (!editName.trim()) {
       setError('演出名は必須です');
       return;
@@ -239,7 +222,6 @@ export default function GachaEffectPacksPage() {
         if (editDescription !== (editingPack.description ?? '')) {
           body.description = editDescription || null;
         }
-        if (durationMs !== editingPack.duration_ms) body.duration_ms = durationMs;
         if (editBgmUrl !== (editingPack.bgm_url ?? '')) body.bgm_url = editBgmUrl || null;
         if (editIsActive !== editingPack.is_active) body.is_active = editIsActive;
       }
@@ -273,7 +255,6 @@ export default function GachaEffectPacksPage() {
     setCreateName('');
     setCreateEffectType('mp4');
     setCreateTier('1');
-    setCreateDurationMs('5000');
     setCreateDescription('');
     setCreateBgmUrl('');
     setCreateHtmlTemplate('');
@@ -290,13 +271,6 @@ export default function GachaEffectPacksPage() {
     }
     if (!createName.trim()) {
       setError('演出名は必須です');
-      return;
-    }
-    const durationMs = parseInt(createDurationMs, 10);
-    if (isNaN(durationMs) || durationMs < DURATION_MS_MIN || durationMs > DURATION_MS_MAX) {
-      setError(
-        `演出秒数は ${DURATION_MS_MIN}〜${DURATION_MS_MAX} ミリ秒の範囲で指定してください`,
-      );
       return;
     }
     const tier = parseInt(createTier, 10);
@@ -317,7 +291,6 @@ export default function GachaEffectPacksPage() {
         name: createName.trim(),
         effect_type: createEffectType,
         tier,
-        duration_ms: durationMs,
       };
       if (createDescription.trim()) body.description = createDescription.trim();
       if (createBgmUrl.trim()) body.bgm_url = createBgmUrl.trim();
@@ -417,8 +390,7 @@ export default function GachaEffectPacksPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              ガチャ抽選時に再生される演出パックです。演出秒数 (duration_ms)
-              や名称をここで変更できます。
+              ガチャ抽選時に再生される演出パックです。名称や説明をここで変更できます。
               {!isSuperAdmin && (
                 <span className="block mt-1">
                   組み込み演出 (ロックアイコン) は変更・削除できません。自社で追加した演出のみ編集・削除可能です。
@@ -454,7 +426,6 @@ export default function GachaEffectPacksPage() {
                     <th className="px-3 py-2 text-left">演出</th>
                     <th className="px-3 py-2 text-left w-24">tier</th>
                     <th className="px-3 py-2 text-left w-20">種別</th>
-                    <th className="px-3 py-2 text-right w-28">演出秒数</th>
                     <th className="px-3 py-2 text-left">説明</th>
                     <th className="px-3 py-2 text-center w-20">状態</th>
                     <th className="px-3 py-2 text-right w-36">操作</th>
@@ -464,7 +435,7 @@ export default function GachaEffectPacksPage() {
                   {packs.length === 0 && !loading && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         className="px-3 py-6 text-center text-muted-foreground"
                       >
                         演出パックがありません
@@ -477,31 +448,46 @@ export default function GachaEffectPacksPage() {
                     return (
                       <tr key={pack.id} className="border-t">
                         <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            {pack.is_builtin && !isSuperAdmin && (
-                              <Lock
-                                className="h-3 w-3 text-muted-foreground flex-shrink-0"
-                                aria-label="組み込み演出 (編集不可)"
-                              />
-                            )}
-                            <Badge variant="outline" className={TIER_COLOR[pack.tier]}>
-                              {pack.name}
-                            </Badge>
-                          </div>
-                          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                            {pack.id}
+                          <div className="flex items-center gap-3">
+                            {(() => {
+                              const thumb = pack.asset_id
+                                ? assets.find((a) => a.id === pack.asset_id)?.thumbnail_url
+                                : null;
+                              return thumb ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={thumb}
+                                  alt={pack.name}
+                                  className="h-12 w-12 rounded object-cover border flex-shrink-0 bg-muted"
+                                />
+                              ) : (
+                                <div className="h-12 w-12 rounded border flex items-center justify-center bg-muted flex-shrink-0">
+                                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              );
+                            })()}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {pack.is_builtin && !isSuperAdmin && (
+                                  <Lock
+                                    className="h-3 w-3 text-muted-foreground flex-shrink-0"
+                                    aria-label="組み込み演出 (編集不可)"
+                                  />
+                                )}
+                                <Badge variant="outline" className={TIER_COLOR[pack.tier]}>
+                                  {pack.name}
+                                </Badge>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                {pack.id}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs">
                           {TIER_LABEL[pack.tier] ?? `tier ${pack.tier}`}
                         </td>
                         <td className="px-3 py-2 text-xs">{pack.effect_type}</td>
-                        <td className="px-3 py-2 text-right font-mono">
-                          {pack.duration_ms.toLocaleString()} ms
-                          <div className="text-[10px] text-muted-foreground">
-                            {(pack.duration_ms / 1000).toFixed(1)} 秒
-                          </div>
-                        </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-[200px]">
                           {pack.description ?? '-'}
                         </td>
@@ -581,25 +567,6 @@ export default function GachaEffectPacksPage() {
                 placeholder="例: ゴールド"
                 maxLength={200}
               />
-            </div>
-            <div>
-              <Label>演出秒数 (ミリ秒)</Label>
-              <Input
-                type="number"
-                min={DURATION_MS_MIN}
-                max={DURATION_MS_MAX}
-                step={500}
-                value={editDurationMs}
-                onChange={(e) => setEditDurationMs(e.target.value)}
-                placeholder="例: 8000"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {DURATION_MS_MIN}〜{DURATION_MS_MAX} ミリ秒 (
-                {DURATION_MS_MIN / 1000}〜{DURATION_MS_MAX / 1000} 秒) の範囲。
-                {editDurationMs &&
-                  !isNaN(parseInt(editDurationMs, 10)) &&
-                  ` 現在: ${(parseInt(editDurationMs, 10) / 1000).toFixed(1)} 秒`}
-              </p>
             </div>
             <div>
               <Label>説明 (任意)</Label>
@@ -701,21 +668,6 @@ export default function GachaEffectPacksPage() {
                   ))}
                 </select>
               </div>
-            </div>
-            <div>
-              <Label>演出秒数 (ミリ秒)</Label>
-              <Input
-                type="number"
-                min={DURATION_MS_MIN}
-                max={DURATION_MS_MAX}
-                step={500}
-                value={createDurationMs}
-                onChange={(e) => setCreateDurationMs(e.target.value)}
-                placeholder="例: 5000"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {DURATION_MS_MIN}〜{DURATION_MS_MAX} ミリ秒の範囲。
-              </p>
             </div>
             <div>
               <Label>説明 (任意)</Label>
