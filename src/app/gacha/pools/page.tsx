@@ -399,11 +399,11 @@ export default function GachaPoolsPage() {
         {/* ─── ヘッダ ─── */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
               <Container className="h-6 w-6 text-indigo-600" />
               抽選プール
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               店舗・グループ単位で演出を分けるための抽選プールを管理します。
               プールを作成し、什器を割り当て、各プールに演出を設定してください。
             </p>
@@ -428,13 +428,13 @@ export default function GachaPoolsPage() {
 
         {/* ─── 通知 ─── */}
         {error && (
-          <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-400">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
         {successMsg && (
-          <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-700">
+          <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-400">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
@@ -449,19 +449,19 @@ export default function GachaPoolsPage() {
           </CardHeader>
           <CardContent>
             {loading && pools.length === 0 ? (
-              <div className="flex items-center justify-center py-12 text-slate-400">
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 読み込み中...
               </div>
             ) : pools.length === 0 ? (
-              <div className="py-12 text-center text-sm text-slate-400">
+              <div className="py-12 text-center text-sm text-muted-foreground">
                 プールがありません。「新規プール」から作成してください。
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="px-3 py-2">プール名</th>
                       <th className="px-3 py-2">説明</th>
                       <th className="px-3 py-2">既定演出</th>
@@ -475,28 +475,28 @@ export default function GachaPoolsPage() {
                     {pools.map((pool) => (
                       <tr
                         key={pool.id}
-                        className="border-b border-slate-100 last:border-0"
+                        className="border-b border-border/50 last:border-0"
                       >
-                        <td className="px-3 py-3 font-medium text-slate-900">
+                        <td className="px-3 py-3 font-medium text-foreground">
                           {pool.name}
                         </td>
-                        <td className="max-w-xs px-3 py-3 text-slate-500">
+                        <td className="max-w-xs px-3 py-3 text-muted-foreground">
                           {pool.description || '—'}
                         </td>
-                        <td className="px-3 py-3 text-slate-600">
+                        <td className="px-3 py-3 text-foreground">
                           {packName(pool.default_effect_pack_id) ? (
                             <span className="inline-flex items-center gap-1">
                               <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
                               {packName(pool.default_effect_pack_id)}
                             </span>
                           ) : (
-                            <span className="text-slate-400">未設定</span>
+                            <span className="text-muted-foreground">未設定</span>
                           )}
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex flex-wrap gap-1">
                             {pool.accepted_payment_methods.length === 0 ? (
-                              <span className="text-slate-400">—</span>
+                              <span className="text-muted-foreground">—</span>
                             ) : (
                               pool.accepted_payment_methods.map((m) => (
                                 <Badge key={m} variant="outline">
@@ -507,7 +507,7 @@ export default function GachaPoolsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-slate-600">
+                        <td className="px-3 py-3 text-foreground">
                           {pool.price_per_draw} 円
                         </td>
                         <td className="px-3 py-3">
@@ -516,7 +516,7 @@ export default function GachaPoolsPage() {
                               有効
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-slate-500">
+                            <Badge variant="outline" className="text-muted-foreground">
                               無効
                             </Badge>
                           )}
@@ -553,7 +553,7 @@ export default function GachaPoolsPage() {
                 </table>
               </div>
             )}
-            <p className="mt-4 text-xs text-slate-400">
+            <p className="mt-4 text-xs text-muted-foreground">
               演出（既定演出・排出順マッピング）の細かい設定は「ガチャ演出」ページで
               プールを選択して行います。このページではプールの作成と什器の割り当てを行います。
             </p>
@@ -595,7 +595,7 @@ export default function GachaPoolsPage() {
               <Label htmlFor="pool-pack">既定演出（フォールバック）</Label>
               <select
                 id="pool-pack"
-                className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={formDefaultPackId}
                 onChange={(e) => setFormDefaultPackId(e.target.value)}
               >
@@ -633,7 +633,7 @@ export default function GachaPoolsPage() {
                 {PAYMENT_OPTIONS.map((opt) => (
                   <label
                     key={opt.value}
-                    className="flex items-center gap-2 text-sm text-slate-700"
+                    className="flex items-center gap-2 text-sm text-foreground"
                   >
                     <input
                       type="checkbox"
@@ -645,7 +645,7 @@ export default function GachaPoolsPage() {
                 ))}
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={formIsActive}
@@ -717,7 +717,7 @@ export default function GachaPoolsPage() {
                 <Label htmlFor="assign-store">店舗で絞り込み</Label>
                 <select
                   id="assign-store"
-                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={assignStoreFilter}
                   onChange={(e) => setAssignStoreFilter(e.target.value)}
                 >
@@ -732,14 +732,14 @@ export default function GachaPoolsPage() {
             )}
 
             {devices.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400">
+              <div className="py-8 text-center text-sm text-muted-foreground">
                 端末一覧を取得できませんでした。
               </div>
             ) : (
-              <div className="max-h-72 overflow-y-auto rounded-md border border-slate-200">
+              <div className="max-h-72 overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-50">
-                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="px-3 py-2 w-10"></th>
                       <th className="px-3 py-2">端末名</th>
                       <th className="px-3 py-2">店舗</th>
@@ -750,7 +750,7 @@ export default function GachaPoolsPage() {
                     {assignDevices.map((d) => (
                       <tr
                         key={d.id}
-                        className="border-t border-slate-100 hover:bg-slate-50"
+                        className="border-t border-border/50 hover:bg-muted/50"
                       >
                         <td className="px-3 py-2">
                           <input
@@ -759,13 +759,13 @@ export default function GachaPoolsPage() {
                             onChange={() => toggleAssignDevice(d.id)}
                           />
                         </td>
-                        <td className="px-3 py-2 font-medium text-slate-800">
+                        <td className="px-3 py-2 font-medium text-foreground">
                           {d.name}
                         </td>
-                        <td className="px-3 py-2 text-slate-500">
+                        <td className="px-3 py-2 text-muted-foreground">
                           {d.store_name || '—'}
                         </td>
-                        <td className="px-3 py-2 text-slate-400">
+                        <td className="px-3 py-2 text-muted-foreground">
                           {d.serial}
                         </td>
                       </tr>
@@ -775,12 +775,12 @@ export default function GachaPoolsPage() {
               </div>
             )}
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {assignSelected.length} 台を選択中
             </p>
 
             {assignResult && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
                 割り当て結果: {assignResult.assigned} 台に割り当て成功
                 {assignResult.skipped.length > 0 && (
                   <>
