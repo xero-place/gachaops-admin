@@ -123,6 +123,9 @@ export interface Device {
   volume: number;
   /** Brightness 0-100 */
   brightness: number;
+  /** 所属プール (gacha_machines.pool_id), Session 51 */
+  pool_id: string | null;
+  pool_name: string | null;
   created_at: string;
 }
 
