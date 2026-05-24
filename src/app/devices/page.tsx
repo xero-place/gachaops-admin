@@ -213,7 +213,7 @@ export default function DevicesPage() {
               </TableHead>
               <TableHead>端末</TableHead>
               <TableHead>店舗</TableHead>
-              <TableHead>所属プール</TableHead>
+              <TableHead>演出プール</TableHead>
               <TableHead>ステータス</TableHead>
               <TableHead>モード</TableHead>
               <TableHead>再生中</TableHead>

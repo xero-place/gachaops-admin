@@ -442,7 +442,7 @@ export default function GachaEffectPacksPage() {
                       </td>
                     </tr>
                   )}
-                  {packs.map((pack) => {
+                  {packs.filter((pack) => pack.effect_type !== 'html5').map((pack) => {
                     const editable = canEdit(pack);
                     const deletable = canDelete(pack);
                     return (

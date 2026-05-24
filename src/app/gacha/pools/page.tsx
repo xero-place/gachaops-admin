@@ -348,7 +348,10 @@ export default function GachaPoolsPage() {
   // ─── 什器割り当てダイアログを開く ───
   const openAssign = (pool: GachaPool) => {
     setAssignPool(pool);
-    setAssignSelected([]);
+    // 既にこのプールに所属している端末を初期チェック状態にする (Session 51)
+    setAssignSelected(
+      devices.filter((d) => d.pool_id === pool.id).map((d) => d.id),
+    );
     setAssignStoreFilter('');
     setAssignResult(null);
     setAssignOpen(true);
