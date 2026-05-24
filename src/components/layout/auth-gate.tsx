@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { tokenStore } from '@/lib/token-store';
-import { api } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
 /**

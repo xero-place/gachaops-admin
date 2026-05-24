@@ -82,14 +82,14 @@ export function useLivePlayback() {
                 try {
                   const map = JSON.parse(json) as Record<string, DevicePlayback>;
                   setStates(map);
-                } catch (e) {
+                } catch {
                   // Malformed event; skip silently (server may send heartbeats etc later)
                 }
               }
             }
           }
         }
-      } catch (e) {
+      } catch {
         // fetch was aborted (unmount) or network error
         if (cancelledRef.current) return;
       } finally {

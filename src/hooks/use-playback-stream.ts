@@ -67,11 +67,11 @@ export function usePlaybackStream(enabled = true) {
               const parsed = JSON.parse(match[1]);
               setStates(parsed);
               setConnected(true);
-            } catch (e) {
+            } catch {
               // ignore
             }
           }
-        } catch (e) {
+        } catch {
           setConnected(false);
         }
       };

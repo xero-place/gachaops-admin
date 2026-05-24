@@ -77,6 +77,26 @@ export default function AuditLogsPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
+
+  const filtered = useMemo(() => {
+    return auditLogs.filter((log) => {
+      if (actionFilter !== 'all' && log.action !== actionFilter) return false;
+      if (userFilter !== 'all' && log.user_id !== userFilter) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        if (
+          !log.resource_type.toLowerCase().includes(s) &&
+          !(log.resource_id ?? '').toLowerCase().includes(s) &&
+          !(log.user_email ?? '').toLowerCase().includes(s)
+        )
+          return false;
+      }
+      return true;
+    });
+  }, [auditLogs, search, actionFilter, userFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,27 +129,6 @@ export default function AuditLogsPage() {
       </AppShell>
     );
   }
-
-  const [search, setSearch] = useState('');
-  const [actionFilter, setActionFilter] = useState<string>('all');
-  const [userFilter, setUserFilter] = useState<string>('all');
-
-  const filtered = useMemo(() => {
-    return auditLogs.filter((log) => {
-      if (actionFilter !== 'all' && log.action !== actionFilter) return false;
-      if (userFilter !== 'all' && log.user_id !== userFilter) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        if (
-          !log.resource_type.toLowerCase().includes(s) &&
-          !(log.resource_id ?? '').toLowerCase().includes(s) &&
-          !(log.user_email ?? '').toLowerCase().includes(s)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [auditLogs, search, actionFilter, userFilter]);
 
   return (
     <AppShell title="監査ログ" breadcrumb={['ホーム', '監査ログ']}>

@@ -101,8 +101,8 @@ export default function LiveControlPage() {
       window.alert(
         `✅ 緊急停止完了\n\n対象: ${res.target_count}台\n送信: ${res.sent_count}台`
       );
-    } catch (e: any) {
-      window.alert(`❌ 失敗: ${e?.message ?? '不明なエラー'}`);
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
     } finally {
       setEmergencyStopBusy(false);
     }

@@ -20,8 +20,6 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { fmtRelative, fmtDate } from '@/lib/format';
 import type { Device } from '@/types/domain';
@@ -88,7 +86,7 @@ export default function VideoSourcesPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<VideoStatus | null>(null);
   const [history, setHistory] = useState<VideoStatus[]>([]);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeUrl] = useState('');
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [sendingSource, setSendingSource] = useState<SourceType | null>(null);
@@ -195,10 +193,10 @@ export default function VideoSourcesPage() {
         setTimeout(() => {
           if (selectedDeviceId) fetchStatus(selectedDeviceId);
         }, 5_000);
-      } catch (e: any) {
+      } catch (e) {
         setLastResult({
           ok: false,
-          message: `送信失敗: ${e?.message ?? '不明なエラー'}`,
+          message: `送信失敗: ${e instanceof Error ? e.message : '不明なエラー'}`,
           ts: new Date().toISOString(),
         });
       } finally {

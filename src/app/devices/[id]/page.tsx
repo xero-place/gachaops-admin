@@ -99,6 +99,7 @@ export default function DeviceDetailPage() {
   const [tab, setTab] = useState('overview');
   // Tier 1-I: Force-refresh state
   const [refreshing, setRefreshing] = useState(false);
+  const { states: playbackStates } = usePlaybackStream();
 
   useEffect(() => {
     let cancelled = false;
@@ -142,8 +143,8 @@ export default function DeviceDetailPage() {
       } else {
         window.alert(`✅ 送信完了\nstatus: ${res.status}`);
       }
-    } catch (e: any) {
-      window.alert(`❌ 失敗: ${e?.message ?? '不明なエラー'}`);
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
     } finally {
       setRefreshing(false);
     }
@@ -162,7 +163,6 @@ export default function DeviceDetailPage() {
   }
   if (fetchFailed || !baseDetail) notFound();
   // Augment with defaults required by Device type
-  const { states: playbackStates } = usePlaybackStream();
   const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
   const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
   const override = overrides[detail.id];

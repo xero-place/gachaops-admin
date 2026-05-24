@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Edit3, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Save } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 import { fmtDuration } from '@/lib/format';
 

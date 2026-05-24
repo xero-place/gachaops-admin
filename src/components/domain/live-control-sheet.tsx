@@ -58,7 +58,7 @@ export function LiveControlSheet({
 
   // Fetch programs from API when dialog opens
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [loadingPrograms, setLoadingPrograms] = useState(false);
+  const [, setLoadingPrograms] = useState(false);
 
   useEffect(() => {
     if (!open) return;

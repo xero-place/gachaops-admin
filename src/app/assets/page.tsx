@@ -51,13 +51,13 @@ export default function AssetsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get<{ items?: any[]; data?: any[] } | any[]>('/assets?limit=100');
+        const res = await api.get<{ items?: unknown[]; data?: unknown[] } | unknown[]>('/assets?limit=100');
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res.items ?? res.data ?? []);
         if (Array.isArray(arr) && arr.length > 0) {
-          setUploadedAssets(arr as any);
+          setUploadedAssets(arr as Asset[]);
         }
-      } catch (e) {
+      } catch {
       }
     })();
     return () => { cancelled = true; };
@@ -124,7 +124,7 @@ export default function AssetsPage() {
               const newAsset = JSON.parse(xhr.responseText);
               setUploadedAssets((prev) => [newAsset, ...prev]);
               resolve();
-            } catch (err) {
+            } catch {
               reject(new Error('レスポンス解析失敗'));
             }
           } else {
@@ -152,10 +152,10 @@ export default function AssetsPage() {
 
 ファイル: ${file.name}
 サイズ: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
-    } catch (err: any) {
+    } catch (err) {
       window.alert(`❌ アップロード失敗
 
-${err?.message ?? '不明なエラー'}`);
+${err instanceof Error ? err.message : '不明なエラー'}`);
     } finally {
       setUploading(false);
       setUploadProgress(0);

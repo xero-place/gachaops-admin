@@ -42,6 +42,8 @@ const CHANNEL_VARIANT: Record<string, 'ok' | 'warn' | 'muted'> = {
 export default function ApkPage() {
   const [apkReleases, setApkReleases] = useState<ApkRelease[]>([]);
   const [loading, setLoading] = useState(true);
+  const [distributeTarget, setDistributeTarget] = useState<ApkRelease | null>(null);
+  const [distributeMode, setDistributeMode] = useState('staged');
 
   useEffect(() => {
     let cancelled = false;
@@ -69,9 +71,6 @@ export default function ApkPage() {
       </AppShell>
     );
   }
-
-  const [distributeTarget, setDistributeTarget] = useState<ApkRelease | null>(null);
-  const [distributeMode, setDistributeMode] = useState('staged');
 
   return (
     <AppShell title="APK リリース" breadcrumb={['ホーム', 'APK']}>

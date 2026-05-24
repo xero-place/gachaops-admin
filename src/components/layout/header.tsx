@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { tokenStore, type StoredUser } from '@/lib/token-store';
-import { auth, api } from '@/lib/api';
+import { auth } from '@/lib/api';
 
 export function Header({ title, breadcrumb }: { title: string; breadcrumb?: string[] }) {
   const router = useRouter();

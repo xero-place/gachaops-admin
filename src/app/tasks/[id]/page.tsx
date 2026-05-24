@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { TaskStatusBadge } from '@/components/domain/status-badges';
 import { api } from '@/lib/api';
 import { fmtDate, fmtRelative } from '@/lib/format';
-import { ArrowLeft, Pause, RotateCcw, Activity, Loader2 } from 'lucide-react';
+import { ArrowLeft, Activity, Loader2 } from 'lucide-react';
 import type { TaskStatus } from '@/types/domain';
 
 type Task = {
