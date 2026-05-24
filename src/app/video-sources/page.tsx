@@ -274,8 +274,16 @@ export default function VideoSourcesPage() {
                         {d.name}
                       </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground font-mono">
-                      {d.id}
+                    <div className="mt-1">
+                      {d.pool_name ? (
+                        <Badge variant="default" className="text-[10px]">
+                          {d.pool_name}
+                        </Badge>
+                      ) : (
+                        <Badge variant="muted" className="text-[10px]">
+                          演出プール未設定
+                        </Badge>
+                      )}
                     </div>
                     <div className="mt-2 flex gap-1">
                       <Badge
