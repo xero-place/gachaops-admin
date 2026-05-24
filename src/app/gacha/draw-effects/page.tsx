@@ -148,88 +148,29 @@ export default function GachaDrawEffectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── 演出パック一覧取得 (現状は組み込み 5 種のみ、Session 40 で CRUD 対応予定) ───
-  // 注: 専用エンドポイントが未実装のため、effects から effect_pack_id を集約し、
-  //     かつ既知の組み込み 5 種を表示する。Session 40 で /gacha/effect-packs エンドポイントを追加予定。
+  // ─── 演出パック一覧取得 (Session 51: API 取得に変更) ───
+  // 旧実装は組み込み 5 種をハードコードしていたが、/gacha/effect-packs
+  // エンドポイントが実装済みのため API 取得に置き換え。これで自社 mp4
+  // 演出パックも L1・排出順マッピングのドロップダウンに表示される。
   useEffect(() => {
-    const builtin: GachaEffectPack[] = [
-      {
-        id: 'gep_builtin_normal',
-        customer_id: null,
-        code: 'normal',
-        name: '通常 (ノーマル)',
-        description: 'ハズレ・標準',
-        effect_type: 'html5',
-        html_template: null,
-        asset_id: null,
-        duration_ms: 5000,
-        tier: 1,
-        bgm_url: null,
-        is_builtin: true,
-        is_active: true,
-      },
-      {
-        id: 'gep_builtin_bronze',
-        customer_id: null,
-        code: 'bronze',
-        name: 'ブロンズ',
-        description: 'ブロンズ演出',
-        effect_type: 'html5',
-        html_template: null,
-        asset_id: null,
-        duration_ms: 5000,
-        tier: 2,
-        bgm_url: null,
-        is_builtin: true,
-        is_active: true,
-      },
-      {
-        id: 'gep_builtin_silver',
-        customer_id: null,
-        code: 'silver',
-        name: 'シルバー',
-        description: 'シルバー演出',
-        effect_type: 'html5',
-        html_template: null,
-        asset_id: null,
-        duration_ms: 6000,
-        tier: 3,
-        bgm_url: null,
-        is_builtin: true,
-        is_active: true,
-      },
-      {
-        id: 'gep_builtin_gold',
-        customer_id: null,
-        code: 'gold',
-        name: 'ゴールド',
-        description: 'ゴールド演出',
-        effect_type: 'html5',
-        html_template: null,
-        asset_id: null,
-        duration_ms: 8000,
-        tier: 4,
-        bgm_url: null,
-        is_builtin: true,
-        is_active: true,
-      },
-      {
-        id: 'gep_builtin_rainbow',
-        customer_id: null,
-        code: 'rainbow',
-        name: 'レインボー (大当たり)',
-        description: 'レインボー演出',
-        effect_type: 'html5',
-        html_template: null,
-        asset_id: null,
-        duration_ms: 10000,
-        tier: 5,
-        bgm_url: null,
-        is_builtin: true,
-        is_active: true,
-      },
-    ];
-    setPacks(builtin);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<ListResponse<GachaEffectPack> | GachaEffectPack[]>(
+          '/gacha/effect-packs',
+        );
+        const list = Array.isArray(res) ? res : res.items ?? res.data ?? [];
+        if (cancelled) return;
+        setPacks([...list].sort((a, b) => a.tier - b.tier));
+      } catch (e) {
+        if (!cancelled) {
+          setError(`演出パック取得失敗: ${(e as Error).message}`);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ─── マッピング一覧取得 (プール選択時に再取得) ───

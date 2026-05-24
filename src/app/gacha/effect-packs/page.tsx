@@ -478,9 +478,6 @@ export default function GachaEffectPacksPage() {
                                   {pack.name}
                                 </Badge>
                               </div>
-                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                                {pack.id}
-                              </div>
                             </div>
                           </div>
                         </td>
