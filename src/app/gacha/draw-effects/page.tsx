@@ -441,7 +441,7 @@ export default function GachaDrawEffectsPage() {
                   <SelectContent>
                     {pools.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.name} ({p.id})
+                        {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
