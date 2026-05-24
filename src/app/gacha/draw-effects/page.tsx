@@ -456,7 +456,7 @@ export default function GachaDrawEffectsPage() {
                       <SelectItem value="__none__">(未設定 = フォールバック)</SelectItem>
                       {packs.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name} (tier {p.tier}, {p.duration_ms / 1000}s)
+                          {p.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -476,12 +476,6 @@ export default function GachaDrawEffectsPage() {
                   )}
                   <span className="ml-2">保存</span>
                 </Button>
-              </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                現在の設定:{' '}
-                <span className="font-mono">
-                  {selectedPool.default_effect_pack_id ?? '(未設定)'}
-                </span>
               </div>
             </CardContent>
           </Card>
@@ -523,7 +517,6 @@ export default function GachaDrawEffectsPage() {
                   <tr>
                     <th className="px-3 py-2 text-left w-16">排出順</th>
                     <th className="px-3 py-2 text-left">演出</th>
-                    <th className="px-3 py-2 text-left w-24">tier / 秒数</th>
                     <th className="px-3 py-2 text-left">景品名</th>
                     <th className="px-3 py-2 text-left w-32">メモ</th>
                     <th className="px-3 py-2 text-right w-24">操作</th>
@@ -548,9 +541,6 @@ export default function GachaDrawEffectsPage() {
                           ) : (
                             <span className="text-xs italic">(未設定)</span>
                           )}
-                        </td>
-                        <td className="px-3 py-1.5 text-xs">
-                          {pack ? `${TIER_LABEL[pack.tier]} / ${pack.duration_ms / 1000}s` : '-'}
                         </td>
                         <td className="px-3 py-1.5">{effect?.prize_name ?? '-'}</td>
                         <td className="px-3 py-1.5 text-xs truncate max-w-[150px]" title={effect?.notes ?? ''}>
@@ -604,7 +594,7 @@ export default function GachaDrawEffectsPage() {
                 <SelectContent>
                   {packs.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} (tier {p.tier}, {p.duration_ms / 1000}s)
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -695,7 +685,7 @@ export default function GachaDrawEffectsPage() {
                 <SelectContent>
                   {packs.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} (tier {p.tier}, {p.duration_ms / 1000}s)
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

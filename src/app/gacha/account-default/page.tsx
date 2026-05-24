@@ -292,8 +292,7 @@ export default function GachaAccountDefaultPage() {
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {TIER_LABEL[selectedPack.tier] ?? `tier ${selectedPack.tier}`} ·{' '}
-                        {selectedPack.effect_type} ·{' '}
-                        {(selectedPack.duration_ms / 1000).toFixed(1)} 秒
+                        {selectedPack.effect_type}
                       </span>
                       {!selectedPack.is_active && (
                         <Badge variant="outline" className="bg-slate-100 text-slate-500">
