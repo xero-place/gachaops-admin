@@ -46,7 +46,7 @@ import {
 } from '@/components/ui/dialog';
 import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import type { GachaEffectPack } from '@/types/domain';
+import type { GachaEffectPack, Asset } from '@/types/domain';
 import {
   Sparkles,
   Loader2,
@@ -114,7 +114,7 @@ export default function GachaEffectPacksPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createCode, setCreateCode] = useState<string>('');
   const [createName, setCreateName] = useState<string>('');
-  const [createEffectType, setCreateEffectType] = useState<string>('html5');
+  const [createEffectType, setCreateEffectType] = useState<string>('mp4');
   const [createTier, setCreateTier] = useState<string>('1');
   const [createDurationMs, setCreateDurationMs] = useState<string>('5000');
   const [createDescription, setCreateDescription] = useState<string>('');
@@ -122,6 +122,9 @@ export default function GachaEffectPacksPage() {
   const [createHtmlTemplate, setCreateHtmlTemplate] = useState<string>('');
   const [createAssetId, setCreateAssetId] = useState<string>('');
   const [createSaving, setCreateSaving] = useState(false);
+
+  // ─── mp4 素材選択用の動画 asset 一覧 (R1残: asset_id ドロップダウン化) ───
+  const [assets, setAssets] = useState<Asset[]>([]);
 
   // ─── 削除確認ダイアログ状態 (R1) ───
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -156,6 +159,27 @@ export default function GachaEffectPacksPage() {
   useEffect(() => {
     void reloadPacks();
   }, [reloadPacks]);
+
+  // ─── 動画 asset 一覧を取得 (R1残: asset 選択ドロップダウン用) ───
+  // assets/page.tsx と同じく揺れたレスポンス形 (配列 / items / data) を正規化する。
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api.get<{ items?: Asset[]; data?: Asset[] } | Asset[]>(
+          '/assets?limit=100',
+        );
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res.items ?? res.data ?? []);
+        if (Array.isArray(arr)) setAssets(arr as Asset[]);
+      } catch {
+        // asset 取得失敗時は空のまま。作成時の必須バリデーションで弾かれる。
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ─── この演出パックを編集できるか (builtin は lv1_super のみ) ───
   const canEdit = useCallback(
@@ -247,7 +271,7 @@ export default function GachaEffectPacksPage() {
   const openCreateDialog = () => {
     setCreateCode('');
     setCreateName('');
-    setCreateEffectType('html5');
+    setCreateEffectType('mp4');
     setCreateTier('1');
     setCreateDurationMs('5000');
     setCreateDescription('');
@@ -658,14 +682,10 @@ export default function GachaEffectPacksPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>種別</Label>
-                <select
-                  value={createEffectType}
-                  onChange={(e) => setCreateEffectType(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="html5">html5</option>
-                  <option value="mp4">mp4</option>
-                </select>
+                {/* NEW S45-B: 演出は mp4 に一本化。html5 は新規作成不可。 */}
+                <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  mp4
+                </div>
               </div>
               <div>
                 <Label>tier (1-5)</Label>
@@ -705,28 +725,28 @@ export default function GachaEffectPacksPage() {
                 placeholder="例: 周年記念の特別演出"
               />
             </div>
-            {createEffectType === 'html5' ? (
-              <div>
-                <Label>HTML テンプレート (任意)</Label>
-                <Input
-                  value={createHtmlTemplate}
-                  onChange={(e) => setCreateHtmlTemplate(e.target.value)}
-                  placeholder="例: <div class='effect'>...</div>"
-                />
-              </div>
-            ) : (
-              <div>
-                <Label>素材 ID (asset_id) ※mp4 は必須</Label>
-                <Input
-                  value={createAssetId}
-                  onChange={(e) => setCreateAssetId(e.target.value)}
-                  placeholder="例: ast_xxxxxxxxxxxx"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  「素材」ページにアップロード済みの動画素材の ID を入力してください。
-                </p>
-              </div>
-            )}
+            {/* NEW S45-B で mp4 一本化したため html5 用の HTML テンプレート欄は廃止。
+                R1残: 素材 ID のテキスト入力を、動画 asset の選択ドロップダウンに変更。 */}
+            <div>
+              <Label>素材 (動画 asset) ※必須</Label>
+              <select
+                value={createAssetId}
+                onChange={(e) => setCreateAssetId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">— 動画素材を選択 —</option>
+                {assets
+                  .filter((a) => a.type === 'video')
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                「素材」ページにアップロード済みの動画素材から選択してください。
+              </p>
+            </div>
             <div>
               <Label>BGM URL (任意)</Label>
               <Input
