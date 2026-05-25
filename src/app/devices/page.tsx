@@ -23,12 +23,13 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Volume2, Power, Camera, Search, Zap, Undo2, X, Loader2 } from 'lucide-react';
+import { Volume2, Power, Camera, Search, Zap, Undo2, X, Loader2, Plus } from 'lucide-react';
 import {
   DeviceStatusBadge,
   PlayModeBadge,
 } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
+import { DeviceCreateDialog } from '@/components/domain/device-create-dialog';
 import { api } from '@/lib/api';
 import type { Device, Store } from '@/types/domain';
 import { useLiveStore, applyOverridesToDevices } from '@/stores/live-control-store';
@@ -73,6 +74,7 @@ export default function DevicesPage() {
   const [storeFilter, setStoreFilter] = useState<string>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
   const restorePlan = useLiveStore((s) => s.restorePlan);
 
@@ -188,6 +190,13 @@ export default function DevicesPage() {
             disabled={filtered.filter((d) => d.status === 'online').length === 0}
           >
             <Zap className="h-3.5 w-3.5" />絞込中の全端末を選択
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />新規端末作成
           </Button>
         </CardContent>
       </Card>
@@ -331,6 +340,15 @@ export default function DevicesPage() {
               }
             : null
         }
+      />
+
+      <DeviceCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        stores={stores}
+        onCreated={(device) => {
+          setDevices((prev) => [device, ...prev]);
+        }}
       />
     </AppShell>
   );

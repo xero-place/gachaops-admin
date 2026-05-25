@@ -479,3 +479,22 @@ export interface GachaDrawOrderEffectBulkResult {
   deleted: number;
   total_after: number;
 }
+// ============================================================
+// ↓↓↓ ここから下を src/types/domain.ts の末尾に貼り付けてください ↓↓↓
+// （Session 55 追加 / device 作成 API 用の型）
+// ============================================================
+
+// device 作成 API (POST /devices) の入力。
+// customer_id はサーバがログインユーザーの JWT から補うため、送らない。
+export interface DeviceCreateInput {
+  name: string;
+  store_id: string;
+  serial: string;
+}
+
+// device 作成 API (POST /devices) のレスポンス。
+// provisioning_code は作成時のレスポンスにのみ含まれる
+// （一覧 GET /devices や 取得 GET /devices/{id} の DeviceOut には含まれない）。
+export interface DeviceCreateResult extends Device {
+  provisioning_code: string;
+}
