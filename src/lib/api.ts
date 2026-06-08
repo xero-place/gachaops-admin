@@ -62,8 +62,9 @@ async function call<T>(
   init?: RequestInit,
   retried = false,
 ): Promise<T> {
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isForm ? {} : { 'Content-Type': 'application/json' }),
     ...(init?.headers as Record<string, string> | undefined),
   };
   const access = tokenStore.getAccess();
@@ -74,7 +75,9 @@ async function call<T>(
   const res = await fetch(BASE_URL + path, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined
+      ? (isForm ? (body as FormData) : JSON.stringify(body))
+      : undefined,
     cache: 'no-store',
     ...init,
   });

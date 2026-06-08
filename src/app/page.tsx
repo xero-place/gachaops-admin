@@ -9,6 +9,8 @@ import {
   Activity,
   AlertTriangle,
   Boxes,
+  Coins,
+  HandCoins,
   ReceiptText,
   Wifi,
   Zap,
@@ -76,7 +78,7 @@ export default function DashboardPage() {
         </div>
       </Link>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard
           label="本日の売上"
           value={fmtYen(overview.revenue_today_yen)}
@@ -104,6 +106,19 @@ export default function DashboardPage() {
           deltaLabel={`配信中タスク: ${overview.active_tasks}`}
           icon={<AlertTriangle className="h-4 w-4" />}
           accent={overview.low_stock_inventories > 5 ? 'warn' : undefined}
+        />
+        <KpiCard
+          label="現金コイン売上"
+          value={fmtYen(overview.coin_revenue_today_yen)}
+          deltaLabel="QR決済とは別集計"
+          icon={<Coins className="h-4 w-4" />}
+          accent="primary"
+        />
+        <KpiCard
+          label="メダル投入"
+          value={`${overview.medal_count_today}枚`}
+          deltaLabel="トークンメダル・枚数のみ"
+          icon={<HandCoins className="h-4 w-4" />}
         />
       </div>
 

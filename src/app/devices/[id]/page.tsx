@@ -303,6 +303,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
               <TabsTrigger value="history">タスク履歴</TabsTrigger>
+              <TabsTrigger value="coin">コイン設定</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -461,6 +462,10 @@ export default function DeviceDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="coin">
+              <CoinSettingsCard deviceId={params.id} />
+            </TabsContent>
+
           </Tabs>
         </div>
 
@@ -501,7 +506,7 @@ export default function DeviceDetailPage() {
               ) : (
                 <>
                   <select
-                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-xs"
+                    className="h-9 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-background text-foreground px-3 text-xs"
                     value={selectedPoolId}
                     onChange={(e) => setSelectedPoolId(e.target.value)}
                   >
@@ -539,6 +544,147 @@ export default function DeviceDetailPage() {
         scope={{ device_ids: [detail.id], label: detail.name }}
       />
     </AppShell>
+  );
+}
+
+
+function CoinSettingsCard({ deviceId }: { deviceId: string }) {
+  const KINDS = [
+    { value: 'cash', label: '現金コイン' },
+    { value: 'token', label: 'トークンメダル' },
+  ];
+  type Row = { type_no: number; kind: string; amount_yen: number | null; label: string; is_active: boolean };
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<Row[]>(`/devices/${deviceId}/coin-settings`);
+        if (!cancelled) {
+          const byType: Record<number, Row> = {};
+          for (const r of data) byType[r.type_no] = r;
+          const filled: Row[] = [1, 2, 3].map((n) => byType[n] ?? {
+            type_no: n, kind: 'cash', amount_yen: 0, label: '', is_active: true,
+          });
+          setRows(filled);
+        }
+      } catch {
+        if (!cancelled) {
+          setRows([1, 2, 3].map((n) => ({
+            type_no: n, kind: 'cash', amount_yen: 0, label: '', is_active: true,
+          })));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [deviceId]);
+
+  const update = (idx: number, patch: Partial<Row>) => {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const items = rows
+        .filter((r) => r.is_active)
+        .map((r) => ({
+          type_no: r.type_no,
+          kind: r.kind,
+          amount_yen: r.kind === 'cash' ? Number(r.amount_yen ?? 0) : null,
+          label: r.label || null,
+          is_active: true,
+        }));
+      const saved = await api.put<Row[]>(`/devices/${deviceId}/coin-settings`, { items });
+      const byType: Record<number, Row> = {};
+      for (const r of saved) byType[r.type_no] = r;
+      setRows([1, 2, 3].map((n) => byType[n] ?? {
+        type_no: n, kind: 'cash', amount_yen: 0, label: '', is_active: false,
+      }));
+      setMsg('保存しました。');
+    } catch (e) {
+      const m = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
+      setMsg(`保存に失敗しました: ${m}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">コインアクセプター設定</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          種別番号 1〜3 ごとに、JY-616 のパルスと硬貨・メダルの対応を設定します。JY-616 本体の DIP 設定と一致させてください。
+        </p>
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {rows.map((r, idx) => (
+              <div key={r.type_no} className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">種別 {r.type_no}</span>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={r.is_active}
+                      onChange={(e) => update(idx, { is_active: e.target.checked })}
+                    />
+                    有効
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    className="h-8 flex-1 rounded-md border border-slate-300 dark:border-slate-700 bg-background text-foreground px-2 text-xs"
+                    value={r.kind}
+                    onChange={(e) => update(idx, { kind: e.target.value })}
+                    disabled={!r.is_active}
+                  >
+                    {KINDS.map((k) => (
+                      <option key={k.value} value={k.value}>{k.label}</option>
+                    ))}
+                  </select>
+                  {r.kind === 'cash' && (
+                    <input
+                      type="number"
+                      className="h-8 w-24 rounded-md border border-slate-300 dark:border-slate-700 bg-background text-foreground px-2 text-xs"
+                      placeholder="金額"
+                      value={r.amount_yen ?? 0}
+                      onChange={(e) => update(idx, { amount_yen: Number(e.target.value) })}
+                      disabled={!r.is_active}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    className="h-8 flex-1 rounded-md border border-slate-300 dark:border-slate-700 bg-background text-foreground px-2 text-xs"
+                    placeholder="表示名"
+                    value={r.label}
+                    onChange={(e) => update(idx, { label: e.target.value })}
+                    disabled={!r.is_active}
+                  />
+                </div>
+              </div>
+            ))}
+            <Button size="sm" className="w-full" onClick={() => void handleSave()} disabled={saving}>
+              {saving ? '保存中...' : 'コイン設定を保存'}
+            </Button>
+            {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -17,6 +17,8 @@ export interface NormalisedOverview {
   revenue_7d_yen: number;
   active_tasks: number;
   low_stock_inventories: number;
+  coin_revenue_today_yen: number;
+  medal_count_today: number;
 }
 
 interface RawOverview {
@@ -31,6 +33,8 @@ interface RawOverview {
   active_tasks?: number;
   low_stock_count?: number;
   low_stock_inventories?: number;
+  coin_revenue_today_yen?: number;
+  medal_count_today?: number;
 }
 
 function normalise(raw: RawOverview): NormalisedOverview {
@@ -45,6 +49,8 @@ function normalise(raw: RawOverview): NormalisedOverview {
     revenue_7d_yen: raw.revenue_7d_yen ?? 0,
     active_tasks: raw.active_tasks ?? 0,
     low_stock_inventories: raw.low_stock_inventories ?? raw.low_stock_count ?? 0,
+    coin_revenue_today_yen: raw.coin_revenue_today_yen ?? 0,
+    medal_count_today: raw.medal_count_today ?? 0,
   };
 }
 
@@ -72,6 +78,8 @@ const EMPTY_OVERVIEW: NormalisedOverview = {
   revenue_7d_yen: 0,
   active_tasks: 0,
   low_stock_inventories: 0,
+  coin_revenue_today_yen: 0,
+  medal_count_today: 0,
 };
 
 export function useDashboardData(): DashboardData {
