@@ -13,7 +13,6 @@ import {
   HandCoins,
   ReceiptText,
   Wifi,
-  Zap,
   Loader2,
 } from 'lucide-react';
 import { fmtYen, fmtRelative } from '@/lib/format';
@@ -59,24 +58,6 @@ export default function DashboardPage() {
           データ取得エラー: {error}
         </div>
       )}
-
-      <Link
-        href="/live-control"
-        className="block mb-5 rounded-lg border border-primary/40 bg-gradient-to-r from-primary/15 to-primary/5 p-4 hover:bg-primary/20 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div className="flex-1">
-            <div className="text-sm font-semibold">ライブ操作センター</div>
-            <div className="text-xs text-muted-foreground">
-              全マシンの映像を遠隔で即時切替・店舗単位/グループ単位の一斉配信
-            </div>
-          </div>
-          <span className="text-xs text-primary font-medium">→</span>
-        </div>
-      </Link>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard
