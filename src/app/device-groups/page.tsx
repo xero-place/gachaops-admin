@@ -4,39 +4,60 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useState, useEffect } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Loader2 } from 'lucide-react';
+import { tokenStore } from '@/lib/token-store';
+import { Loader2, Layers3, ChevronRight, Plus, Link2, Sparkles, Crown } from 'lucide-react';
+
+type GroupMember = { device_id: string; is_master: boolean };
 
 type DeviceGroup = {
   id: string;
   customer_id?: string;
   name: string;
-  description?: string | null;
   parent_id: string | null;
-  members_count?: number;
+  linked: boolean;
+  effect_enabled_default: boolean;
   device_count: number;
   child_group_count: number;
-  linked?: boolean;
-  type?: string;
-  metadata?: Record<string, unknown>;
+  members: GroupMember[];
   created_at?: string;
-  updated_at?: string;
 };
-import { Layers3, ChevronRight, Plus, Link2 } from 'lucide-react';
+
+type DeviceLite = { id: string; name?: string };
 
 export default function DeviceGroupsPage() {
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [devices, setDevices] = useState<DeviceLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<DeviceGroup | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
+
+  const reload = useCallback(async () => {
+    const res = await api.get<{ items?: DeviceGroup[] } | DeviceGroup[]>('/device-groups?limit=200');
+    const arr = Array.isArray(res) ? res : (res.items ?? []);
+    setDeviceGroups(arr.map((g) => ({ ...g, members: g.members ?? [] })));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get<{items?: DeviceGroup[]} | DeviceGroup[]>('/device-groups?limit=200');
+        const [groupsRes, devRes] = await Promise.all([
+          api.get<{ items?: DeviceGroup[] } | DeviceGroup[]>('/device-groups?limit=200'),
+          api.get<{ items?: DeviceLite[] } | DeviceLite[]>('/devices?limit=200'),
+        ]);
         if (cancelled) return;
-        const arr = Array.isArray(res) ? res : (res.items ?? []);
-        setDeviceGroups(arr);
+        const groups = Array.isArray(groupsRes) ? groupsRes : (groupsRes.items ?? []);
+        const devs = Array.isArray(devRes) ? devRes : (devRes.items ?? []);
+        setDeviceGroups(groups.map((g) => ({ ...g, members: g.members ?? [] })));
+        setDevices(devs);
       } catch (e) {
         console.error('[device-groups] fetch failed:', e);
       } finally {
@@ -56,16 +77,17 @@ export default function DeviceGroupsPage() {
     );
   }
 
-  // Build tree
   const roots = deviceGroups.filter((g) => g.parent_id === null);
   const childrenOf = (id: string) => deviceGroups.filter((g) => g.parent_id === id);
 
   return (
     <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
       <div className="flex items-center justify-end mb-4">
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />新規グループ
-        </Button>
+        {isSuperAdmin && (
+          <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+            <Plus className="h-3.5 w-3.5" />新規グループ
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -76,25 +98,49 @@ export default function DeviceGroupsPage() {
         <CardContent>
           <ul className="space-y-1">
             {roots.map((root) => (
-              <GroupNode key={root.id} group={root} childrenList={childrenOf(root.id)} depth={0} allGroups={deviceGroups} />
+              <GroupNode
+                key={root.id}
+                group={root}
+                childrenList={childrenOf(root.id)}
+                depth={0}
+                allGroups={deviceGroups}
+                canEdit={isSuperAdmin}
+                onEdit={setEditing}
+              />
             ))}
           </ul>
         </CardContent>
       </Card>
+
+      {editing && (
+        <EditGroupDialog
+          group={editing}
+          devices={devices}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { await reload(); setEditing(null); }}
+        />
+      )}
+      {creating && (
+        <CreateGroupDialog
+          devices={devices}
+          allGroups={deviceGroups}
+          onClose={() => setCreating(false)}
+          onSaved={async () => { await reload(); setCreating(false); }}
+        />
+      )}
     </AppShell>
   );
 }
 
 function GroupNode({
-  group,
-  childrenList,
-  depth,
-  allGroups,
+  group, childrenList, depth, allGroups, canEdit, onEdit,
 }: {
   group: DeviceGroup;
   childrenList: DeviceGroup[];
   depth: number;
   allGroups: DeviceGroup[];
+  canEdit: boolean;
+  onEdit: (g: DeviceGroup) => void;
 }) {
   return (
     <li>
@@ -114,13 +160,20 @@ function GroupNode({
             <Link2 className="h-2.5 w-2.5" />連動再生
           </Badge>
         )}
+        {group.effect_enabled_default && (
+          <Badge variant="secondary" className="gap-1 text-[10px]">
+            <Sparkles className="h-2.5 w-2.5" />演出ON
+          </Badge>
+        )}
         <span className="ml-auto text-xs text-muted-foreground">
           {group.device_count} 台
           {group.child_group_count > 0 && ` · ${group.child_group_count} 子グループ`}
         </span>
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">編集</Button>
-        </div>
+        {canEdit && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>編集</Button>
+          </div>
+        )}
       </div>
       {childrenList.length > 0 && (
         <ul className="space-y-1 mt-1">
@@ -131,10 +184,276 @@ function GroupNode({
               childrenList={allGroups.filter((x) => x.parent_id === c.id)}
               depth={depth + 1}
               allGroups={allGroups}
+              canEdit={canEdit}
+              onEdit={onEdit}
             />
           ))}
         </ul>
       )}
     </li>
+  );
+}
+
+function deviceLabel(devices: DeviceLite[], id: string): string {
+  return devices.find((d) => d.id === id)?.name || id;
+}
+
+function EditGroupDialog({
+  group, devices, onClose, onSaved,
+}: {
+  group: DeviceGroup;
+  devices: DeviceLite[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(group.name);
+  const [linked, setLinked] = useState(group.linked);
+  const [effectDefault, setEffectDefault] = useState(group.effect_enabled_default);
+  const initialMemberIds = group.members.map((m) => m.device_id);
+  const [memberIds, setMemberIds] = useState<string[]>(initialMemberIds);
+  const initialMaster = group.members.find((m) => m.is_master)?.device_id ?? '';
+  const [masterId, setMasterId] = useState<string>(initialMaster);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleMember = (id: string) => {
+    setMemberIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (!next.includes(masterId)) setMasterId('');
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const add = memberIds.filter((id) => !initialMemberIds.includes(id));
+      const remove = initialMemberIds.filter((id) => !memberIds.includes(id));
+      const body: Record<string, unknown> = {
+        name,
+        linked,
+        effect_enabled_default: effectDefault,
+        add_device_ids: add,
+        remove_device_ids: remove,
+      };
+      if (masterId) body.master_device_id = masterId;
+      await api.patch(`/device-groups/${group.id}`, body);
+      onSaved();
+    } catch (e) {
+      console.error('[device-groups] save failed:', e);
+      setError('保存に失敗しました。権限（lv1_super）と接続を確認してください。');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-sm">グループ編集：{group.name}</DialogTitle>
+          <DialogDescription className="text-xs">
+            メンバー・連動再生・演出既定・同期マスターを設定します。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">グループ名</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="edit-linked" checked={linked} onCheckedChange={(c) => setLinked(c === true)} />
+            <label htmlFor="edit-linked" className="text-xs">連動再生（複数台を同期）</label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="edit-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
+            <label htmlFor="edit-effect" className="text-xs">演出をグループ既定で有効にする</label>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
+            <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+              {devices.map((d) => {
+                const isMember = memberIds.includes(d.id);
+                return (
+                  <div key={d.id} className="flex items-center gap-2 px-3 py-2">
+                    <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
+                    <span className="text-xs">{d.name || d.id}</span>
+                    <span className="text-[10px] text-muted-foreground">{d.id}</span>
+                    <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <input
+                        type="radio"
+                        name="master"
+                        disabled={!isMember}
+                        checked={masterId === d.id}
+                        onChange={() => setMasterId(d.id)}
+                      />
+                      <Crown className="h-3 w-3" />master
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              連動再生グループでは、master 端末が同期の基準になります。メンバーに含まれる端末のみ master 指定できます。
+            </p>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>キャンセル</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateGroupDialog({
+  devices, allGroups, onClose, onSaved,
+}: {
+  devices: DeviceLite[];
+  allGroups: DeviceGroup[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [parentId, setParentId] = useState<string>('');
+  const [linked, setLinked] = useState(false);
+  const [effectDefault, setEffectDefault] = useState(true);
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [masterId, setMasterId] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleMember = (id: string) => {
+    setMemberIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (!next.includes(masterId)) setMasterId('');
+      return next;
+    });
+  };
+
+  const handleCreate = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await api.post<{ id: string }>('/device-groups', {
+        name,
+        parent_id: parentId || null,
+        linked,
+      });
+      const needsPatch = effectDefault === false || memberIds.length > 0 || !!masterId;
+      if (created?.id && needsPatch) {
+        const body: Record<string, unknown> = {
+          effect_enabled_default: effectDefault,
+          add_device_ids: memberIds,
+        };
+        if (masterId) body.master_device_id = masterId;
+        await api.patch(`/device-groups/${created.id}`, body);
+      }
+      onSaved();
+    } catch (e) {
+      console.error('[device-groups] create failed:', e);
+      setError('作成に失敗しました。権限（lv1_super）と接続を確認してください。');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-sm">新規グループ作成</DialogTitle>
+          <DialogDescription className="text-xs">
+            グループを作成し、メンバーと同期マスターを設定します。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">グループ名</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例：渋谷店 連動グループ"
+              className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">親グループ（任意）</label>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="">（なし・ルート）</option>
+              {allGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="new-linked" checked={linked} onCheckedChange={(c) => setLinked(c === true)} />
+            <label htmlFor="new-linked" className="text-xs">連動再生（複数台を同期）</label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="new-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
+            <label htmlFor="new-effect" className="text-xs">演出をグループ既定で有効にする</label>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
+            <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+              {devices.map((d) => {
+                const isMember = memberIds.includes(d.id);
+                return (
+                  <div key={d.id} className="flex items-center gap-2 px-3 py-2">
+                    <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
+                    <span className="text-xs">{d.name || d.id}</span>
+                    <span className="text-[10px] text-muted-foreground">{d.id}</span>
+                    <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <input
+                        type="radio"
+                        name="new-master"
+                        disabled={!isMember}
+                        checked={masterId === d.id}
+                        onChange={() => setMasterId(d.id)}
+                      />
+                      <Crown className="h-3 w-3" />master
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>キャンセル</Button>
+          <Button size="sm" onClick={handleCreate} disabled={saving || !name.trim()}>
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}作成
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
