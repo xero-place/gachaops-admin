@@ -11,7 +11,7 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Loader2, Layers3, ChevronRight, Plus, Link2, Sparkles, Crown } from 'lucide-react';
+import { Loader2, Layers3, ChevronRight, Plus, Link2, Sparkles, Crown, Trash2, AlertTriangle } from 'lucide-react';
 
 type GroupMember = { device_id: string; is_master: boolean };
 
@@ -36,6 +36,7 @@ export default function DeviceGroupsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DeviceGroup | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<DeviceGroup | null>(null);
 
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
 
@@ -106,6 +107,7 @@ export default function DeviceGroupsPage() {
                 allGroups={deviceGroups}
                 canEdit={isSuperAdmin}
                 onEdit={setEditing}
+                onDelete={setDeleting}
               />
             ))}
           </ul>
@@ -128,12 +130,19 @@ export default function DeviceGroupsPage() {
           onSaved={async () => { await reload(); setCreating(false); }}
         />
       )}
+      {deleting && (
+        <DeleteGroupDialog
+          group={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={async () => { await reload(); setDeleting(null); }}
+        />
+      )}
     </AppShell>
   );
 }
 
 function GroupNode({
-  group, childrenList, depth, allGroups, canEdit, onEdit,
+  group, childrenList, depth, allGroups, canEdit, onEdit, onDelete,
 }: {
   group: DeviceGroup;
   childrenList: DeviceGroup[];
@@ -141,6 +150,7 @@ function GroupNode({
   allGroups: DeviceGroup[];
   canEdit: boolean;
   onEdit: (g: DeviceGroup) => void;
+  onDelete: (g: DeviceGroup) => void;
 }) {
   return (
     <li>
@@ -172,6 +182,14 @@ function GroupNode({
         {canEdit && (
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>編集</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+              onClick={() => onDelete(group)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
         )}
       </div>
@@ -186,6 +204,7 @@ function GroupNode({
               allGroups={allGroups}
               canEdit={canEdit}
               onEdit={onEdit}
+              onDelete={onDelete}
             />
           ))}
         </ul>
@@ -451,6 +470,86 @@ function CreateGroupDialog({
           <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>キャンセル</Button>
           <Button size="sm" onClick={handleCreate} disabled={saving || !name.trim()}>
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}作成
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteGroupDialog({
+  group, onClose, onDeleted,
+}: {
+  group: DeviceGroup;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const hasMembers = group.device_count > 0;
+  const hasChildren = group.child_group_count > 0;
+  const hasContent = hasMembers || hasChildren;
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.delete(`/device-groups/${group.id}`);
+      onDeleted();
+    } catch (e) {
+      console.error('[device-groups] delete failed:', e);
+      setError('削除に失敗しました。メンバーや子グループを含むグループは削除できない場合があります。先にメンバーを外してください。');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+            グループを削除
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            この操作は取り消せません。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <p className="text-sm">
+            グループ「<span className="font-medium">{group.name}</span>」を削除しますか？
+          </p>
+
+          {hasContent && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2.5 space-y-1">
+              <p className="text-xs font-medium text-red-500 flex items-center gap-1.5">
+                <AlertTriangle className="h-3 w-3" />
+                このグループには以下が含まれています
+              </p>
+              <ul className="text-xs text-muted-foreground list-disc list-inside">
+                {hasMembers && <li>メンバー端末 {group.device_count} 台</li>}
+                {hasChildren && <li>子グループ {group.child_group_count} 個</li>}
+              </ul>
+              <p className="text-[11px] text-muted-foreground">
+                連動再生グループの場合、削除すると同期動作に影響する可能性があります。本当に削除してよいか確認してください。
+              </p>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={deleting}>キャンセル</Button>
+          <Button
+            size="sm"
+            className="bg-red-600 hover:bg-red-700 text-white"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}削除する
           </Button>
         </DialogFooter>
       </DialogContent>
