@@ -20,6 +20,7 @@ import {
   Activity,
   TerminalSquare,
   Building2,
+  Briefcase,
   Settings,
   Zap,
   Tv2,
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: '設定',
     items: [
+      { href: '/customers', label: '顧客', icon: Briefcase },
       { href: '/stores', label: '店舗', icon: Building2 },
       { href: '/products', label: '商品', icon: ShoppingBag },
       { href: '/users', label: 'ユーザ', icon: Users2 },
