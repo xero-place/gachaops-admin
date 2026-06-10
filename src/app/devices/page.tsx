@@ -3,6 +3,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { usePlaybackStream } from '@/hooks/use-playback-stream';
 import { PlaybackStatus } from '@/components/domain/playback-status';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,7 +30,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Volume2, Power, Camera, Search, Zap, Undo2, X, Loader2, Plus } from 'lucide-react';
+import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink } from 'lucide-react';
 import {
   DeviceStatusBadge,
   PlayModeBadge,
@@ -41,6 +48,7 @@ interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 
 export default function DevicesPage() {
   const { states: playbackStates } = usePlaybackStream();
+  const [videoDevice, setVideoDevice] = useState<Device | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,8 +283,15 @@ export default function DevicesPage() {
                   {fmtRelative(d.last_heartbeat_at)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={d.status !== 'online'}>
-                    <Camera className="h-3.5 w-3.5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={d.status !== 'online'}
+                    title="再生中の映像を見る"
+                    onClick={() => setVideoDevice(d)}
+                  >
+                    <Video className="h-3.5 w-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7" disabled={d.status !== 'online'}>
                     <Power className="h-3.5 w-3.5" />
@@ -350,6 +365,34 @@ export default function DevicesPage() {
           setDevices((prev) => [device, ...prev]);
         }}
       />
+
+      <Dialog open={!!videoDevice} onOpenChange={(o) => { if (!o) setVideoDevice(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{videoDevice?.name ?? '端末'} の再生状態</DialogTitle>
+            <DialogDescription>
+              実機画面のリアルタイム映像ではなく、いまこの端末が再生している動画と再生状態を表示します。
+            </DialogDescription>
+          </DialogHeader>
+          {videoDevice && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-4">
+                <PlaybackStatus playback={playbackStates[videoDevice.id]} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                現在この端末が再生しているコンテンツの状態です。実機画面のライブ映像表示は今後対応予定です。
+              </p>
+              <Link
+                href={`/devices/${videoDevice.id}`}
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                端末の詳細を見る
+              </Link>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
