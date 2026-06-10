@@ -108,6 +108,25 @@ export default function DeviceDetailPage() {
   const [tab, setTab] = useState('overview');
   // Tier 1-I: Force-refresh state
   const [refreshing, setRefreshing] = useState(false);
+  // リモート設定: 音量・輝度の送信中フラグ
+  const [savingVolume, setSavingVolume] = useState(false);
+  const [savingBrightness, setSavingBrightness] = useState(false);
+
+  const sendDeviceCommand = async (type: 'set_volume' | 'set_brightness', value: number) => {
+    const payload = type === 'set_volume' ? { volume: value } : { brightness: value };
+    const setSaving = type === 'set_volume' ? setSavingVolume : setSavingBrightness;
+    setSaving(true);
+    try {
+      await api.post(`/devices/${params.id}/commands`, { type, payload });
+      setBaseDetail((prev) =>
+        prev ? { ...prev, ...(type === 'set_volume' ? { volume: value } : { brightness: value }) } : prev
+      );
+    } catch (e) {
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '送信に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
   const { states: playbackStates } = usePlaybackStream();
 
   useEffect(() => {
@@ -391,23 +410,20 @@ export default function DeviceDetailPage() {
               <Card className="mt-4">
                 <CardHeader><CardTitle className="text-sm">リモート設定</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <SliderRow icon={<Volume2 className="h-4 w-4" />} label="音量" value={detail.volume} />
-                  <SliderRow icon={<Sun className="h-4 w-4" />} label="輝度" value={detail.brightness} />
-                  <div className="flex items-center gap-3">
-                    <HardDrive className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>ストレージ使用量</span>
-                        <span className="tabular-nums text-muted-foreground">{detail.storage_used_percent ?? 0}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full ${(detail.storage_used_percent ?? 0) > 80 ? 'bg-warn' : 'bg-primary'}`}
-                          style={{ width: `${detail.storage_used_percent ?? 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <RemoteSliderRow
+                    icon={<Volume2 className="h-4 w-4" />}
+                    label="音量"
+                    value={detail.volume}
+                    saving={savingVolume}
+                    onCommit={(v) => void sendDeviceCommand('set_volume', v)}
+                  />
+                  <RemoteSliderRow
+                    icon={<Sun className="h-4 w-4" />}
+                    label="輝度"
+                    value={detail.brightness}
+                    saving={savingBrightness}
+                    onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
+                  />
                 </CardContent>
               </Card>
 
@@ -745,6 +761,60 @@ function CoinSettingsCard({ deviceId }: { deviceId: string }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function RemoteSliderRow({
+  icon,
+  label,
+  value,
+  saving,
+  onCommit,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  saving: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const [dragging, setDragging] = useState(false);
+
+  // 親の値が更新されたら（送信成功後など）、ドラッグ中でなければ追従
+  useEffect(() => {
+    if (!dragging) setLocal(value);
+  }, [value, dragging]);
+
+  const commit = () => {
+    setDragging(false);
+    if (local !== value) onCommit(local);
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-muted-foreground">{icon}</span>
+      <div className="flex-1">
+        <div className="flex justify-between text-xs mb-1">
+          <span>{label}</span>
+          <span className="tabular-nums text-muted-foreground">
+            {saving ? '送信中...' : `${local}%`}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={local}
+          disabled={saving}
+          onChange={(e) => { setDragging(true); setLocal(Number(e.target.value)); }}
+          onPointerUp={commit}
+          onTouchEnd={commit}
+          onMouseUp={commit}
+          onKeyUp={commit}
+          className="w-full accent-primary cursor-pointer disabled:opacity-50"
+        />
+      </div>
+    </div>
   );
 }
 
