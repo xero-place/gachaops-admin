@@ -129,6 +129,9 @@ export default function DashboardPage() {
                 revenue_yen: s.revenue_yen,
                 refunded_count: 0,
                 refunded_yen: 0,
+                qr_revenue_yen: s.qr_revenue_yen ?? 0,
+                cash_revenue_yen: s.cash_revenue_yen ?? 0,
+                medal_count: s.medal_count ?? 0,
               }))}
             />
           ) : (

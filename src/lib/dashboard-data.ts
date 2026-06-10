@@ -61,6 +61,9 @@ export interface SalesPoint {
   date: string;
   revenue_yen: number;
   orders: number;
+  qr_revenue_yen?: number;
+  cash_revenue_yen?: number;
+  medal_count?: number;
 }
 
 export interface DashboardData {

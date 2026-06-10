@@ -373,6 +373,9 @@ export interface SalesStat {
   revenue_yen: number;
   refunded_count: number;
   refunded_yen: number;
+  qr_revenue_yen?: number;
+  cash_revenue_yen?: number;
+  medal_count?: number;
 }
 
 export interface DeviceStat {
