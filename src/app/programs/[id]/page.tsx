@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Save } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
-import { fmtDuration } from '@/lib/format';
+import { fmtDuration, fmtBytes } from '@/lib/format';
 
 type Asset = {
   id: string;
@@ -65,6 +65,7 @@ type Program = {
   total_duration_sec: number;
   published: boolean;
   scene_count?: number;
+  size_bytes?: number;
   widget_count?: number;
 };
 
@@ -350,6 +351,10 @@ export default function ProgramDetailPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">シーン数</span>
                 <span className="font-medium">{scenes.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">容量</span>
+                <span className="font-medium tabular-nums">{fmtBytes(program.size_bytes ?? 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">ステータス</span>

@@ -7,8 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { fmtRelative, fmtDuration } from '@/lib/format';
-import { Search, Plus, Layers, Clock, Eye, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
+import { fmtRelative, fmtDuration, fmtBytes } from '@/lib/format';
+import { Search, Plus, Layers, HardDrive, Clock, Eye, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 
 type ScenePreview = {
@@ -42,6 +42,7 @@ type Program = {
   total_duration_sec: number;
   published: boolean;
   scene_count?: number;
+  size_bytes?: number;
   widget_count?: number;
   thumbnail_url?: string | null;
   scene_previews?: ScenePreview[];
@@ -197,6 +198,9 @@ export default function ProgramsPage() {
                 <div className="flex items-center gap-3 mt-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Layers className="h-3 w-3" />{p.scene_count ?? 0} シーン
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <HardDrive className="h-3 w-3" />{fmtBytes(p.size_bytes ?? 0)}
                   </span>
                   <span className="ml-auto">{fmtRelative(p.updated_at)}</span>
                 </div>
