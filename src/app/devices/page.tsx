@@ -37,7 +37,7 @@ import {
 } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { DeviceCreateDialog } from '@/components/domain/device-create-dialog';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import type { Device, Store } from '@/types/domain';
 import { useLiveStore, applyOverridesToDevices } from '@/stores/live-control-store';
 import { fmtRelative } from '@/lib/format';
@@ -49,6 +49,32 @@ interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 export default function DevicesPage() {
   const { states: playbackStates } = usePlaybackStream();
   const [videoDevice, setVideoDevice] = useState<Device | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const handleForceRefresh = async (device: Device) => {
+    if (refreshingId) return;
+    const ok = window.confirm(
+      `⚠️ ${device.name} を再起動して映像を復帰しますか?\n\n` +
+      `デバイスに停止コマンドを送り、直前の動画を再送信します。\n` +
+      `（電源 OFF/ON と同等・再生が一瞬止まります）`
+    );
+    if (!ok) return;
+    setRefreshingId(device.id);
+    try {
+      const res = await api.post<{ status: string }>(`/devices/${device.id}/force_refresh`, {});
+      if (res.status === 'refreshed') {
+        window.alert('✅ 再起動して映像を復帰しました');
+      } else if (res.status === 'stopped_only') {
+        window.alert('⚠️ 停止のみ実行しました（前回の動画情報なし）');
+      } else {
+        window.alert(`✅ 送信完了（status: ${res.status}）`);
+      }
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message}`);
+    } finally {
+      setRefreshingId(null);
+    }
+  };
   const [devices, setDevices] = useState<Device[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -293,8 +319,17 @@ export default function DevicesPage() {
                   >
                     <Video className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={d.status !== 'online'}>
-                    <Power className="h-3.5 w-3.5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={d.status !== 'online' || refreshingId === d.id}
+                    title="再起動して映像を復帰"
+                    onClick={() => handleForceRefresh(d)}
+                  >
+                    {refreshingId === d.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Power className="h-3.5 w-3.5" />}
                   </Button>
                 </TableCell>
               </TableRow>
