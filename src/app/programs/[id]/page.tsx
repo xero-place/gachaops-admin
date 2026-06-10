@@ -376,6 +376,7 @@ export default function ProgramDetailPage() {
           apiBase={apiBase}
           programId={programId}
           nextOrderIndex={scenes.length}
+          currentSizeBytes={program.size_bytes ?? 0}
           onClose={() => setShowAddScene(false)}
           onCreated={() => {
             setShowAddScene(false);
@@ -391,12 +392,14 @@ function AddSceneModal({
   apiBase,
   programId,
   nextOrderIndex,
+  currentSizeBytes,
   onClose,
   onCreated,
 }: {
   apiBase: string;
   programId: string;
   nextOrderIndex: number;
+  currentSizeBytes: number;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -457,6 +460,17 @@ function AddSceneModal({
     }
     if (durationSec < 1) {
       alert('表示時間は 1 秒以上にしてください');
+      return;
+    }
+    // 容量上限ガード: プログラム合計が 1GB(1,000,000,000 bytes) を超える追加を拒否
+    const PROGRAM_SIZE_LIMIT = 1_000_000_000;
+    const projected = currentSizeBytes + (selectedAsset?.size ?? 0);
+    if (projected > PROGRAM_SIZE_LIMIT) {
+      alert(
+        `この素材を追加するとプログラムの合計容量が上限(1GB)を超えます。\n` +
+        `追加後: ${fmtBytes(projected)}（上限: 1GB）\n` +
+        `マシンで再生できなくなるため追加できません。`
+      );
       return;
     }
     setCreating(true);
