@@ -17,7 +17,7 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2 } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil } from 'lucide-react';
 
 type StoreForm = {
   id: string; name: string; address: string; prefecture: string;
@@ -56,6 +56,7 @@ export default function CustomersPage() {
   const isSuperAdmin = role === 'lv1_super';
   const [wizardOpen, setWizardOpen] = useState(false);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadCustomers = useCallback(async () => {
@@ -127,6 +128,9 @@ export default function CustomersPage() {
                         <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{c.store_count}</span>
                         <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />{c.device_count}</span>
                         <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{c.user_count}</span>
+                        <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />編集
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -141,6 +145,13 @@ export default function CustomersPage() {
         <OnboardWizard
           onClose={() => setWizardOpen(false)}
           onCreated={loadCustomers}
+        />
+      )}
+      {editTarget && (
+        <EditCustomerDialog
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => { setEditTarget(null); loadCustomers(); }}
         />
       )}
     </AppShell>
@@ -476,6 +487,67 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
               {submitting ? '作成中…' : 'オンボード実行'}
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditCustomerDialog({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: CustomerRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(target.name);
+  const [plan, setPlan] = useState(target.plan);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = name.trim() !== target.name || plan.trim() !== target.plan;
+  const canSave = name.trim().length > 0 && plan.trim().length > 0 && dirty && !submitting;
+
+  async function save() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.put(`/customers/${target.id}`, { name: name.trim(), plan: plan.trim() });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>顧客情報を編集</DialogTitle>
+          <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <Field label="顧客名">
+            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+          </Field>
+          <Field label="プラン">
+            <Input value={plan} onChange={(e) => setPlan(e.target.value)} maxLength={40} />
+          </Field>
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>キャンセル</Button>
+          <Button onClick={save} disabled={!canSave}>
+            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}保存
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
