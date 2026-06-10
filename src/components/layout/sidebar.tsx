@@ -23,7 +23,6 @@ import {
   Briefcase,
   Settings,
   Zap,
-  Tv2,
   Sparkles,
   Container,
 } from 'lucide-react';
@@ -47,7 +46,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/', label: 'ダッシュボード', icon: LayoutDashboard },
       { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
-      { href: '/video-sources', label: '映像ソース', icon: Tv2, badge: 'NEW' },
       { href: '/gacha/draw-effects', label: 'ガチャ演出', icon: Sparkles, badge: 'NEW' },
       { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
       { href: '/gacha/account-default', label: 'デフォルト演出', icon: Layers3, badge: 'NEW' },
