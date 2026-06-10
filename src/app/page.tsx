@@ -64,7 +64,7 @@ export default function DashboardPage() {
           label="本日の売上"
           value={fmtYen(overview.revenue_today_yen)}
           delta={salesStats.length >= 2 ? salesDelta : undefined}
-          deltaLabel="前日比"
+          deltaLabel="QR + 現金の合計"
           icon={<ReceiptText className="h-4 w-4" />}
           accent="primary"
         />
@@ -89,16 +89,21 @@ export default function DashboardPage() {
           accent={overview.low_stock_inventories > 5 ? 'warn' : undefined}
         />
         <KpiCard
-          label="現金コイン売上"
-          value={fmtYen(overview.coin_revenue_today_yen)}
-          deltaLabel="QR決済とは別集計"
-          icon={<Coins className="h-4 w-4" />}
-          accent="primary"
+          label="QR売上"
+          value={fmtYen(overview.qr_revenue_today_yen)}
+          deltaLabel="本日・QR決済分"
+          icon={<ReceiptText className="h-4 w-4" />}
         />
         <KpiCard
-          label="メダル投入"
+          label="現金売上"
+          value={fmtYen(overview.coin_revenue_today_yen)}
+          deltaLabel="本日・100円/500円玉"
+          icon={<Coins className="h-4 w-4" />}
+        />
+        <KpiCard
+          label="メダル投入数"
           value={`${overview.medal_count_today}枚`}
-          deltaLabel="トークンメダル・枚数のみ"
+          deltaLabel="トークンメダル・売上には含めません"
           icon={<HandCoins className="h-4 w-4" />}
         />
       </div>
