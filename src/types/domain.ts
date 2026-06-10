@@ -311,7 +311,7 @@ export interface Order {
   product_name: string;
   amount_yen: number;
   status: OrderStatus;
-  payment_provider: 'paypay' | 'cash';
+  payment_provider: 'square' | 'paypay';
   paypay_payment_id: string | null;
   paid_at: string | null;
   refunded_at: string | null;

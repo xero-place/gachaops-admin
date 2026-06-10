@@ -197,7 +197,7 @@ export default function OrdersPage() {
                       )}
                     </div>
                   ) : (
-                    '現金'
+                    'QR決済'
                   )}
                 </TableCell>
                 <TableCell><OrderStatusBadge status={o.status} /></TableCell>
