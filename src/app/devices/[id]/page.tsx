@@ -69,6 +69,7 @@ type DeviceDetail = {
   last_heartbeat_at: string | null;
   current_program_id: string | null;
   current_program_name?: string | null;
+  current_program_size_bytes?: number | null;
   storage_used_percent?: number | null;
   app_version?: string | null;
   android_version?: string | null;
@@ -287,7 +288,7 @@ export default function DeviceDetailPage() {
   }
   if (fetchFailed || !baseDetail) notFound();
   // Augment with defaults required by Device type
-  const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
+  const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, current_program_size_bytes: baseDetail.current_program_size_bytes ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
   const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
   const override = overrides[detail.id];
   const isManual = detail.play_mode === 'manual';
@@ -380,6 +381,9 @@ export default function DeviceDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground font-mono">{detail.current_program_id}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          コンテンツ容量: <span className="tabular-nums">{formatBytes(detail.current_program_size_bytes)}</span>
+                        </div>
                         {playbackStates[detail.id] && (
                           <div className="mt-3 pt-3 border-t">
                             <PlaybackStatus playback={playbackStates[detail.id]} />
@@ -762,6 +766,13 @@ function CoinSettingsCard({ deviceId }: { deviceId: string }) {
       </CardContent>
     </Card>
   );
+}
+
+function formatBytes(bytes?: number | null): string {
+  if (bytes == null || bytes <= 0) return '—';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function RemoteSliderRow({
