@@ -24,6 +24,7 @@ import {
 import { api } from '@/lib/api';
 import type { Device, Store, DeviceGroup } from '@/types/domain';
 import { fmtRelative } from '@/lib/format';
+import { getUpcomingReservation, type PlanScheduleLite } from '@/lib/plan-reservation';
 import {
   Zap,
   Building2,
@@ -38,6 +39,7 @@ import {
   Loader2,
   AlertTriangle,
   PowerOff,
+  CalendarClock,
 } from 'lucide-react';
 
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
@@ -46,24 +48,28 @@ export default function LiveControlPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [planSchedules, setPlanSchedules] = useState<PlanScheduleLite[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [devR, strR, grpR] = await Promise.all([
+        const [devR, strR, grpR, planR] = await Promise.all([
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<DeviceGroup> | DeviceGroup[]>('/device-groups?limit=100').catch(() => [] as DeviceGroup[]),
+          api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100').catch(() => [] as PlanScheduleLite[]),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
         const sArr = Array.isArray(strR) ? strR : (strR.items ?? strR.data ?? []);
         const gArr = Array.isArray(grpR) ? grpR : (grpR.items ?? grpR.data ?? []);
+        const pArr = Array.isArray(planR) ? planR : (planR.items ?? planR.data ?? []);
         setDevices(dArr);
         setStores(sArr);
         setDeviceGroups(gArr);
+        setPlanSchedules(pArr);
       } catch (e) {
         // best effort
         console.error(e);
@@ -122,6 +128,11 @@ export default function LiveControlPage() {
   const manualCount = effectiveDevices.filter((d) => d.play_mode === 'manual').length;
   const planCount = effectiveDevices.filter((d) => d.play_mode === 'plan').length;
   const idleCount = effectiveDevices.filter((d) => d.play_mode === 'idle').length;
+  // 計画配信の予約（未来 slot）がある端末数
+  const reservedCount = useMemo(
+    () => effectiveDevices.filter((d) => getUpcomingReservation(d.group_ids, planSchedules) !== null).length,
+    [effectiveDevices, planSchedules],
+  );
 
   // What's currently playing across the fleet (count by program)
   const playingNow = useMemo(() => {
@@ -166,10 +177,11 @@ export default function LiveControlPage() {
   return (
     <AppShell title="ライブ操作" breadcrumb={['ホーム', 'ライブ操作']}>
       {/* Hero stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <KpiCard icon={<Wifi className="h-4 w-4" />} label="稼働中" value={onlineCount} accent="ok" sub={`/ 全${effectiveDevices.length}台`} />
-        <KpiCard icon={<Zap className="h-4 w-4" />} label="手動切替中" value={manualCount} accent="warn" sub={manualCount > 0 ? '計画モードへ復帰可能' : '0台'} />
-        <KpiCard icon={<Activity className="h-4 w-4" />} label="計画モード" value={planCount} sub="時間割で自動再生" />
+        <KpiCard icon={<Zap className="h-4 w-4" />} label="手動再生中" value={manualCount} accent="warn" sub={manualCount > 0 ? '計画配信へ復帰可能' : '0台'} />
+        <KpiCard icon={<Activity className="h-4 w-4" />} label="計画配信中" value={planCount} sub="計画配信で自動再生" />
+        <KpiCard icon={<CalendarClock className="h-4 w-4" />} label="計画配信予約中" value={reservedCount} accent="ok" sub={reservedCount > 0 ? '配信予定あり' : '0台'} />
         <KpiCard icon={<PlayCircle className="h-4 w-4" />} label="待機/停止" value={idleCount} sub="再生中映像なし" />
       </div>
 
@@ -227,8 +239,8 @@ export default function LiveControlPage() {
         </CardContent>
       </Card>
 
-      {/* Tier 2-E: 緊急操作カード (全マシン即停止) */}
-      <Card className="mt-4 border-red-500/40 bg-red-500/5">
+      {/* 緊急操作カードは非表示（使用しないため）。復活時は className の hidden を外す。 */}
+      <Card className="mt-4 border-red-500/40 bg-red-500/5 hidden">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2 text-red-600 dark:text-red-400">
             <AlertTriangle className="h-4 w-4" />緊急操作

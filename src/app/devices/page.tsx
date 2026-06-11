@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink } from 'lucide-react';
+import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock } from 'lucide-react';
 import {
   DeviceStatusBadge,
   PlayModeBadge,
@@ -41,6 +41,7 @@ import { api, ApiError } from '@/lib/api';
 import type { Device, Store } from '@/types/domain';
 import { useLiveStore, applyOverridesToDevices } from '@/stores/live-control-store';
 import { fmtRelative } from '@/lib/format';
+import { getUpcomingReservation, fmtReservation, type PlanScheduleLite } from '@/lib/plan-reservation';
 import Link from 'next/link';
 import type { DeviceStatus } from '@/types/domain';
 
@@ -76,6 +77,7 @@ export default function DevicesPage() {
     }
   };
   const [devices, setDevices] = useState<Device[]>([]);
+  const [planSchedules, setPlanSchedules] = useState<PlanScheduleLite[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -84,15 +86,18 @@ export default function DevicesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [devR, strR] = await Promise.all([
+        const [devR, strR, planR] = await Promise.all([
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
+          api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
         const sArr = Array.isArray(strR) ? strR : (strR.items ?? strR.data ?? []);
+        const pArr = Array.isArray(planR) ? planR : (planR.items ?? planR.data ?? []);
         setDevices(dArr);
         setStores(sArr);
+        setPlanSchedules(pArr);
       } catch (e) {
         if (cancelled) return;
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -291,6 +296,15 @@ export default function DevicesPage() {
                 </TableCell>
                 <TableCell className="text-xs">
                   {d.current_program_name ?? <span className="text-muted-foreground">—</span>}
+                  {(() => {
+                    const rsv = getUpcomingReservation(d.group_ids, planSchedules);
+                    return rsv ? (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-400">
+                        <CalendarClock className="h-2.5 w-2.5 shrink-0" />
+                        <span>{fmtReservation(rsv.start_at)}から {rsv.program_name} を配信予定</span>
+                      </div>
+                    ) : null;
+                  })()}
                   {playbackStates[d.id] && (
                     <div className="mt-1.5">
                       <PlaybackStatus playback={playbackStates[d.id]} compact />
@@ -368,7 +382,7 @@ export default function DevicesPage() {
                 });
               }}
             >
-              <Undo2 className="h-3.5 w-3.5" />計画モードに戻す ({selectedManualCount})
+              <Undo2 className="h-3.5 w-3.5" />計画配信に戻す ({selectedManualCount})
             </Button>
           )}
           <Button size="sm" className="gap-1.5" onClick={() => setSheetOpen(true)}>

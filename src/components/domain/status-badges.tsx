@@ -29,8 +29,8 @@ export function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
 }
 
 const PLAY_LABELS: Record<PlayMode, string> = {
-  plan: '計画モード',
-  manual: '手動モード',
+  plan: '計画配信中',
+  manual: '手動再生中',
   idle: '待機',
 };
 export function PlayModeBadge({ mode }: { mode: PlayMode }) {

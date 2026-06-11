@@ -220,10 +220,11 @@ export default function DeviceDetailPage() {
   const [curPool, setCurPool] = useState<GachaPool | null>(null);
   const [setPrice, setSetPrice] = useState('');
   const [setEffectPackId, setSetEffectPackId] = useState('');
-  const [setPayCoin, setSetPayCoin] = useState(true);
   const [setPayQr, setSetPayQr] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+  // 投入受付モード（現金=円計上 / メダル=枚数記録）。支払い方法の現金と連動。
+  const [acceptMode, setAcceptMode] = useState<'cash' | 'token' | 'none'>('cash');
 
   const reloadMachine = useCallback(async () => {
     try {
@@ -242,12 +243,24 @@ export default function DeviceDetailPage() {
           setSetPrice(String(pl.price_per_draw ?? ''));
           setSetEffectPackId(pl.default_effect_pack_id ?? '');
           const pm = pl.accepted_payment_methods ?? [];
-          setSetPayCoin(pm.includes('coin'));
           setSetPayQr(pm.includes('qr'));
         } catch {
           // pool 取得失敗時は無視（フォームは空のまま）
         }
       }
+      // 投入受付モードを coin-settings から初期化（type_no=1 が token ならメダル）
+      try {
+        const cs = await api.get<{ type_no: number; kind: string; is_active?: boolean }[]>(
+          `/devices/${params.id}/coin-settings`,
+        );
+        const active = cs.filter((r) => r.is_active !== false);
+        if (active.length === 0) {
+          setAcceptMode('none');
+        } else {
+          const t1 = active.find((r) => r.type_no === 1);
+          setAcceptMode(t1 && t1.kind === 'token' ? 'token' : 'cash');
+        }
+      } catch { /* 取得失敗時は現金モード既定 */ }
       setMachineMissing(false);
     } catch (e) {
       // 什器 (gacha_machine) 未登録の端末は 404。その旨を表示する。
@@ -320,19 +333,35 @@ export default function DeviceDetailPage() {
     setSettingsMsg(null);
     try {
       const pay: string[] = [];
-      if (setPayCoin) pay.push('coin');
+      if (acceptMode === 'cash') pay.push('coin');
       if (setPayQr) pay.push('qr');
       const body: Record<string, unknown> = {
         accepted_payment_methods: pay,
       };
-      const pr = parseInt(setPrice, 10);
-      if (!Number.isNaN(pr)) body.price_per_draw = pr;
+      // 料金は「現金」受付時のみ反映（メダル/受け付けないは料金不要）
+      if (acceptMode === 'cash') {
+        const pr = parseInt(setPrice, 10);
+        if (!Number.isNaN(pr)) body.price_per_draw = pr;
+      }
       if (setEffectPackId === '') {
         body.effect_pack_id_clear = true;
       } else {
         body.default_effect_pack_id = setEffectPackId;
       }
       await api.put<GachaPool>(`/gacha/devices/${params.id}/machine/settings`, body);
+      // 投入受付モードを coin-settings に保存（現金 / メダル / 受け付けない）。
+      const items =
+        acceptMode === 'cash'
+          ? [
+              { type_no: 1, kind: 'cash', amount_yen: 100, label: '100円', is_active: true },
+              { type_no: 5, kind: 'cash', amount_yen: 500, label: '500円', is_active: true },
+            ]
+          : acceptMode === 'token'
+          ? [
+              { type_no: 1, kind: 'token', amount_yen: null, label: 'メダル', is_active: true },
+            ]
+          : []; // 受け付けない（無料ガチャ / QR専用）
+      await api.put(`/devices/${params.id}/coin-settings`, { items });
       await reloadMachine();
       setSettingsMsg('設定を保存しました。');
     } catch (e) {
@@ -404,7 +433,7 @@ export default function DeviceDetailPage() {
                 })
               }
             >
-              <Undo2 className="h-3.5 w-3.5" />計画モードに戻す
+              <Undo2 className="h-3.5 w-3.5" />計画配信に戻す
             </Button>
           )}
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
@@ -428,8 +457,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
               <TabsTrigger value="history">タスク履歴</TabsTrigger>
-              <TabsTrigger value="coin">投入受付</TabsTrigger>
-              <TabsTrigger value="stock">在庫</TabsTrigger>
+                <TabsTrigger value="stock">在庫</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -468,7 +496,7 @@ export default function DeviceDetailPage() {
                             {override.expires_at && (
                               <div className="flex items-center gap-1.5">
                                 <Clock className="h-3 w-3 text-warn" />
-                                {fmtRelative(override.expires_at)}に計画モードへ自動復帰
+                                {fmtRelative(override.expires_at)}に計画配信へ自動復帰
                               </div>
                             )}
                           </div>
@@ -660,29 +688,68 @@ export default function DeviceDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {/* 1回の料金 */}
-                      <div className="space-y-1">
-                        <label htmlFor="set-price" className="text-sm font-medium">1回の料金</label>
-                        <div className="flex items-center gap-2">
-                          <input id="set-price" type="number" inputMode="numeric"
-                            className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
-                            value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
-                          <span className="text-sm text-muted-foreground">円（ハンドル1回ぶん）</span>
-                        </div>
+                      {/* 投入の受付方法（現金 / メダル / 受け付けない） */}
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">投入の受付方法</div>
+                        <p className="text-xs text-muted-foreground">
+                          この什器に投入されたものをどう扱うかを設定します。1台につき一つです。
+                        </p>
+                        <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer transition-colors ${acceptMode === 'cash' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
+                          <input type="radio" name="accept-mode" className="mt-0.5"
+                            checked={acceptMode === 'cash'}
+                            onChange={() => setAcceptMode('cash')} />
+                          <span>
+                            <span className="block font-medium">現金</span>
+                            <span className="block text-xs text-muted-foreground">
+                              100円玉・500円玉を売上（円）として計上します。
+                            </span>
+                          </span>
+                        </label>
+
+                        {/* 1回の料金（現金のときだけ表示） */}
+                        {acceptMode === 'cash' && (
+                          <div className="ml-6 space-y-1">
+                            <label htmlFor="set-price" className="text-sm font-medium">1回の料金</label>
+                            <div className="flex items-center gap-2">
+                              <input id="set-price" type="number" inputMode="numeric"
+                                className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                                value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
+                              <span className="text-sm text-muted-foreground">円（ハンドル1回ぶん）</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer transition-colors ${acceptMode === 'token' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
+                          <input type="radio" name="accept-mode" className="mt-0.5"
+                            checked={acceptMode === 'token'}
+                            onChange={() => setAcceptMode('token')} />
+                          <span>
+                            <span className="block font-medium">メダル</span>
+                            <span className="block text-xs text-muted-foreground">
+                              トークンメダルを枚数として記録します（売上には含めません）。
+                            </span>
+                          </span>
+                        </label>
+                        <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer transition-colors ${acceptMode === 'none' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
+                          <input type="radio" name="accept-mode" className="mt-0.5"
+                            checked={acceptMode === 'none'}
+                            onChange={() => setAcceptMode('none')} />
+                          <span>
+                            <span className="block font-medium">受け付けない</span>
+                            <span className="block text-xs text-muted-foreground">
+                              無料ガチャ、またはQR決済のみで運用します。
+                            </span>
+                          </span>
+                        </label>
                       </div>
 
-                      {/* 支払い方法 */}
+                      {/* QRコード決済（投入とは独立） */}
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">支払い方法（この機械で受け付ける）</div>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={setPayCoin}
-                            onChange={(e) => setSetPayCoin(e.target.checked)} />
-                          現金（硬貨投入で課金）
-                        </label>
+                        <div className="text-sm font-medium">QRコード決済</div>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={setPayQr}
                             onChange={(e) => setSetPayQr(e.target.checked)} />
-                          QRコード決済
+                          QRコード決済を受け付ける
                         </label>
                       </div>
 
@@ -819,9 +886,6 @@ export default function DeviceDetailPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="coin">
-              <CoinSettingsCard deviceId={params.id} />
-            </TabsContent>
 
           </Tabs>
         </div>
@@ -860,119 +924,6 @@ export default function DeviceDetailPage() {
 }
 
 
-function CoinSettingsCard({ deviceId }: { deviceId: string }) {
-  // 投入受付モード（端末ごと・排他）。物理投入(JY-616)を現金として円計上するか、
-  // メダルとして枚数計上するかを切り替える。type_no=1 の kind で現在モードを判定。
-  //   現金モード → type_no=1(現金100円) + type_no=5(現金500円)
-  //   メダルモード → type_no=1(メダル1枚・円計上なし)
-  type Mode = 'cash' | 'token';
-  type Row = { type_no: number; kind: string; amount_yen: number | null; label: string; is_active: boolean };
-
-  const [mode, setMode] = useState<Mode>('cash');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api.get<Row[]>(`/devices/${deviceId}/coin-settings`);
-        if (!cancelled) {
-          const t1 = data.find((r) => r.type_no === 1);
-          // type_no=1 が token ならメダルモード、それ以外（cash/未設定）は現金モード
-          setMode(t1 && t1.kind === 'token' ? 'token' : 'cash');
-        }
-      } catch {
-        if (!cancelled) setMode('cash');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [deviceId]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      const items =
-        mode === 'cash'
-          ? [
-              { type_no: 1, kind: 'cash', amount_yen: 100, label: '100円', is_active: true },
-              { type_no: 5, kind: 'cash', amount_yen: 500, label: '500円', is_active: true },
-            ]
-          : [
-              { type_no: 1, kind: 'token', amount_yen: null, label: 'メダル', is_active: true },
-            ];
-      await api.put<Row[]>(`/devices/${deviceId}/coin-settings`, { items });
-      setMsg(mode === 'cash' ? '現金モードで保存しました。' : 'メダルモードで保存しました。');
-    } catch (e) {
-      const m = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
-      setMsg(`保存に失敗しました: ${m}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">投入受付設定</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          この什器に投入されたものを「現金」「メダル」のどちらとして扱うかを設定します。
-          1台につきどちらか一方です。販売前に切り替えてください。
-        </p>
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <label className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${mode === 'cash' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
-                <input
-                  type="radio"
-                  name="accept-mode"
-                  className="mt-0.5"
-                  checked={mode === 'cash'}
-                  onChange={() => setMode('cash')}
-                />
-                <span>
-                  <span className="block text-sm font-medium">現金</span>
-                  <span className="block text-xs text-muted-foreground">
-                    100円玉・500円玉を売上（円）として計上します。
-                  </span>
-                </span>
-              </label>
-              <label className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${mode === 'token' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
-                <input
-                  type="radio"
-                  name="accept-mode"
-                  className="mt-0.5"
-                  checked={mode === 'token'}
-                  onChange={() => setMode('token')}
-                />
-                <span>
-                  <span className="block text-sm font-medium">メダル</span>
-                  <span className="block text-xs text-muted-foreground">
-                    トークンメダルを枚数として記録します（売上には含めません）。
-                  </span>
-                </span>
-              </label>
-            </div>
-            <Button size="sm" className="w-full" onClick={() => void handleSave()} disabled={saving}>
-              {saving ? '保存中...' : '投入受付設定を保存'}
-            </Button>
-            {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 function formatBytes(bytes?: number | null): string {
   if (bytes == null || bytes <= 0) return '—';

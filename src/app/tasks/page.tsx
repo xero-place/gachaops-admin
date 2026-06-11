@@ -62,9 +62,11 @@ export default function TasksPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!search) return tasks;
+    // APK履歴: APK配信タスクのみ表示（番組/アセット配信は別扱い）
+    const apkOnly = tasks.filter((t) => t.payload_type === 'apk');
+    if (!search) return apkOnly;
     const s = search.toLowerCase();
-    return tasks.filter(
+    return apkOnly.filter(
       (t) =>
         t.name.toLowerCase().includes(s) ||
         (t.payload_ref_name?.toLowerCase().includes(s) ?? false),
@@ -73,7 +75,7 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <AppShell title="配信タスク" breadcrumb={['ホーム', '配信タスク']}>
+      <AppShell title="APK履歴" breadcrumb={['ホーム', 'APK履歴']}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -83,7 +85,7 @@ export default function TasksPage() {
 
 
   return (
-    <AppShell title="配信タスク" breadcrumb={['ホーム', '配信タスク']}>
+    <AppShell title="APK履歴" breadcrumb={['ホーム', 'APK履歴']}>
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px] max-w-md">

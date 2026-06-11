@@ -62,8 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/programs', label: 'プログラム', icon: ClipboardList },
       { href: '/assets', label: '素材', icon: PackageSearch },
-      { href: '/tasks', label: '配信タスク', icon: Activity },
-      { href: '/plan-schedules', label: '時間割', icon: CalendarRange },
+      { href: '/plan-schedules', label: '計画配信', icon: CalendarRange },
     ],
   },
   {
@@ -79,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'システム',
     items: [
+      { href: '/tasks', label: 'APK履歴', icon: Activity },
       { href: '/audit-logs', label: '監査ログ', icon: ShieldCheck },
       { href: '/ws-console', label: 'WSデバッグコンソール', icon: TerminalSquare },
       { href: '/settings', label: '環境設定', icon: Settings },

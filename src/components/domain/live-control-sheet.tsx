@@ -210,14 +210,14 @@ export function LiveControlSheet({
                   </div>
                   <p className="text-muted-foreground">
                     対象端末は <strong>手動モード</strong> に変わります。<br />
-                    元の時間割に戻すには、後で「計画モードに戻す」ボタンを押してください。
+                    元の時間割に戻すには、後で「計画配信に戻す」ボタンを押してください。
                   </p>
                 </div>
               </TabsContent>
               <TabsContent value="expiring" className="mt-3 space-y-3">
                 <div className="rounded-md border bg-card p-3 text-xs space-y-1.5">
                   <div className="font-medium text-sm flex items-center gap-2">
-                    <Clock className="h-3.5 w-3.5 text-primary" />指定時間後、自動で計画モードに戻る
+                    <Clock className="h-3.5 w-3.5 text-primary" />指定時間後、自動で計画配信に戻る
                   </div>
                   <p className="text-muted-foreground">
                     キャンペーンや臨時告知に最適。期限が来ると元の時間割が自動で再開します。
