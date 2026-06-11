@@ -30,7 +30,6 @@ import type { GachaMachine, GachaPool, GachaEffectPack } from '@/types/domain';
 import {
   ArrowLeft,
   Camera,
-  Container,
   Power,
   RefreshCcw,
   Volume2,
@@ -225,10 +224,6 @@ export default function DeviceDetailPage() {
   const [setPayQr, setSetPayQr] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
-  const [pools, setPools] = useState<GachaPool[]>([]);
-  const [selectedPoolId, setSelectedPoolId] = useState<string>('');
-  const [poolSaving, setPoolSaving] = useState(false);
-  const [poolMsg, setPoolMsg] = useState<string | null>(null);
 
   const reloadMachine = useCallback(async () => {
     try {
@@ -253,7 +248,6 @@ export default function DeviceDetailPage() {
           // pool 取得失敗時は無視（フォームは空のまま）
         }
       }
-      setSelectedPoolId(m.pool_id ?? '');
       setMachineMissing(false);
     } catch (e) {
       // 什器 (gacha_machine) 未登録の端末は 404。その旨を表示する。
@@ -268,47 +262,13 @@ export default function DeviceDetailPage() {
   }, [reloadMachine]);
 
   useEffect(() => {
-    let cancelled = false;
     void (async () => {
       try {
-        const data = await api.get<GachaPool[]>('/gacha/pools');
-        try {
-          const eps = await api.get<GachaEffectPack[]>('/gacha/effect-packs');
-          setEffectPacks(eps.filter((e) => e.is_active));
-        } catch { /* 演出パック取得失敗は無視 */ }
-        if (!cancelled) {
-          setPools([...data].sort((a, b) => a.name.localeCompare(b.name, 'ja')));
-        }
-      } catch {
-        // プール一覧取得失敗時は空のまま。
-      }
+        const eps = await api.get<GachaEffectPack[]>('/gacha/effect-packs');
+        setEffectPacks(eps.filter((e) => e.is_active));
+      } catch { /* 演出パック取得失敗は無視 */ }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
-
-  const handlePoolSave = async () => {
-    setPoolSaving(true);
-    setPoolMsg(null);
-    try {
-      const next = selectedPoolId || null;
-      await api.put<GachaMachine>(
-        `/gacha/devices/${params.id}/machine/pool`,
-        { pool_id: next },
-      );
-      await reloadMachine();
-      setPoolMsg('所属プールを更新しました。');
-    } catch (e) {
-      const msg =
-        e instanceof ApiError
-          ? e.problem.detail || e.problem.title
-          : (e as Error).message;
-      setPoolMsg(`更新に失敗しました: ${msg}`);
-    } finally {
-      setPoolSaving(false);
-    }
-  };
 
   const saveStock = async (override?: { remaining?: number }) => {
     setStockSaving(true);
@@ -887,51 +847,6 @@ export default function DeviceDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5 text-sm">
-                <Container className="h-3.5 w-3.5" />
-                所属プール
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-xs">
-              {machineMissing ? (
-                <p className="text-muted-foreground">
-                  この端末には什器 (gacha_machine) が未登録のため、
-                  プールを割り当てできません。
-                </p>
-              ) : (
-                <>
-                  <select
-                    className="h-9 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-background text-foreground px-3 text-xs"
-                    value={selectedPoolId}
-                    onChange={(e) => setSelectedPoolId(e.target.value)}
-                  >
-                    <option value="">プール未所属</option>
-                    {pools.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => void handlePoolSave()}
-                    disabled={
-                      poolSaving ||
-                      selectedPoolId === (machine?.pool_id ?? '')
-                    }
-                  >
-                    {poolSaving ? '保存中...' : 'プールを保存'}
-                  </Button>
-                  {poolMsg && (
-                    <p className="text-muted-foreground">{poolMsg}</p>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
