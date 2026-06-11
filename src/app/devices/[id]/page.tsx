@@ -526,7 +526,7 @@ export default function DeviceDetailPage() {
                       <Sparkles className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <div className="text-sm font-medium">演出再生</div>
-                        <div className="text-xs text-muted-foreground">コイン投入時の当選演出。OFFでも番組は継続し売上は記録されます</div>
+                        <div className="text-xs text-muted-foreground">現金投入時の当選演出。OFFでも番組は継続し売上は記録されます</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function DeviceDetailPage() {
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={setPayCoin}
                             onChange={(e) => setSetPayCoin(e.target.checked)} />
-                          現金（コイン投入で課金）
+                          現金（硬貨投入で課金）
                         </label>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={setPayQr}

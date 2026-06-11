@@ -256,7 +256,6 @@ export default function DevicesPage() {
               </TableHead>
               <TableHead>端末</TableHead>
               <TableHead>店舗</TableHead>
-              <TableHead>演出プール</TableHead>
               <TableHead>ステータス</TableHead>
               <TableHead>モード</TableHead>
               <TableHead>再生中</TableHead>
@@ -283,7 +282,6 @@ export default function DevicesPage() {
                   </Link>
                 </TableCell>
                 <TableCell className="text-xs">{d.store_name}</TableCell>
-                <TableCell className="text-xs">{d.pool_name ?? "—"}</TableCell>
                 <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
