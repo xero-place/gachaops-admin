@@ -20,6 +20,8 @@ type PlanSlot = {
   end_at: string;
   program_id: string;
   program_name: string;
+  revert_program_id?: string;   // 終了後に戻す番組（任意）
+  revert_program_name?: string;
 };
 
 type PlanSchedule = {
@@ -84,6 +86,7 @@ export default function PlanSchedulesPage() {
   const [addFrom, setAddFrom] = useState('09:00');
   const [addTo, setAddTo] = useState('18:00');
   const [addProgram, setAddProgram] = useState('');
+  const [addRevert, setAddRevert] = useState('');
 
   const reload = useCallback(async () => {
     try {
@@ -139,11 +142,13 @@ export default function PlanSchedulesPage() {
     if (!addProgram) { setMsg('番組を選んでください。'); return; }
     if (addFrom >= addTo) { setMsg('終了時刻は開始時刻より後にしてください。'); return; }
     const prog = programs.find((p) => p.id === addProgram);
+    const rev = programs.find((p) => p.id === addRevert);
     const slot: PlanSlot = {
       start_at: toIso(addDate, addFrom),
       end_at: toIso(addDate, addTo),
       program_id: addProgram,
       program_name: prog?.name ?? '',
+      ...(addRevert ? { revert_program_id: addRevert, revert_program_name: rev?.name ?? '' } : {}),
     };
     setDraftSlots((prev) => [...prev, slot].sort((a, b) => a.start_at.localeCompare(b.start_at)));
     setMsg(null);
@@ -283,6 +288,9 @@ export default function PlanSchedulesPage() {
                       <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="tabular-nums">{fmtSlot(s.start_at)} 〜 {fmtSlot(s.end_at)}</span>
                       <span className="text-muted-foreground">{s.program_name || s.program_id}</span>
+                      {s.revert_program_id && (
+                        <span className="text-[10px] text-muted-foreground">→ 終了後 {s.revert_program_name || s.revert_program_id} に戻す</span>
+                      )}
                       <button className="ml-auto text-muted-foreground hover:text-destructive"
                         onClick={() => removeSlot(i)} aria-label="削除">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -296,7 +304,7 @@ export default function PlanSchedulesPage() {
             {/* slot 追加フォーム */}
             <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-3">
               <Label className="text-xs font-medium">スロットを追加</Label>
-              <div className="grid gap-3 sm:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-5">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground">日付</Label>
                   <Input type="date" value={addDate} min={ymd(TODAY)} max={ymd(ONE_MONTH)}
@@ -332,6 +340,16 @@ export default function PlanSchedulesPage() {
                     <SelectTrigger><SelectValue placeholder="番組" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">選択</SelectItem>
+                      {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">終了後に戻す番組（任意）</Label>
+                  <Select value={addRevert || 'none'} onValueChange={(v) => setAddRevert(v === 'none' ? '' : v)}>
+                    <SelectTrigger><SelectValue placeholder="戻さない" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">戻さない（最後の番組のまま）</SelectItem>
                       {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
