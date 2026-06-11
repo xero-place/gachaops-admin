@@ -26,7 +26,7 @@ import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
 import { fmtDate, fmtRelative, WEEKDAYS_JA } from '@/lib/format';
 import { api, ApiError } from '@/lib/api';
-import type { GachaMachine, GachaPool } from '@/types/domain';
+import type { GachaMachine, GachaPool, GachaEffectPack } from '@/types/domain';
 import {
   ArrowLeft,
   Camera,
@@ -216,6 +216,15 @@ export default function DeviceDetailPage() {
   const [stockThreshold, setStockThreshold] = useState('');
   const [stockSaving, setStockSaving] = useState(false);
   const [stockMsg, setStockMsg] = useState<string | null>(null);
+  // ── S124 フェーズ2: 演出・価格（専用プール設定）──
+  const [effectPacks, setEffectPacks] = useState<GachaEffectPack[]>([]);
+  const [curPool, setCurPool] = useState<GachaPool | null>(null);
+  const [setPrice, setSetPrice] = useState('');
+  const [setEffectPackId, setSetEffectPackId] = useState('');
+  const [setPayCoin, setSetPayCoin] = useState(true);
+  const [setPayQr, setSetPayQr] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
   const [pools, setPools] = useState<GachaPool[]>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [poolSaving, setPoolSaving] = useState(false);
@@ -230,6 +239,20 @@ export default function DeviceDetailPage() {
       setStockTotal(String(m.total_balls ?? ''));
       setStockRemaining(String(m.remaining_balls ?? ''));
       setStockThreshold(String(m.low_stock_threshold ?? ''));
+      // 専用プール（演出・価格）を読み、フォーム初期値に反映
+      if (m.pool_id) {
+        try {
+          const pl = await api.get<GachaPool>(`/gacha/pools/${m.pool_id}`);
+          setCurPool(pl);
+          setSetPrice(String(pl.price_per_draw ?? ''));
+          setSetEffectPackId(pl.default_effect_pack_id ?? '');
+          const pm = pl.accepted_payment_methods ?? [];
+          setSetPayCoin(pm.includes('coin'));
+          setSetPayQr(pm.includes('qr'));
+        } catch {
+          // pool 取得失敗時は無視（フォームは空のまま）
+        }
+      }
       setSelectedPoolId(m.pool_id ?? '');
       setMachineMissing(false);
     } catch (e) {
@@ -249,6 +272,10 @@ export default function DeviceDetailPage() {
     void (async () => {
       try {
         const data = await api.get<GachaPool[]>('/gacha/pools');
+        try {
+          const eps = await api.get<GachaEffectPack[]>('/gacha/effect-packs');
+          setEffectPacks(eps.filter((e) => e.is_active));
+        } catch { /* 演出パック取得失敗は無視 */ }
         if (!cancelled) {
           setPools([...data].sort((a, b) => a.name.localeCompare(b.name, 'ja')));
         }
@@ -308,6 +335,51 @@ export default function DeviceDetailPage() {
       setStockMsg(`更新に失敗しました: ${msg}`);
     } finally {
       setStockSaving(false);
+    }
+  };
+
+  // 専用設定を作成（ensure）: pool未割当/共有を専用プールに
+  const ensureSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsMsg(null);
+    try {
+      await api.post<GachaMachine>(`/gacha/devices/${params.id}/machine/ensure`, {});
+      await reloadMachine();
+      setSettingsMsg('この端末専用の設定を用意しました。');
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
+      setSettingsMsg(`設定の用意に失敗しました: ${msg}`);
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  // 演出・価格の保存（専用プールを settings API で更新）
+  const saveSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsMsg(null);
+    try {
+      const pay: string[] = [];
+      if (setPayCoin) pay.push('coin');
+      if (setPayQr) pay.push('qr');
+      const body: Record<string, unknown> = {
+        accepted_payment_methods: pay,
+      };
+      const pr = parseInt(setPrice, 10);
+      if (!Number.isNaN(pr)) body.price_per_draw = pr;
+      if (setEffectPackId === '') {
+        body.effect_pack_id_clear = true;
+      } else {
+        body.default_effect_pack_id = setEffectPackId;
+      }
+      await api.put<GachaPool>(`/gacha/devices/${params.id}/machine/settings`, body);
+      await reloadMachine();
+      setSettingsMsg('設定を保存しました。');
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
+      setSettingsMsg(`保存に失敗しました: ${msg}`);
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -392,6 +464,7 @@ export default function DeviceDetailPage() {
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
               <TabsTrigger value="overview">概要</TabsTrigger>
+              <TabsTrigger value="settings">演出・価格</TabsTrigger>
               <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
               <TabsTrigger value="history">タスク履歴</TabsTrigger>
@@ -605,6 +678,86 @@ export default function DeviceDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="settings">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">この機械の設定（料金・支払い・演出）</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {machineMissing ? (
+                    <p className="text-sm text-muted-foreground">
+                      この端末はまだ設定ができません（什器が未登録です）。
+                    </p>
+                  ) : !curPool ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        この端末専用の設定がまだありません。下のボタンで用意してください。
+                      </p>
+                      <Button size="sm" disabled={settingsSaving} onClick={ensureSettings}>
+                        {settingsSaving ? '準備中...' : 'この端末専用の設定を用意する'}
+                      </Button>
+                      {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      {/* 1回の料金 */}
+                      <div className="space-y-1">
+                        <label htmlFor="set-price" className="text-sm font-medium">1回の料金</label>
+                        <div className="flex items-center gap-2">
+                          <input id="set-price" type="number" inputMode="numeric"
+                            className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                            value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
+                          <span className="text-sm text-muted-foreground">円（ハンドル1回ぶん）</span>
+                        </div>
+                      </div>
+
+                      {/* 支払い方法 */}
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">支払い方法（この機械で受け付ける）</div>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={setPayCoin}
+                            onChange={(e) => setSetPayCoin(e.target.checked)} />
+                          現金（コイン投入で課金）
+                        </label>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={setPayQr}
+                            onChange={(e) => setSetPayQr(e.target.checked)} />
+                          QRコード決済
+                        </label>
+                      </div>
+
+                      {/* 当たり演出の種類 */}
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">この機械の基本演出</label>
+                        <Select value={setEffectPackId || 'none'}
+                          onValueChange={(v) => setSetEffectPackId(v === 'none' ? '' : v)}>
+                          <SelectTrigger className="w-full max-w-sm">
+                            <SelectValue placeholder="演出を選ぶ" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">演出なし</SelectItem>
+                            {effectPacks.map((ep) => (
+                              <SelectItem key={ep.id} value={ep.id}>{ep.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          ※ 演出の「流す / 流さない」は概要タブのスイッチで切り替えます
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" disabled={settingsSaving} onClick={saveSettings}>
+                          {settingsSaving ? '保存中...' : '保存する'}
+                        </Button>
+                        {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="stock">
               <Card>
                 <CardHeader>
