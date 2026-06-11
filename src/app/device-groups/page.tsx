@@ -213,10 +213,6 @@ function GroupNode({
   );
 }
 
-function deviceLabel(devices: DeviceLite[], id: string): string {
-  return devices.find((d) => d.id === id)?.name || id;
-}
-
 function EditGroupDialog({
   group, devices, onClose, onSaved,
 }: {

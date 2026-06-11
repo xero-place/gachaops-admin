@@ -35,7 +35,6 @@ import {
   RefreshCcw,
   Volume2,
   Sun,
-  HardDrive,
   Network,
   Smartphone,
   Cpu,
@@ -824,23 +823,6 @@ function RemoteSliderRow({
           onKeyUp={commit}
           className="w-full accent-primary cursor-pointer disabled:opacity-50"
         />
-      </div>
-    </div>
-  );
-}
-
-function SliderRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-muted-foreground">{icon}</span>
-      <div className="flex-1">
-        <div className="flex justify-between text-xs mb-1">
-          <span>{label}</span>
-          <span className="tabular-nums text-muted-foreground">{value}%</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-primary" style={{ width: `${value}%` }} />
-        </div>
       </div>
     </div>
   );
