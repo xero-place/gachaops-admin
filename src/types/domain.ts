@@ -444,6 +444,7 @@ export interface GachaMachine {
   low_stock_threshold: number;
   draw_count: number;
   status: string;
+  last_refilled_at?: string | null;
 }
 
 /**

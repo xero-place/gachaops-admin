@@ -210,6 +210,12 @@ export default function DeviceDetailPage() {
   // ── Session 51: 所属プール (gacha_machine.pool_id) ──
   const [machine, setMachine] = useState<GachaMachine | null>(null);
   const [machineMissing, setMachineMissing] = useState(false);
+  // ── S124: 在庫（GachaMachine 在庫A）──
+  const [stockTotal, setStockTotal] = useState('');
+  const [stockRemaining, setStockRemaining] = useState('');
+  const [stockThreshold, setStockThreshold] = useState('');
+  const [stockSaving, setStockSaving] = useState(false);
+  const [stockMsg, setStockMsg] = useState<string | null>(null);
   const [pools, setPools] = useState<GachaPool[]>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [poolSaving, setPoolSaving] = useState(false);
@@ -221,6 +227,9 @@ export default function DeviceDetailPage() {
         `/gacha/devices/${params.id}/machine`,
       );
       setMachine(m);
+      setStockTotal(String(m.total_balls ?? ''));
+      setStockRemaining(String(m.remaining_balls ?? ''));
+      setStockThreshold(String(m.low_stock_threshold ?? ''));
       setSelectedPoolId(m.pool_id ?? '');
       setMachineMissing(false);
     } catch (e) {
@@ -271,6 +280,34 @@ export default function DeviceDetailPage() {
       setPoolMsg(`更新に失敗しました: ${msg}`);
     } finally {
       setPoolSaving(false);
+    }
+  };
+
+  const saveStock = async (override?: { remaining?: number }) => {
+    setStockSaving(true);
+    setStockMsg(null);
+    try {
+      const body: Record<string, number> = {};
+      const t = parseInt(stockTotal, 10);
+      const r = override?.remaining ?? parseInt(stockRemaining, 10);
+      const th = parseInt(stockThreshold, 10);
+      if (!Number.isNaN(t)) body.total_balls = t;
+      if (!Number.isNaN(r)) body.remaining_balls = r;
+      if (!Number.isNaN(th)) body.low_stock_threshold = th;
+      await api.put<GachaMachine>(
+        `/gacha/devices/${params.id}/machine/stock`,
+        body,
+      );
+      await reloadMachine();
+      setStockMsg('在庫を更新しました。');
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.problem.detail || e.problem.title
+          : (e as Error).message;
+      setStockMsg(`更新に失敗しました: ${msg}`);
+    } finally {
+      setStockSaving(false);
     }
   };
 
@@ -359,6 +396,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
               <TabsTrigger value="history">タスク履歴</TabsTrigger>
               <TabsTrigger value="coin">投入受付</TabsTrigger>
+              <TabsTrigger value="stock">在庫</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -567,6 +605,107 @@ export default function DeviceDetailPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="stock">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">在庫（景品カプセル）</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {machineMissing ? (
+                    <p className="text-sm text-muted-foreground">
+                      この端末はまだ在庫設定ができません（什器が未登録です）。
+                    </p>
+                  ) : !machine ? (
+                    <p className="text-sm text-muted-foreground">読み込み中...</p>
+                  ) : (
+                    <>
+                      {/* 現在の在庫 */}
+                      <div className="text-center py-2">
+                        <div className="text-4xl font-bold tabular-nums">
+                          <span className={
+                            machine.remaining_balls <= 0
+                              ? 'text-destructive'
+                              : machine.remaining_balls <= machine.low_stock_threshold
+                              ? 'text-warn'
+                              : 'text-emerald-500'
+                          }>{machine.remaining_balls}</span>
+                          <span className="text-xl text-muted-foreground"> / {machine.total_balls} 個</span>
+                        </div>
+                        <div className="mt-3 h-3 w-full max-w-md mx-auto rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={
+                              machine.remaining_balls <= machine.low_stock_threshold
+                                ? 'h-full bg-destructive'
+                                : 'h-full bg-emerald-500'
+                            }
+                            style={{
+                              width: `${machine.total_balls > 0
+                                ? Math.min(100, Math.round((machine.remaining_balls / machine.total_balls) * 100))
+                                : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          ※ ハンドルが回るたびに自動で1つ減ります
+                        </p>
+                        {machine.remaining_balls <= 0 && (
+                          <Badge variant="destructive" className="mt-2">売り切れ</Badge>
+                        )}
+                      </div>
+
+                      {/* 在庫を設定・補充 */}
+                      <div className="border-t pt-4 space-y-3">
+                        <div className="text-sm font-medium">在庫を設定・補充</div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="space-y-1">
+                            <label htmlFor="st-total" className="text-xs text-muted-foreground">満タン時の個数</label>
+                            <input id="st-total" type="number" inputMode="numeric"
+                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              value={stockTotal} onChange={(e) => setStockTotal(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="st-remain" className="text-xs text-muted-foreground">現在の個数</label>
+                            <input id="st-remain" type="number" inputMode="numeric"
+                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              value={stockRemaining} onChange={(e) => setStockRemaining(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <label htmlFor="st-thr" className="text-xs text-muted-foreground">低在庫の警告ライン</label>
+                            <input id="st-thr" type="number" inputMode="numeric"
+                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              value={stockThreshold} onChange={(e) => setStockThreshold(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" disabled={stockSaving}
+                            onClick={() => {
+                              const t = parseInt(stockTotal, 10);
+                              if (!Number.isNaN(t)) {
+                                setStockRemaining(String(t));
+                                saveStock({ remaining: t });
+                              }
+                            }}>
+                            満タンにする
+                          </Button>
+                          <Button size="sm" disabled={stockSaving} onClick={() => saveStock()}>
+                            {stockSaving ? '保存中...' : '保存する'}
+                          </Button>
+                        </div>
+                        {stockMsg && (
+                          <p className="text-xs text-muted-foreground">{stockMsg}</p>
+                        )}
+                        {machine.last_refilled_at && (
+                          <p className="text-xs text-muted-foreground">
+                            最終補充: {fmtDate(machine.last_refilled_at)}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="coin">
               <CoinSettingsCard deviceId={params.id} />
             </TabsContent>
