@@ -8,7 +8,6 @@ import {
   Monitor,
   MapPinned,
   Users2,
-  Boxes,
   CalendarRange,
   ClipboardList,
   Layers3,
@@ -54,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/devices/map', label: '端末マップ', icon: MapPinned },
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
       { href: '/orders', label: '注文', icon: Receipt },
-      { href: '/inventories', label: '在庫', icon: Boxes },
+      // 在庫(/inventories)は系統B(空箱・engine.py非参照)のため非表示。実在庫は端末詳細の在庫タブ(系統A)。
     ],
   },
   {
