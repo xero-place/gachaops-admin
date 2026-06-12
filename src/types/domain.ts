@@ -514,4 +514,5 @@ export interface SalesEvent {
   amount_yen: number | null;
   token_count: number | null;
   occurred_at: string;
+  metadata?: { breakdown?: Record<string, number> } | null;
 }

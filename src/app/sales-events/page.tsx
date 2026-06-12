@@ -27,6 +27,15 @@ const KINDS: { value: string; label: string }[] = [
   { value: 'token', label: 'トークンメダル' },
 ];
 
+function fmtBreakdown(bd?: Record<string, number> | null): string | null {
+  if (!bd) return null;
+  const parts = Object.entries(bd)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => Number(b[0]) - Number(a[0]))
+    .map(([yen, n]) => `${yen}円×${n}`);
+  return parts.length ? parts.join(', ') : null;
+}
+
 function KindBadge({ kind }: { kind: SalesEvent['kind'] }) {
   if (kind === 'qr') return <Badge variant="ok">QR決済</Badge>;
   if (kind === 'cash') return <Badge variant="warn">現金</Badge>;
@@ -193,7 +202,16 @@ export default function SalesEventsPage() {
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {e.kind === 'token'
                     ? <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-400" />{e.token_count} 枚</span>
-                    : fmtYen(e.amount_yen ?? 0)}
+                    : (
+                      <div className="flex flex-col items-end leading-tight">
+                        <span>{fmtYen(e.amount_yen ?? 0)}</span>
+                        {e.kind === 'cash' && fmtBreakdown(e.metadata?.breakdown) && (
+                          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
+                            {fmtBreakdown(e.metadata?.breakdown)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {fmtDate(e.occurred_at)}
