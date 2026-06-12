@@ -13,7 +13,7 @@ import {
   Layers3,
   ShoppingBag,
   PackageSearch,
-  Receipt,
+  Coins,
   Smartphone,
   ShieldCheck,
   Activity,
@@ -51,7 +51,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/devices', label: '端末', icon: Monitor },
       { href: '/devices/map', label: '端末マップ', icon: MapPinned },
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
-      { href: '/orders', label: '注文', icon: Receipt },
+      // S127: 注文ページは売上管理(統合ビュー)に集約。返金機能のため実体は温存・直リンク到達可
+      // { href: '/orders', label: '注文', icon: Receipt },
+      { href: '/sales-events', label: '売上管理', icon: Coins },
       // 在庫(/inventories)は系統B(空箱・engine.py非参照)のため非表示。実在庫は端末詳細の在庫タブ(系統A)。
     ],
   },

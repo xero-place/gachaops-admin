@@ -502,3 +502,16 @@ export interface DeviceCreateInput {
 export interface DeviceCreateResult extends Device {
   provisioning_code: string;
 }
+
+export interface SalesEvent {
+  kind: 'qr' | 'cash' | 'token';
+  event_id: string;
+  payment_id: string | null;
+  customer_id: string;
+  customer_name: string;
+  device_id: string;
+  device_name: string;
+  amount_yen: number | null;
+  token_count: number | null;
+  occurred_at: string;
+}
