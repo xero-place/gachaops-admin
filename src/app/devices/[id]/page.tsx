@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { tokenStore } from '@/lib/token-store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DrawOrderMappingEditor } from '@/components/domain/draw-order-mapping-editor';
 import {
   Table,
   TableBody,
@@ -219,7 +220,6 @@ export default function DeviceDetailPage() {
   const [effectPacks, setEffectPacks] = useState<GachaEffectPack[]>([]);
   const [curPool, setCurPool] = useState<GachaPool | null>(null);
   const [setPrice, setSetPrice] = useState('');
-  const [setEffectPackId, setSetEffectPackId] = useState('');
   const [setPayQr, setSetPayQr] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
@@ -241,7 +241,6 @@ export default function DeviceDetailPage() {
           const pl = await api.get<GachaPool>(`/gacha/pools/${m.pool_id}`);
           setCurPool(pl);
           setSetPrice(String(pl.price_per_draw ?? ''));
-          setSetEffectPackId(pl.default_effect_pack_id ?? '');
           const pm = pl.accepted_payment_methods ?? [];
           setSetPayQr(pm.includes('qr'));
         } catch {
@@ -343,11 +342,8 @@ export default function DeviceDetailPage() {
         const pr = parseInt(setPrice, 10);
         if (!Number.isNaN(pr)) body.price_per_draw = pr;
       }
-      if (setEffectPackId === '') {
-        body.effect_pack_id_clear = true;
-      } else {
-        body.default_effect_pack_id = setEffectPackId;
-      }
+      // L1デフォルト演出は「演出」タブの DrawOrderMappingEditor (default-effect API) で保存する。
+      // ここ（価格タブの保存）では触らない（取りこぼしによる誤クリア防止）。
       await api.put<GachaPool>(`/gacha/devices/${params.id}/machine/settings`, body);
       // 投入受付モードを coin-settings に保存（現金 / メダル / 受け付けない）。
       const items =
@@ -453,7 +449,8 @@ export default function DeviceDetailPage() {
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
               <TabsTrigger value="overview">概要</TabsTrigger>
-              <TabsTrigger value="settings">演出・価格</TabsTrigger>
+              <TabsTrigger value="settings">価格</TabsTrigger>
+              <TabsTrigger value="effects">演出</TabsTrigger>
               <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
               <TabsTrigger value="history">タスク履歴</TabsTrigger>
@@ -669,7 +666,7 @@ export default function DeviceDetailPage() {
             <TabsContent value="settings">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">この機械の設定（料金・支払い・演出）</CardTitle>
+                  <CardTitle className="text-sm">料金・支払い</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {machineMissing ? (
@@ -753,26 +750,6 @@ export default function DeviceDetailPage() {
                         </label>
                       </div>
 
-                      {/* 当たり演出の種類 */}
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">この機械の基本演出</label>
-                        <Select value={setEffectPackId || 'none'}
-                          onValueChange={(v) => setSetEffectPackId(v === 'none' ? '' : v)}>
-                          <SelectTrigger className="w-full max-w-sm">
-                            <SelectValue placeholder="演出を選ぶ" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">演出なし</SelectItem>
-                            {effectPacks.map((ep) => (
-                              <SelectItem key={ep.id} value={ep.id}>{ep.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          ※ 演出の「流す / 流さない」は概要タブのスイッチで切り替えます
-                        </p>
-                      </div>
-
                       <div className="flex items-center gap-2">
                         <Button size="sm" disabled={settingsSaving} onClick={saveSettings}>
                           {settingsSaving ? '保存中...' : '保存する'}
@@ -780,6 +757,38 @@ export default function DeviceDetailPage() {
                         {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
                       </div>
                     </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="effects">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">この端末の演出</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {machineMissing ? (
+                    <p className="text-sm text-muted-foreground">
+                      この端末はまだ設定ができません（什器が未登録です）。
+                    </p>
+                  ) : !machine?.pool_id ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        この端末専用の設定がまだありません。下のボタンで用意してください。
+                      </p>
+                      <Button size="sm" disabled={settingsSaving} onClick={ensureSettings}>
+                        {settingsSaving ? '準備中...' : 'この端末専用の設定を用意する'}
+                      </Button>
+                      {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
+                    </div>
+                  ) : (
+                    <DrawOrderMappingEditor
+                      poolId={machine.pool_id}
+                      packs={effectPacks}
+                      defaultEffectPackId={curPool?.default_effect_pack_id ?? null}
+                      onDefaultEffectChange={(pl) => setCurPool(pl)}
+                    />
                   )}
                 </CardContent>
               </Card>
