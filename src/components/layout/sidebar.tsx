@@ -23,7 +23,6 @@ import {
   Settings,
   Zap,
   Sparkles,
-  Container,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,10 +44,10 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/', label: 'ダッシュボード', icon: LayoutDashboard },
       { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
-      { href: '/gacha/draw-effects', label: 'ガチャ演出', icon: Sparkles, badge: 'NEW' },
+      // ガチャ演出(/gacha/draw-effects)は端末詳細の「演出」タブに一本化したため非表示。ページは温存。
       { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
-      { href: '/gacha/account-default', label: 'デフォルト演出', icon: Layers3, badge: 'NEW' },
-      { href: '/gacha/pools', label: '抽選プール', icon: Container, badge: 'NEW' },
+      // デフォルト演出(/gacha/account-default)はL2フォールバック(cust_demo向け)で運営が日常的に触らないため非表示。ページは温存。
+      // 抽選プール(/gacha/pools)は1端末1専用プール化により表から不要。端末詳細(価格/演出タブ)に集約。ページ・engine.pyは温存。
       { href: '/devices', label: '端末', icon: Monitor },
       { href: '/devices/map', label: '端末マップ', icon: MapPinned },
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
