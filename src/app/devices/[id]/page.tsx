@@ -207,6 +207,36 @@ export default function DeviceDetailPage() {
     }
   };
 
+  const [restarting, setRestarting] = useState(false);
+  const handleRestartApp = async () => {
+    if (restarting) return;
+    const ok = window.confirm(
+      `🔄 ${detail.name} のアプリを再起動しますか?\n\n` +
+      `この操作は:\n` +
+      `・端末の signage アプリだけを再起動\n` +
+      `・WebSocket 接続を貼り直す\n` +
+      `・プロビジョニング情報は保持（再セットアップ不要）\n\n` +
+      `配信や OTA が効かなくなった端末の復旧に使います。`
+    );
+    if (!ok) return;
+    setRestarting(true);
+    try {
+      const res = await api.post<{ accepted?: boolean; command_id?: string }>(
+        `/devices/${detail.id}/restart_app`,
+        {}
+      );
+      if (res.accepted) {
+        window.alert(`✅ 再起動コマンドを送信しました\n端末が WS を貼り直します（数十秒）`);
+      } else {
+        window.alert(`✅ 送信完了`);
+      }
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
+    } finally {
+      setRestarting(false);
+    }
+  };
+
   // ── Session 51: 所属プール (gacha_machine.pool_id) ──
   const [machine, setMachine] = useState<GachaMachine | null>(null);
   const [machineMissing, setMachineMissing] = useState(false);
@@ -435,7 +465,7 @@ export default function DeviceDetailPage() {
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
             <Camera className="h-3.5 w-3.5" />スクリーンショット
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
+          <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || restarting} onClick={handleRestartApp}>
             <RefreshCcw className="h-3.5 w-3.5" />再起動
           </Button>
           <Button variant="destructive" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
@@ -453,7 +483,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="effects">演出</TabsTrigger>
               <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
               <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
-              <TabsTrigger value="history">タスク履歴</TabsTrigger>
+              <TabsTrigger value="history">APK履歴</TabsTrigger>
                 <TabsTrigger value="stock">在庫</TabsTrigger>
             </TabsList>
 
@@ -637,7 +667,7 @@ export default function DeviceDetailPage() {
 
             <TabsContent value="history">
               <Card>
-                <CardHeader><CardTitle className="text-sm">最近の配信タスク</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">APK配信履歴</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
