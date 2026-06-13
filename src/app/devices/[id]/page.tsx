@@ -9,7 +9,6 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { tokenStore } from '@/lib/token-store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -44,7 +43,6 @@ import {
   Clock,
   Loader2,
   Sparkles,
-  QrCode,
 } from 'lucide-react';
 
 import type { TaskStatus as _TS } from '@/types/domain';
@@ -555,56 +553,6 @@ export default function DeviceDetailPage() {
                   />
                 </CardContent>
               </Card>
-
-              {isSuperAdmin && (
-              <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle className="text-sm">演出・QR設定</CardTitle>
-                  <p className="text-xs text-muted-foreground">運営専用設定（契約先には表示されません）</p>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <QrCode className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">QR注文受付</div>
-                        <div className="text-xs text-muted-foreground">この端末でQR決済注文を受け付ける</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {savingQr && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                      <Switch checked={detail.qr_enabled ?? false} disabled={savingQr} onCheckedChange={handleQrToggle} />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">演出再生</div>
-                        <div className="text-xs text-muted-foreground">現金投入時の当選演出。OFFでも番組は継続し売上は記録されます</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {savingEffect && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                      <Select
-                        value={detail.effect_enabled === true ? 'on' : detail.effect_enabled === false ? 'off' : 'default'}
-                        onValueChange={handleEffectChange}
-                        disabled={savingEffect}
-                      >
-                        <SelectTrigger className="h-9 w-44 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="on">演出する</SelectItem>
-                          <SelectItem value="off">演出しない</SelectItem>
-                          <SelectItem value="default">グループ既定に従う</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              )}
             </TabsContent>
 
             <TabsContent value="screenshots">
@@ -770,15 +718,21 @@ export default function DeviceDetailPage() {
                         </label>
                       </div>
 
-                      {/* QRコード決済（投入とは独立） */}
+                      {/* QRコード決済（運営専用・即時反映。投入とは独立） */}
+                      {isSuperAdmin && (
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">QRコード決済</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium">QRコード決済</div>
+                          {savingQr && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                        </div>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={setPayQr}
-                            onChange={(e) => setSetPayQr(e.target.checked)} />
+                          <input type="checkbox" checked={detail.qr_enabled ?? false} disabled={savingQr}
+                            onChange={(e) => void handleQrToggle(e.target.checked)} />
                           QRコード決済を受け付ける
                         </label>
+                        <p className="text-xs text-muted-foreground">ONにするとモニターにQRを表示します（チェックで即時反映・契約先には表示されません）</p>
                       </div>
+                      )}
 
                       <div className="flex items-center gap-2">
                         <Button size="sm" disabled={settingsSaving} onClick={saveSettings}>
@@ -798,6 +752,32 @@ export default function DeviceDetailPage() {
                   <CardTitle className="text-sm">この端末の演出</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between border-b pb-4">
+                    <div className="flex items-center gap-3">
+                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-sm font-medium">演出再生</div>
+                        <div className="text-xs text-muted-foreground">現金投入時の当選演出。OFFでも番組は継続し売上は記録されます</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {savingEffect && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                      <Select
+                        value={detail.effect_enabled === true ? 'on' : detail.effect_enabled === false ? 'off' : 'default'}
+                        onValueChange={handleEffectChange}
+                        disabled={savingEffect}
+                      >
+                        <SelectTrigger className="h-9 w-44 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on">演出する</SelectItem>
+                          <SelectItem value="off">演出しない</SelectItem>
+                          <SelectItem value="default">グループ既定に従う</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
                       この端末はまだ設定ができません（什器が未登録です）。
