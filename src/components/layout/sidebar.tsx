@@ -11,7 +11,6 @@ import {
   CalendarRange,
   ClipboardList,
   Layers3,
-  ShoppingBag,
   PackageSearch,
   Coins,
   Smartphone,
@@ -70,7 +69,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: '顧客', icon: Briefcase },
       { href: '/stores', label: '店舗', icon: Building2 },
-      { href: '/products', label: '商品', icon: ShoppingBag },
       { href: '/users', label: 'ユーザ', icon: Users2 },
       { href: '/apk', label: 'APK', icon: Smartphone },
     ],
