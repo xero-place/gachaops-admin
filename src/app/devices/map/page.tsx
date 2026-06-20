@@ -1,23 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2 } from 'lucide-react';
+import { Building2, Plus, Minus, Maximize2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Store, Device } from '@/types/domain';
 
-/**
- * Equirectangular projection over a Japan-shaped bounding box. We're not using
- * Leaflet/Mapbox to avoid a heavy dependency just for a small dot-map. The SVG
- * is a deliberately abstract silhouette — accurate enough to place 8 markers,
- * not geographically authoritative.
- */
-function project(lat: number, lng: number, w = 1000, h = 846) {
-  // Japan bounding box matched to simplemaps.com SVG viewBox (1000x846).
-  // Calibrated against Tokyo (35.6762, 139.6503) → roughly (560, 480) on SVG.
+const VIEW_W = 1000;
+const VIEW_H = 846;
+const MIN_SCALE = 1;
+const MAX_SCALE = 12;
+
+function project(lat: number, lng: number, w = VIEW_W, h = VIEW_H) {
   const minLng = 122.5;
   const maxLng = 153.5;
   const minLat = 24;
@@ -27,11 +24,20 @@ function project(lat: number, lng: number, w = 1000, h = 846) {
   return { x, y };
 }
 
+interface ViewBox { x: number; y: number; w: number; h: number }
+
 export default function DevicesMapPage() {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
-  
+
+  const [vb, setVb] = useState<ViewBox>({ x: 0, y: 0, w: VIEW_W, h: VIEW_H });
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const dragging = useRef<{ x: number; y: number; vbx: number; vby: number } | null>(null);
+
+  // 現在の拡大率（1 = 全体表示）
+  const scale = VIEW_W / vb.w;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -52,69 +58,183 @@ export default function DevicesMapPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // SVG座標へ変換（マウス位置 → viewBox内の座標）
+  const toSvg = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { sx: 0, sy: 0 };
+    const rect = svg.getBoundingClientRect();
+    const px = (clientX - rect.left) / rect.width;
+    const py = (clientY - rect.top) / rect.height;
+    return { sx: vb.x + px * vb.w, sy: vb.y + py * vb.h };
+  }, [vb]);
+
+  // ズーム共通処理（中心座標 cx,cy を固定して拡大率を factor 倍）
+  const zoomAt = useCallback((cx: number, cy: number, factor: number) => {
+    setVb((prev) => {
+      const curScale = VIEW_W / prev.w;
+      let newScale = curScale * factor;
+      newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+      const newW = VIEW_W / newScale;
+      const newH = VIEW_H / newScale;
+      // cx,cy を画面上の同じ相対位置に保つ
+      const relX = prev.w === 0 ? 0.5 : (cx - prev.x) / prev.w;
+      const relY = prev.h === 0 ? 0.5 : (cy - prev.y) / prev.h;
+      let nx = cx - relX * newW;
+      let ny = cy - relY * newH;
+      // 範囲外に出ないようクランプ
+      nx = Math.max(0, Math.min(VIEW_W - newW, nx));
+      ny = Math.max(0, Math.min(VIEW_H - newH, ny));
+      return { x: nx, y: ny, w: newW, h: newH };
+    });
+  }, []);
+
+  const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const { sx, sy } = toSvg(e.clientX, e.clientY);
+    const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+    zoomAt(sx, sy, factor);
+  }, [toSvg, zoomAt]);
+
+  const onMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    dragging.current = { x: e.clientX, y: e.clientY, vbx: vb.x, vby: vb.y };
+  }, [vb]);
+
+  const onMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const dg = dragging.current;
+    if (!dg) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const dx = ((e.clientX - dg.x) / rect.width) * vb.w;
+    const dy = ((e.clientY - dg.y) / rect.height) * vb.h;
+    setVb((prev) => {
+      let nx = dg.vbx - dx;
+      let ny = dg.vby - dy;
+      nx = Math.max(0, Math.min(VIEW_W - prev.w, nx));
+      ny = Math.max(0, Math.min(VIEW_H - prev.h, ny));
+      return { ...prev, x: nx, y: ny };
+    });
+  }, [vb]);
+
+  const endDrag = useCallback(() => { dragging.current = null; }, []);
+
+  const zoomButton = (factor: number) => {
+    zoomAt(vb.x + vb.w / 2, vb.y + vb.h / 2, factor);
+  };
+  const resetView = () => setVb({ x: 0, y: 0, w: VIEW_W, h: VIEW_H });
+
+  // ズームしてもマーカー/文字サイズを一定に保つ補正係数
+  const inv = 1 / scale;
+
+  // 店舗ピンへフォーカス（一覧クリックで該当店舗を中央拡大）
+  const focusStore = (s: Store) => {
+    if (!s.latitude || !s.longitude) return;
+    const { x, y } = project(s.latitude, s.longitude);
+    const targetScale = 6;
+    const newW = VIEW_W / targetScale;
+    const newH = VIEW_H / targetScale;
+    let nx = x - newW / 2;
+    let ny = y - newH / 2;
+    nx = Math.max(0, Math.min(VIEW_W - newW, nx));
+    ny = Math.max(0, Math.min(VIEW_H - newH, ny));
+    setVb({ x: nx, y: ny, w: newW, h: newH });
+  };
+
   return (
     <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card>
             <CardContent className="p-4">
-              <svg viewBox="0 0 1000 846" className="w-full">
-                {/* Stylized Japan silhouette - rough bezier shapes */}
-                <defs>
-                  <linearGradient id="oceanG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(220 30% 12%)" />
-                    <stop offset="100%" stopColor="hsl(220 30% 8%)" />
-                  </linearGradient>
-                  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(220 20% 15%)" strokeWidth="0.5" />
-                  </pattern>
-                </defs>
-                <rect width="1000" height="846" fill="url(#oceanG)" />
-                <rect width="1000" height="846" fill="url(#grid)" />
+              <div className="relative">
+                {/* ズームコントロール */}
+                <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+                  <button
+                    onClick={() => zoomButton(1.4)}
+                    className="h-8 w-8 flex items-center justify-center rounded-md bg-card/90 border border-border hover:bg-accent shadow-sm"
+                    aria-label="拡大"
+                  ><Plus className="h-4 w-4" /></button>
+                  <button
+                    onClick={() => zoomButton(1 / 1.4)}
+                    className="h-8 w-8 flex items-center justify-center rounded-md bg-card/90 border border-border hover:bg-accent shadow-sm"
+                    aria-label="縮小"
+                  ><Minus className="h-4 w-4" /></button>
+                  <button
+                    onClick={resetView}
+                    className="h-8 w-8 flex items-center justify-center rounded-md bg-card/90 border border-border hover:bg-accent shadow-sm"
+                    aria-label="全体表示"
+                  ><Maximize2 className="h-4 w-4" /></button>
+                </div>
+                {scale > 1.05 && (
+                  <div className="absolute top-2 left-2 z-10 text-[10px] px-1.5 py-0.5 rounded bg-card/90 border border-border text-muted-foreground tabular-nums">
+                    {scale.toFixed(1)}×
+                  </div>
+                )}
+                <svg
+                  ref={svgRef}
+                  viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
+                  className="w-full touch-none select-none"
+                  style={{ cursor: dragging.current ? 'grabbing' : 'grab' }}
+                  onWheel={onWheel}
+                  onMouseDown={onMouseDown}
+                  onMouseMove={onMouseMove}
+                  onMouseUp={endDrag}
+                  onMouseLeave={endDrag}
+                >
+                  <defs>
+                    <linearGradient id="oceanG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(220 30% 12%)" />
+                      <stop offset="100%" stopColor="hsl(220 30% 8%)" />
+                    </linearGradient>
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(220 20% 15%)" strokeWidth="0.5" />
+                    </pattern>
+                  </defs>
+                  <rect x="0" y="0" width={VIEW_W} height={VIEW_H} fill="url(#oceanG)" />
+                  <rect x="0" y="0" width={VIEW_W} height={VIEW_H} fill="url(#grid)" />
 
-                {/* Accurate Japan map (simplemaps.com - Free for Commercial Use) */}
-                <image
-                  href="/japan-map.svg"
-                  x="0"
-                  y="0"
-                  width="1000"
-                  height="846"
-                  opacity="0.55"
-                  style={{ filter: 'invert(0.85) hue-rotate(180deg) brightness(0.7)' }}
-                />
+                  <image
+                    href="/japan-map.svg"
+                    x="0" y="0" width={VIEW_W} height={VIEW_H}
+                    opacity="0.55"
+                    style={{ filter: 'invert(0.85) hue-rotate(180deg) brightness(0.7)' }}
+                  />
 
-                {/* Store markers */}
-                {stores.map((s) => {
-                  if (!s.latitude || !s.longitude) return null;
-                  const { x, y } = project(s.latitude, s.longitude);
-                  const storeDevices = devices.filter((d) => d.store_id === s.id);
-                  const offline = storeDevices.filter((d) => d.status === 'offline').length;
-                  const radius = Math.max(8, Math.min(20, s.device_count * 2.5));
-                  const color = offline > 0 ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
-                  const isHover = hoverId === s.id;
-                  return (
-                    <g key={s.id} onMouseEnter={() => setHoverId(s.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
-                      <circle cx={x} cy={y} r={radius + 6} fill={color} opacity="0.15" className={isHover ? 'animate-pulse-soft' : ''} />
-                      <circle cx={x} cy={y} r={radius} fill={color} opacity="0.85" />
-                      <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="white">
-                        {s.device_count}
-                      </text>
-                      <text x={x} y={y + radius + 14} textAnchor="middle" fontSize="10" fill="hsl(var(--foreground))" opacity="0.7">
-                        {s.name.replace(/店$/, '')}
-                      </text>
-                    </g>
-                  );
-                })}
+                  {/* Store markers */}
+                  {stores.map((s) => {
+                    if (!s.latitude || !s.longitude) return null;
+                    const { x, y } = project(s.latitude, s.longitude);
+                    const storeDevices = devices.filter((d) => d.store_id === s.id);
+                    const offline = storeDevices.filter((d) => d.status === 'offline').length;
+                    const radius = Math.max(8, Math.min(20, s.device_count * 2.5)) * inv;
+                    const color = offline > 0 ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
+                    const isHover = hoverId === s.id;
+                    return (
+                      <g key={s.id} onMouseEnter={() => setHoverId(s.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
+                        <circle cx={x} cy={y} r={radius + 6 * inv} fill={color} opacity="0.15" className={isHover ? 'animate-pulse-soft' : ''} />
+                        <circle cx={x} cy={y} r={radius} fill={color} opacity="0.85" />
+                        <text x={x} y={y + 4 * inv} textAnchor="middle" fontSize={11 * inv} fontWeight="700" fill="white">
+                          {s.device_count}
+                        </text>
+                        <text x={x} y={y + radius + 14 * inv} textAnchor="middle" fontSize={10 * inv} fill="hsl(var(--foreground))" opacity="0.7">
+                          {s.name.replace(/店$/, '')}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
 
-                {/* Legend */}
-                <g transform="translate(20, 480)" fontSize="11" fill="hsl(var(--muted-foreground))">
-                  <circle cx="6" cy="6" r="6" fill="hsl(var(--ok))" />
-                  <text x="20" y="10">全端末オンライン</text>
-                  <circle cx="6" cy="26" r="6" fill="hsl(var(--warn))" />
-                  <text x="20" y="30">オフラインあり</text>
-                  <text x="0" y="50" fontSize="10" fill="hsl(var(--muted-foreground))">サイズは端末数を表す</text>
-                </g>
-              </svg>
+                {/* Legend（SVG外に固定。ズームの影響を受けない） */}
+                <div className="absolute bottom-2 left-2 text-[11px] text-muted-foreground bg-card/80 rounded px-2 py-1.5 space-y-0.5 pointer-events-none">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: 'hsl(var(--ok))' }} />全端末オンライン
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: 'hsl(var(--warn))' }} />オフラインあり
+                  </div>
+                  <div className="text-[10px] opacity-70">サイズは端末数を表す ・ ホイールで拡大 / ドラッグで移動</div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -140,7 +260,10 @@ export default function DevicesMapPage() {
                       <div className="flex items-start gap-2">
                         <Building2 className="h-4 w-4 mt-0.5 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium">{s.name}</div>
+                          <button
+                            onClick={() => focusStore(s)}
+                            className="text-sm font-medium text-left hover:text-primary hover:underline"
+                          >{s.name}</button>
                           <div className="text-[11px] text-muted-foreground">{s.prefecture}</div>
                           <div className="flex gap-2 mt-1.5">
                             <Badge variant="ok" className="text-[10px]">オン {online}</Badge>
