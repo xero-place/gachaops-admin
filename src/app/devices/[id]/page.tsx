@@ -24,7 +24,8 @@ import {
 import { DeviceStatusBadge, PlayModeBadge, TaskStatusBadge } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
-import { fmtDate, fmtRelative, WEEKDAYS_JA } from '@/lib/format';
+import { fmtDate, fmtRelative } from '@/lib/format';
+import { PowerScheduleEditor } from './PowerScheduleEditor';
 import { api, ApiError } from '@/lib/api';
 import type { GachaMachine, GachaPool, GachaEffectPack } from '@/types/domain';
 import {
@@ -684,34 +685,10 @@ export default function DeviceDetailPage() {
               </Card>
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">電源タイマー</CardTitle>
-                    <Button variant="outline" size="sm" className="h-7 text-xs">編集</Button>
-                  </div>
+                  <CardTitle className="text-sm">営業時間スケジュール（曜日ごと自動ON/OFF）</CardTitle>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>曜日</TableHead>
-                        <TableHead>起動</TableHead>
-                        <TableHead>停止</TableHead>
-                        <TableHead>状態</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(detail.power_schedules ?? []).map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="text-sm font-medium">{WEEKDAYS_JA[s.weekday]}曜日</TableCell>
-                          <TableCell className="font-mono text-sm">{s.power_on_time}</TableCell>
-                          <TableCell className="font-mono text-sm">{s.power_off_time}</TableCell>
-                          <TableCell>
-                            {s.enabled ? <Badge variant="ok">有効</Badge> : <Badge variant="muted">無効</Badge>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <CardContent>
+                  <PowerScheduleEditor deviceId={detail.id} />
                 </CardContent>
               </Card>
             </TabsContent>
