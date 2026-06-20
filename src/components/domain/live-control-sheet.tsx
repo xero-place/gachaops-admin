@@ -30,7 +30,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { tokenStore } from '@/lib/token-store';
 import { useLiveStore } from '@/stores/live-control-store';
 import { fmtDuration } from '@/lib/format';
-import { Search, Zap, Clock, AlertCircle, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
+import { Search, Zap, Clock, AlertCircle, ChevronRight, Film, Image as ImageIcon, CheckCircle2, Loader2, AlertTriangle, RotateCw } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { Device } from '@/types/domain';
+
+// /devices のレスポンス形（このファイル内ローカル定義）
+interface DeviceListResp { items?: Device[]; data?: Device[]; total?: number }
 import type { Program } from '@/types/domain';
 
 export interface LiveControlScope {
@@ -49,7 +54,9 @@ export function LiveControlSheet({
   onOpenChange: (open: boolean) => void;
   scope: LiveControlScope | null;
 }) {
-  const [step, setStep] = useState<'pick' | 'confirm'>('pick');
+  const [step, setStep] = useState<'pick' | 'confirm' | 'confirming'>('pick');
+  // 配信後の到達確認: device_id -> 'pending' | 'ok' | 'unconfirmed'
+  const [deliveryStatus, setDeliveryStatus] = useState<Record<string, 'pending' | 'ok' | 'unconfirmed'>>({});
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [mode, setMode] = useState<'immediate' | 'expiring'>('immediate');
@@ -104,6 +111,7 @@ export function LiveControlSheet({
     setSearch('');
     setMode('immediate');
     setDuration('30');
+    setDeliveryStatus({});
   };
 
   const close = () => {
@@ -111,22 +119,72 @@ export function LiveControlSheet({
     setTimeout(reset, 200);
   };
 
-  const onConfirm = () => {
-    if (!scope || !selected) return;
+  // 配信後、各端末が実際に配信プログラムを再生中になったかを照合する。
+  // /devices の current_program_id === 配信した program_id なら「切替成功」。
+  // 2.5秒間隔で最大6回(=15秒)ポーリングし、未一致のまま終わった端末は「未確認」。
+  const verifyDelivery = async (deviceIds: string[], programId: string) => {
+    const remaining = new Set(deviceIds);
+    const ATTEMPTS = 6;
+    const INTERVAL_MS = 2500;
+    for (let i = 0; i < ATTEMPTS && remaining.size > 0; i++) {
+      await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      try {
+        const res = await api.get<DeviceListResp | Device[]>('/devices?limit=200');
+        const list = Array.isArray(res) ? res : (res.items ?? res.data ?? []);
+        const byId = new Map(list.map((d) => [d.id, d]));
+        for (const id of Array.from(remaining)) {
+          const d = byId.get(id);
+          if (d && d.current_program_id === programId) {
+            remaining.delete(id);
+            setDeliveryStatus((prev) => ({ ...prev, [id]: 'ok' }));
+          }
+        }
+      } catch (e) {
+        console.error('[live-control] verify poll failed', e);
+      }
+    }
+    if (remaining.size > 0) {
+      setDeliveryStatus((prev) => {
+        const next = { ...prev };
+        for (const id of remaining) next[id] = 'unconfirmed';
+        return next;
+      });
+    }
+  };
+
+  const startDelivery = (deviceIds: string[]) => {
+    if (!selected) return;
     let expires_at: string | null = null;
     if (mode === 'expiring') {
       const minutes = parseInt(duration, 10) || 30;
       expires_at = new Date(Date.now() + minutes * 60 * 1000).toISOString();
     }
+    // 既存の配信(楽観的override + bulk play_program)はそのまま使う
     applySwitch({
-      device_ids: scope.device_ids,
+      device_ids: deviceIds,
       program_id: selected.id,
       program_name: selected.name,
       expires_at,
-      scope_label: scope.label,
+      scope_label: scope?.label ?? '',
       applied_by: 'admin@gachaops.example',
     });
-    close();
+    setDeliveryStatus((prev) => {
+      const next = { ...prev };
+      for (const id of deviceIds) next[id] = 'pending';
+      return next;
+    });
+    void verifyDelivery(deviceIds, selected.id);
+  };
+
+  const onConfirm = () => {
+    if (!scope || !selected) return;
+    setStep('confirming');
+    startDelivery(scope.device_ids);
+  };
+
+  const onRetry = (deviceId: string) => {
+    setDeliveryStatus((prev) => ({ ...prev, [deviceId]: 'pending' }));
+    startDelivery([deviceId]);
   };
 
   return (
@@ -271,17 +329,85 @@ export function LiveControlSheet({
           </div>
         )}
 
+        {step === 'confirming' && scope && selected && (
+          <div className="space-y-3">
+            {(() => {
+              const ids = scope.device_ids;
+              const okCount = ids.filter((id) => deliveryStatus[id] === 'ok').length;
+              const pendingCount = ids.filter((id) => deliveryStatus[id] === 'pending').length;
+              const unconfirmedCount = ids.filter((id) => deliveryStatus[id] === 'unconfirmed').length;
+              const allDone = pendingCount === 0;
+              return (
+                <>
+                  <div className="rounded-md border bg-card p-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {!allDone ? (
+                        <><Loader2 className="h-4 w-4 animate-spin text-primary" />切替を確認中…</>
+                      ) : unconfirmedCount === 0 ? (
+                        <><CheckCircle2 className="h-4 w-4 text-ok" />{ids.length} 台中 {okCount} 台 切替成功</>
+                      ) : (
+                        <><AlertTriangle className="h-4 w-4 text-warn" />{ids.length} 台中 {okCount} 台 切替成功 · {unconfirmedCount} 台 未確認</>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      「{selected.name}」を配信し、各端末が実際に再生を開始したか確認しています。
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                    {ids.map((id) => {
+                      const st = deliveryStatus[id] ?? 'pending';
+                      return (
+                        <div key={id} className="flex items-center justify-between rounded-md border bg-card px-3 py-2 text-xs">
+                          <span className="font-mono text-muted-foreground truncate">{id}</span>
+                          {st === 'ok' && (
+                            <span className="flex items-center gap-1 text-ok"><CheckCircle2 className="h-3.5 w-3.5" />切替成功</span>
+                          )}
+                          {st === 'pending' && (
+                            <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />確認中</span>
+                          )}
+                          {st === 'unconfirmed' && (
+                            <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-1 text-warn"><AlertTriangle className="h-3.5 w-3.5" />未確認</span>
+                              <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] gap-1" onClick={() => onRetry(id)}>
+                                <RotateCw className="h-3 w-3" />再試行
+                              </Button>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {allDone && unconfirmedCount > 0 && (
+                    <div className="rounded-md bg-warn/10 border border-warn/30 p-2.5 flex items-start gap-2 text-xs">
+                      <AlertCircle className="h-4 w-4 text-warn shrink-0 mt-0.5" />
+                      <span>未確認の端末は、オフラインか再生開始が遅れている可能性があります。再試行するか、端末の状態を確認してください。</span>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={close}>キャンセル</Button>
-          {step === 'pick' ? (
-            <Button onClick={() => setStep('confirm')} disabled={!selectedProgramId}>
-              次へ
-            </Button>
+          {step === 'confirming' ? (
+            <Button onClick={close}>閉じる</Button>
           ) : (
-            <Button onClick={onConfirm} className="gap-1.5">
-              <Zap className="h-3.5 w-3.5" />
-              {scope?.device_ids.length ?? 0} 台に送信
-            </Button>
+            <>
+              <Button variant="outline" onClick={close}>キャンセル</Button>
+              {step === 'pick' ? (
+                <Button onClick={() => setStep('confirm')} disabled={!selectedProgramId}>
+                  次へ
+                </Button>
+              ) : (
+                <Button onClick={onConfirm} className="gap-1.5">
+                  <Zap className="h-3.5 w-3.5" />
+                  {scope?.device_ids.length ?? 0} 台に送信
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>
