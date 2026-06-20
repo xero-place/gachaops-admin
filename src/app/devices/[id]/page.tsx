@@ -210,12 +210,18 @@ export default function DeviceDetailPage() {
   const [liveOn, setLiveOn] = useState(false);
   const liveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 1サイクル: 撮影リクエスト→少し待って画像URLを更新(cache-bust)
+  // 1サイクル: 撮影リクエスト→裏で画像をプリロード→成功時のみ差し替え(切替時の壊れ防止)
   const captureCycle = async () => {
     try {
       await api.post(`/devices/${detail.id}/screenshot`, {});
       await new Promise((r) => setTimeout(r, 1200));
-      setLiveShot(`https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`);
+      const nextUrl = `https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`;
+      await new Promise<void>((resolve) => {
+        const img = new window.Image();
+        img.onload = () => { setLiveShot(nextUrl); resolve(); };
+        img.onerror = () => resolve(); // 失敗(リネーム隙間等)時は差し替えず前画像維持
+        img.src = nextUrl;
+      });
     } catch {
       // ライブ中は黙って次サイクルへ
     }
@@ -614,7 +620,7 @@ export default function DeviceDetailPage() {
                   {liveShot ? (
                     <div className="rounded-md border overflow-hidden" style={{ maxWidth: '240px' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={liveShot} alt="ライブビュー" className="w-full h-auto block" />
+                      <img src={liveShot} alt="ライブビュー" className="w-full h-auto block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "visible"; }} />
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
