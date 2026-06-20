@@ -623,28 +623,7 @@ export default function DeviceDetailPage() {
                   )}
                 </CardContent>
               </Card>
-{/* S141: 最近のスクリーンショット履歴は非表示(ライブビューに一本化)。
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">最近のスクリーンショット</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {(detail.recent_screenshots ?? []).map((s, i) => (
-                      <div key={i} className="rounded-md border overflow-hidden">
-                        <div className="aspect-[9/16] bg-muted">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={s.url} alt="" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="p-2 text-[11px] text-muted-foreground">
-                          {fmtRelative(s.captured_at)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-              */}
+{/* S141: スクリーンショット履歴は非表示（ライブビューに一本化） */}
             </TabsContent>
 
             <TabsContent value="schedules">
