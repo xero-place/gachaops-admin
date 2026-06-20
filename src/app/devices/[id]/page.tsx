@@ -108,11 +108,11 @@ export default function DeviceDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   // リモート設定: 音量・輝度の送信中フラグ
   const [savingVolume, setSavingVolume] = useState(false);
-  const [savingBrightness, setSavingBrightness] = useState(false);
+  // const [savingBrightness, setSavingBrightness] = useState(false); // S141: 輝度UI非表示
 
   const sendDeviceCommand = async (type: 'set_volume' | 'set_brightness', value: number) => {
     const payload = type === 'set_volume' ? { volume: value } : { brightness: value };
-    const setSaving = type === 'set_volume' ? setSavingVolume : setSavingBrightness;
+    const setSaving = setSavingVolume; // S141: 輝度UI非表示につき音量のみ
     setSaving(true);
     try {
       await api.post(`/devices/${params.id}/commands`, { type, payload });
