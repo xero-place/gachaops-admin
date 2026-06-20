@@ -200,25 +200,53 @@ export default function DevicesMapPage() {
                     style={{ filter: 'invert(0.85) hue-rotate(180deg) brightness(0.7)' }}
                   />
 
-                  {/* Store markers */}
+                  {/* Markers: 座標ありの端末は個別ピン / 座標なしは店舗座標に集約 */}
                   {stores.map((s) => {
                     if (!s.latitude || !s.longitude) return null;
-                    const { x, y } = project(s.latitude, s.longitude);
                     const storeDevices = devices.filter((d) => d.store_id === s.id);
-                    const offline = storeDevices.filter((d) => d.status === 'offline').length;
-                    const radius = Math.max(8, Math.min(20, s.device_count * 2.5)) * inv;
-                    const color = offline > 0 ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
-                    const isHover = hoverId === s.id;
+                    // 端末個別座標を持つもの / 持たないもの に分類
+                    const geoDevices = storeDevices.filter(
+                      (d) => d.latitude != null && d.longitude != null
+                    );
+                    const noGeoDevices = storeDevices.filter(
+                      (d) => d.latitude == null || d.longitude == null
+                    );
+                    const { x: sx, y: sy } = project(s.latitude, s.longitude);
+                    const noGeoOffline = noGeoDevices.filter((d) => d.status === 'offline').length;
+                    const storeColor = noGeoOffline > 0 ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
+                    const storeRadius = Math.max(8, Math.min(20, noGeoDevices.length * 2.5)) * inv;
+                    const storeHover = hoverId === s.id;
                     return (
-                      <g key={s.id} onMouseEnter={() => setHoverId(s.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
-                        <circle cx={x} cy={y} r={radius + 6 * inv} fill={color} opacity="0.15" className={isHover ? 'animate-pulse-soft' : ''} />
-                        <circle cx={x} cy={y} r={radius} fill={color} opacity="0.85" />
-                        <text x={x} y={y + 4 * inv} textAnchor="middle" fontSize={11 * inv} fontWeight="700" fill="white">
-                          {s.device_count}
-                        </text>
-                        <text x={x} y={y + radius + 14 * inv} textAnchor="middle" fontSize={10 * inv} fill="hsl(var(--foreground))" opacity="0.7">
-                          {s.name.replace(/店$/, '')}
-                        </text>
+                      <g key={s.id}>
+                        {/* 座標なし端末を店舗座標にまとめたピン（1台以上のときだけ表示） */}
+                        {noGeoDevices.length > 0 && (
+                          <g onMouseEnter={() => setHoverId(s.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
+                            <circle cx={sx} cy={sy} r={storeRadius + 6 * inv} fill={storeColor} opacity="0.15" className={storeHover ? 'animate-pulse-soft' : ''} />
+                            <circle cx={sx} cy={sy} r={storeRadius} fill={storeColor} opacity="0.85" />
+                            <text x={sx} y={sy + 4 * inv} textAnchor="middle" fontSize={11 * inv} fontWeight="700" fill="white">
+                              {noGeoDevices.length}
+                            </text>
+                            <text x={sx} y={sy + storeRadius + 14 * inv} textAnchor="middle" fontSize={10 * inv} fill="hsl(var(--foreground))" opacity="0.7">
+                              {s.name.replace(/店$/, '')}
+                            </text>
+                          </g>
+                        )}
+                        {/* 座標を持つ端末は実位置に個別ピン */}
+                        {geoDevices.map((d) => {
+                          const { x, y } = project(d.latitude as number, d.longitude as number);
+                          const color = d.status === 'offline' ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
+                          const r = 7 * inv;
+                          const dHover = hoverId === d.id;
+                          return (
+                            <g key={d.id} onMouseEnter={() => setHoverId(d.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
+                              <circle cx={x} cy={y} r={r + 5 * inv} fill={color} opacity="0.18" className={dHover ? 'animate-pulse-soft' : ''} />
+                              <circle cx={x} cy={y} r={r} fill={color} opacity="0.9" stroke="white" strokeWidth={1 * inv} />
+                              <text x={x} y={y + r + 12 * inv} textAnchor="middle" fontSize={9 * inv} fill="hsl(var(--foreground))" opacity="0.85">
+                                {d.name}
+                              </text>
+                            </g>
+                          );
+                        })}
                       </g>
                     );
                   })}

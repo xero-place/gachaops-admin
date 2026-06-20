@@ -118,6 +118,9 @@ export interface Device {
   app_version: string | null;
   android_version: string | null;
   ip_address: string | null;
+  /** 端末個別の設置座標 (S142, null=店舗座標にフォールバック) */
+  latitude: number | null;
+  longitude: number | null;
   group_ids: string[];
   /** Volume 0-100 */
   volume: number;
