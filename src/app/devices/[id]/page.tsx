@@ -584,11 +584,9 @@ export default function DeviceDetailPage() {
                     「スクリーンショット」ボタンを押すと、今この端末に映っている画面を取得します（数秒で反映）。
                   </p>
                   {liveShot ? (
-                    <div className="rounded-md border overflow-hidden max-w-md">
-                      <div className="aspect-[9/16] bg-muted">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={liveShot} alt="ライブビュー" className="w-full h-full object-contain" />
-                      </div>
+                    <div className="rounded-md border overflow-hidden" style={{ maxWidth: '240px' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={liveShot} alt="ライブビュー" className="w-full h-auto block" />
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
