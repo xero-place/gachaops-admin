@@ -234,6 +234,34 @@ export default function DeviceDetailPage() {
     setCapturing(false);
   };
 
+  // S141: 営業時間外モード手動操作
+  const [offhoursBusy, setOffhoursBusy] = useState(false);
+  const enterOffHours = async (mode: 'message' | 'blackout') => {
+    if (offhoursBusy) return;
+    setOffhoursBusy(true);
+    try {
+      await api.post(`/devices/${detail.id}/commands`, { type: 'enter_offhours', payload: { off_mode: mode } });
+      window.alert(mode === 'blackout' ? '🌑 真っ暗モードにしました' : '🌙 営業時間外メッセージを表示しました');
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明'}`);
+    } finally {
+      setOffhoursBusy(false);
+    }
+  };
+  const exitOffHoursManual = async () => {
+    if (offhoursBusy) return;
+    setOffhoursBusy(true);
+    try {
+      await api.post(`/devices/${detail.id}/commands`, { type: 'exit_offhours', payload: {} });
+      window.alert('☀️ 営業中に戻しました');
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明'}`);
+    } finally {
+      setOffhoursBusy(false);
+    }
+  };
+
+
   const toggleLive = () => {
     if (liveOn) {
       if (liveTimer.current) { clearInterval(liveTimer.current); liveTimer.current = null; }
@@ -633,6 +661,27 @@ export default function DeviceDetailPage() {
             </TabsContent>
 
             <TabsContent value="schedules">
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="text-sm">営業時間外モード（手動操作）</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    今すぐ営業時間外にする／営業中に戻す手動操作です。スケジュールとは独立して使えます。
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => enterOffHours('message')} disabled={detail.status !== 'online' || offhoursBusy}>
+                      🌙 営業時間外（メッセージ表示）
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => enterOffHours('blackout')} disabled={detail.status !== 'online' || offhoursBusy}>
+                      🌑 営業時間外（真っ暗）
+                    </Button>
+                    <Button size="sm" variant="default" onClick={exitOffHoursManual} disabled={detail.status !== 'online' || offhoursBusy}>
+                      ☀️ 営業中に戻す
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
