@@ -7,13 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sun, Moon, Monitor, Bell, Globe, Key, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Sun, Moon, Monitor, Bell, Globe, Key, CheckCircle2, XCircle, Loader2, Mail, Save } from 'lucide-react';
 import { tokenStore, type StoredUser } from '@/lib/token-store';
+import { api } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 const HEALTH_URL = API_BASE.replace(/\/v1\/?$/, '') + '/health';
 
 type ThemeOption = 'system' | 'dark' | 'light';
+
+interface NotificationSettings {
+  notify_offline: boolean;
+  notify_low_stock: boolean;
+  notify_task_failed: boolean;
+  email_enabled: boolean;
+  email_to: string | null;
+}
 
 function decodeJwtExp(token: string | null): number | null {
   if (!token) return null;
@@ -28,9 +39,16 @@ function decodeJwtExp(token: string | null): number | null {
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [notifyOffline, setNotifyOffline] = useState(true);
-  const [notifyLowStock, setNotifyLowStock] = useState(true);
-  const [notifyTaskFailed, setNotifyTaskFailed] = useState(false);
+  const [notif, setNotif] = useState<NotificationSettings>({
+    notify_offline: true,
+    notify_low_stock: true,
+    notify_task_failed: false,
+    email_enabled: false,
+    email_to: '',
+  });
+  const [notifLoading, setNotifLoading] = useState(true);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifSaved, setNotifSaved] = useState(false);
 
   const [user, setUser] = useState<StoredUser | null>(null);
   const [tokenExp, setTokenExp] = useState<number | null>(null);
@@ -44,6 +62,39 @@ export default function SettingsPage() {
     setUser(tokenStore.getUser());
     setTokenExp(decodeJwtExp(tokenStore.getAccess()));
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await api.get<NotificationSettings>('/settings/notifications');
+        if (alive) setNotif({ ...data, email_to: data.email_to ?? '' });
+      } catch {
+        // keep defaults
+      } finally {
+        if (alive) setNotifLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const handleSaveNotif = async () => {
+    setNotifSaving(true);
+    setNotifSaved(false);
+    try {
+      const saved = await api.put<NotificationSettings>('/settings/notifications', {
+        ...notif,
+        email_to: notif.email_to?.trim() ? notif.email_to.trim() : null,
+      });
+      setNotif({ ...saved, email_to: saved.email_to ?? '' });
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2500);
+    } catch {
+      // surfaced by ApiError; keep current state
+    } finally {
+      setNotifSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!tokenExp) { setRemainLabel('—'); return; }
@@ -138,22 +189,59 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <ToggleRow
                 title="オフライン端末の通知"
-                description="端末が30分以上応答しない時に通知（現在は画面内通知のみ・メール送信は準備中）"
-                checked={notifyOffline}
-                onChange={setNotifyOffline}
+                description="端末が30分以上応答しない時に通知"
+                checked={notif.notify_offline}
+                onChange={(v) => setNotif((n) => ({ ...n, notify_offline: v }))}
+                disabled={notifLoading}
               />
               <ToggleRow
                 title="低在庫アラート"
-                description="しきい値を下回った商品の通知（現在は画面内通知のみ・メール送信は準備中）"
-                checked={notifyLowStock}
-                onChange={setNotifyLowStock}
+                description="しきい値を下回った商品の通知"
+                checked={notif.notify_low_stock}
+                onChange={(v) => setNotif((n) => ({ ...n, notify_low_stock: v }))}
+                disabled={notifLoading}
               />
               <ToggleRow
                 title="配信タスク失敗"
-                description="配信タスクで失敗端末が出た時に通知（現在は画面内通知のみ・メール送信は準備中）"
-                checked={notifyTaskFailed}
-                onChange={setNotifyTaskFailed}
+                description="配信タスクで失敗端末が出た時に通知"
+                checked={notif.notify_task_failed}
+                onChange={(v) => setNotif((n) => ({ ...n, notify_task_failed: v }))}
+                disabled={notifLoading}
               />
+
+              <div className="border-t border-border pt-4 space-y-3">
+                <ToggleRow
+                  title="メール通知"
+                  description="上記の通知を登録メールアドレスに送信（メール基盤の準備が必要）"
+                  checked={notif.email_enabled}
+                  onChange={(v) => setNotif((n) => ({ ...n, email_enabled: v }))}
+                  disabled={notifLoading}
+                />
+                <div className="space-y-2">
+                  <Label htmlFor="notif-email" className="text-xs flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5" />通知先メールアドレス
+                  </Label>
+                  <Input
+                    id="notif-email"
+                    type="email"
+                    placeholder="ops@example.com"
+                    value={notif.email_to ?? ''}
+                    onChange={(e) => setNotif((n) => ({ ...n, email_to: e.target.value }))}
+                    disabled={notifLoading}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button size="sm" onClick={handleSaveNotif} disabled={notifLoading || notifSaving}>
+                  {notifSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  保存
+                </Button>
+                {notifSaved && (
+                  <span className="text-xs text-primary flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />保存しました</span>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -219,14 +307,14 @@ export default function SettingsPage() {
   );
 }
 
-function ToggleRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({ title, description, checked, onChange, disabled }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
         <div className="text-sm font-medium">{title}</div>
         <div className="text-[11px] text-muted-foreground mt-0.5">{description}</div>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
 }
