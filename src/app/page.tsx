@@ -69,9 +69,9 @@ export default function DashboardPage() {
           accent="primary"
         />
         <KpiCard
-          label="本日の注文"
+          label="本日の回転数"
           value={String(overview.orders_today)}
-          deltaLabel={`過去14日: ${totalOrdersIn14d}件`}
+          deltaLabel={`過去14日: ${totalOrdersIn14d}回転`}
           icon={<Activity className="h-4 w-4" />}
         />
         <KpiCard
@@ -113,11 +113,11 @@ export default function DashboardPage() {
           <div>
             <CardTitle>売上推移 (過去14日)</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              通算 {fmtYen(totalSalesIn14d)} / 注文 {totalOrdersIn14d}件
+              総売上：{fmtYen(totalSalesIn14d)} / 回転数：{totalOrdersIn14d}回
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/orders">注文一覧へ →</Link>
+            <Link href="/orders">決済履歴一覧へ →</Link>
           </Button>
         </CardHeader>
         <CardContent>
