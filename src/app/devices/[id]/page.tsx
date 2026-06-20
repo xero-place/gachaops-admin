@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePlaybackStream } from '@/hooks/use-playback-stream';
 import { PlaybackStatus } from '@/components/domain/playback-status';
 import { notFound, useParams } from 'next/navigation';
@@ -207,20 +207,42 @@ export default function DeviceDetailPage() {
 
   const [capturing, setCapturing] = useState(false);
   const [liveShot, setLiveShot] = useState<string | null>(null);
+  const [liveOn, setLiveOn] = useState(false);
+  const liveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 1サイクル: 撮影リクエスト→少し待って画像URLを更新(cache-bust)
+  const captureCycle = async () => {
+    try {
+      await api.post(`/devices/${detail.id}/screenshot`, {});
+      await new Promise((r) => setTimeout(r, 1200));
+      setLiveShot(`https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`);
+    } catch {
+      // ライブ中は黙って次サイクルへ
+    }
+  };
+
   const handleScreenshot = async () => {
     if (capturing) return;
     setCapturing(true);
-    try {
-      await api.post(`/devices/${detail.id}/screenshot`, {});
-      // backend が capture_screenshot を signage に送る→撮影→アップロード。少し待って取得。
-      await new Promise((r) => setTimeout(r, 1500));
-      setLiveShot(`https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`);
-    } catch (e) {
-      window.alert(`❌ スクショ失敗: ${e instanceof Error ? e.message : '不明'}`);
-    } finally {
-      setCapturing(false);
+    await captureCycle();
+    setCapturing(false);
+  };
+
+  const toggleLive = () => {
+    if (liveOn) {
+      if (liveTimer.current) { clearInterval(liveTimer.current); liveTimer.current = null; }
+      setLiveOn(false);
+    } else {
+      setLiveOn(true);
+      void captureCycle();
+      liveTimer.current = setInterval(() => { void captureCycle(); }, 2500);
     }
   };
+
+  // ページ離脱時にライブ停止(メモリリーク防止)
+  useEffect(() => {
+    return () => { if (liveTimer.current) clearInterval(liveTimer.current); };
+  }, []);
 
   const [restarting, setRestarting] = useState(false);
   const handleRestartApp = async () => {
@@ -580,9 +602,15 @@ export default function DeviceDetailPage() {
                   <CardTitle className="text-sm">ライブビュー（擬似リアルタイム）</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    「スクリーンショット」ボタンを押すと、今この端末に映っている画面を取得します（数秒で反映）。
-                  </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button size="sm" variant={liveOn ? 'destructive' : 'default'} onClick={toggleLive} disabled={detail.status !== 'online'}>
+                      {liveOn ? '■ ライブ停止' : '▶ ライブ開始'}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleScreenshot} disabled={detail.status !== 'online' || liveOn || capturing}>
+                      {capturing ? '取得中…' : '1枚だけ取得'}
+                    </Button>
+                    {liveOn && <span className="text-xs text-muted-foreground">約2.5秒ごとに自動更新中…</span>}
+                  </div>
                   {liveShot ? (
                     <div className="rounded-md border overflow-hidden" style={{ maxWidth: '240px' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -595,6 +623,7 @@ export default function DeviceDetailPage() {
                   )}
                 </CardContent>
               </Card>
+{/* S141: 最近のスクリーンショット履歴は非表示(ライブビューに一本化)。
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">最近のスクリーンショット</CardTitle>
@@ -615,6 +644,7 @@ export default function DeviceDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+              */}
             </TabsContent>
 
             <TabsContent value="schedules">
