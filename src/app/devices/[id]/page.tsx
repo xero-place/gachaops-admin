@@ -205,6 +205,23 @@ export default function DeviceDetailPage() {
     }
   };
 
+  const [capturing, setCapturing] = useState(false);
+  const [liveShot, setLiveShot] = useState<string | null>(null);
+  const handleScreenshot = async () => {
+    if (capturing) return;
+    setCapturing(true);
+    try {
+      await api.post(`/devices/${detail.id}/screenshot`, {});
+      // backend が capture_screenshot を signage に送る→撮影→アップロード。少し待って取得。
+      await new Promise((r) => setTimeout(r, 1500));
+      setLiveShot(`https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`);
+    } catch (e) {
+      window.alert(`❌ スクショ失敗: ${e instanceof Error ? e.message : '不明'}`);
+    } finally {
+      setCapturing(false);
+    }
+  };
+
   const [restarting, setRestarting] = useState(false);
   const handleRestartApp = async () => {
     if (restarting) return;
@@ -460,8 +477,8 @@ export default function DeviceDetailPage() {
               <Undo2 className="h-3.5 w-3.5" />計画配信に戻す
             </Button>
           )}
-          <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
-            <Camera className="h-3.5 w-3.5" />スクリーンショット
+          <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || capturing} onClick={handleScreenshot}>
+            <Camera className="h-3.5 w-3.5" />{capturing ? '取得中…' : 'スクリーンショット'}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || restarting} onClick={handleRestartApp}>
             <RefreshCcw className="h-3.5 w-3.5" />再起動
@@ -558,6 +575,28 @@ export default function DeviceDetailPage() {
             </TabsContent>
 
             <TabsContent value="screenshots">
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="text-sm">ライブビュー（擬似リアルタイム）</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    「スクリーンショット」ボタンを押すと、今この端末に映っている画面を取得します（数秒で反映）。
+                  </p>
+                  {liveShot ? (
+                    <div className="rounded-md border overflow-hidden max-w-md">
+                      <div className="aspect-[9/16] bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={liveShot} alt="ライブビュー" className="w-full h-full object-contain" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      まだ取得していません。上部の「スクリーンショット」ボタンを押してください。
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">最近のスクリーンショット</CardTitle>
