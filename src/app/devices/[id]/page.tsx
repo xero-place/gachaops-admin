@@ -33,7 +33,7 @@ import {
   Power,
   RefreshCcw,
   Volume2,
-  Sun,
+  // Sun, // S141: 輝度UI非表示につき未使用化
   Network,
   Smartphone,
   Cpu,
@@ -544,13 +544,15 @@ export default function DeviceDetailPage() {
                     saving={savingVolume}
                     onCommit={(v) => void sendDeviceCommand('set_volume', v)}
                   />
+                  {/* S141: 輝度リモート制御は端末(HiSilicon)がソフト輝度制御非対応のため非表示。
+                      signage側 applyDeviceBrightness は残置(将来の対応端末向け)。本体で輝度固定運用。
                   <RemoteSliderRow
                     icon={<Sun className="h-4 w-4" />}
                     label="輝度"
                     value={detail.brightness}
                     saving={savingBrightness}
                     onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
-                  />
+                  /> */}
                 </CardContent>
               </Card>
             </TabsContent>
