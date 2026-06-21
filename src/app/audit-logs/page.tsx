@@ -80,11 +80,20 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');  // S146: 期間絞り込み
+  const [dateTo, setDateTo] = useState<string>('');
 
   const filtered = useMemo(() => {
+    const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
+    const toMs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
     return auditLogs.filter((log) => {
       if (actionFilter !== 'all' && log.action !== actionFilter) return false;
       if (userFilter !== 'all' && log.user_id !== userFilter) return false;
+      if (fromMs !== null || toMs !== null) {
+        const t = new Date(log.created_at).getTime();
+        if (fromMs !== null && t < fromMs) return false;
+        if (toMs !== null && t > toMs) return false;
+      }
       if (search) {
         const s = search.toLowerCase();
         if (
@@ -96,7 +105,7 @@ export default function AuditLogsPage() {
       }
       return true;
     });
-  }, [auditLogs, search, actionFilter, userFilter]);
+  }, [auditLogs, search, actionFilter, userFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +174,17 @@ export default function AuditLogsPage() {
               ))}
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-1">
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="h-8 rounded-md border bg-background px-2 text-xs" title="開始日" />
+            <span className="text-xs text-muted-foreground">〜</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="h-8 rounded-md border bg-background px-2 text-xs" title="終了日" />
+            {(dateFrom || dateTo) && (
+              <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="text-[10.5px] text-muted-foreground hover:underline ml-1">クリア</button>
+            )}
+          </div>
           <div className="ml-auto text-xs text-muted-foreground">
             {filtered.length} / {auditLogs.length} 件
           </div>
@@ -180,6 +200,7 @@ export default function AuditLogsPage() {
             <TableRow>
               <TableHead>日時</TableHead>
               <TableHead>ユーザ</TableHead>
+              <TableHead>顧客</TableHead>
               <TableHead>操作</TableHead>
               <TableHead>リソース</TableHead>
               <TableHead>IP</TableHead>
@@ -193,6 +214,11 @@ export default function AuditLogsPage() {
                   {fmtDate(log.created_at)}
                 </TableCell>
                 <TableCell className="text-xs">{log.user_email}</TableCell>
+                <TableCell className="text-xs">
+                  {log.customer_id
+                    ? <span className="font-mono text-[10.5px] text-amber-500/90">{log.customer_id}</span>
+                    : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell><Badge variant={ACTION_VARIANT[log.action]}>{ACTION_LABEL[log.action]}</Badge></TableCell>
                 <TableCell className="text-xs">
                   <div className="font-medium">{log.resource_type}</div>
