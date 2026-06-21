@@ -79,9 +79,9 @@ export default function DevicesMapPage() {
           <Card>
             <CardContent className="p-4">
               <div className="relative">
-                {/* S147: 位置を一括取得（運営lv1_superのみ）*/}
+                {/* S147: 位置を一括取得（運営lv1_superのみ・地図の外・上に配置）*/}
                 {isSuperAdmin && (
-                  <div className="absolute top-2 left-2 z-[1000] flex flex-col items-start gap-1">
+                  <div className="flex items-center gap-2 mb-3">
                     <button
                       onClick={handleLocateAll}
                       disabled={locating}
@@ -94,7 +94,7 @@ export default function DevicesMapPage() {
                       位置を一括取得
                     </button>
                     {locateMsg && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-card/90 border border-border text-muted-foreground max-w-[180px]">
+                      <span className="text-xs text-muted-foreground">
                         {locateMsg}
                       </span>
                     )}
