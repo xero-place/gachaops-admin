@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { tokenStore } from '@/lib/token-store';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -82,6 +83,9 @@ export default function AuditLogsPage() {
   const [userFilter, setUserFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');  // S146: 期間絞り込み
   const [dateTo, setDateTo] = useState<string>('');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');  // S146: 顧客絞り込み
+  const [customers, setCustomers] = useState<{id:string; name:string}[]>([]);
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
 
   const filtered = useMemo(() => {
     const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
@@ -89,6 +93,7 @@ export default function AuditLogsPage() {
     return auditLogs.filter((log) => {
       if (actionFilter !== 'all' && log.action !== actionFilter) return false;
       if (userFilter !== 'all' && log.user_id !== userFilter) return false;
+      if (customerFilter !== 'all' && log.customer_id !== customerFilter) return false;
       if (fromMs !== null || toMs !== null) {
         const t = new Date(log.created_at).getTime();
         if (fromMs !== null && t < fromMs) return false;
@@ -105,7 +110,7 @@ export default function AuditLogsPage() {
       }
       return true;
     });
-  }, [auditLogs, search, actionFilter, userFilter, dateFrom, dateTo]);
+  }, [auditLogs, search, actionFilter, userFilter, dateFrom, dateTo, customerFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +125,13 @@ export default function AuditLogsPage() {
         const uArr = Array.isArray(uRes) ? uRes : (uRes.items ?? []);
         setAuditLogs(aArr);
         setUsers(uArr);
+        // S146: lv1_super 時は顧客一覧を取得（顧客絞り込み用）
+        if (tokenStore.getUser()?.role === 'lv1_super') {
+          try {
+            const cRes = await api.get<{items?: {id:string;name:string}[]} | {id:string;name:string}[]>('/customers?limit=200');
+            if (!cancelled) setCustomers(Array.isArray(cRes) ? cRes : (cRes.items ?? []));
+          } catch (e2) { console.error('[audit-logs] customers fetch failed:', e2); }
+        }
       } catch (e) {
         console.error('[audit-logs] fetch failed:', e);
       } finally {
@@ -174,6 +186,19 @@ export default function AuditLogsPage() {
               ))}
             </SelectContent>
           </Select>
+          {isSuperAdmin && (
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue placeholder="顧客" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全顧客</SelectItem>
+                {customers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}（{c.id}）</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex items-center gap-1">
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
               className="h-8 rounded-md border bg-background px-2 text-xs" title="開始日" />
