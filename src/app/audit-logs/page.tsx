@@ -116,12 +116,27 @@ export default function AuditLogsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [aRes, uRes] = await Promise.all([
-          api.get<{items?: AuditLog[]} | AuditLog[]>('/audit-logs?limit=200'),
+        // S147: 監査ログは next_cursor を辿って全件取得（200件で頭打ちにしない）
+        const fetchAllAuditLogs = async (): Promise<AuditLog[]> => {
+          const all: AuditLog[] = [];
+          let cursor: string | null = null;
+          for (let i = 0; i < 50; i++) {
+            const qs = `/audit-logs?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+            const res = await api.get<{ items?: AuditLog[]; pagination?: { next_cursor?: string | null } } | AuditLog[]>(qs);
+            const items = Array.isArray(res) ? res : (res.items ?? []);
+            all.push(...items);
+            const next = Array.isArray(res) ? null : (res.pagination?.next_cursor ?? null);
+            if (!next) break;
+            cursor = next;
+          }
+          return all;
+        };
+
+        const [aArr, uRes] = await Promise.all([
+          fetchAllAuditLogs(),
           api.get<{items?: User[]} | User[]>('/users?limit=200'),
         ]);
         if (cancelled) return;
-        const aArr = Array.isArray(aRes) ? aRes : (aRes.items ?? []);
         const uArr = Array.isArray(uRes) ? uRes : (uRes.items ?? []);
         setAuditLogs(aArr);
         setUsers(uArr);
