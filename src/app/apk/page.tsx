@@ -144,6 +144,8 @@ export default function ApkPage() {
         const res = await api.get<{items?: ApkRelease[]} | ApkRelease[]>('/apk/releases?limit=100');
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res.items ?? []);
+        // S146: アップロード日時の新しい順（降順）に並べる
+        arr.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
         setApkReleases(arr);
         // S146: 配信先選択用に端末・グループ取得
         try {
@@ -196,7 +198,11 @@ export default function ApkPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <CardTitle className="text-base">{apk.version_name}</CardTitle>
                       <Badge variant={CHANNEL_VARIANT[apk.channel]}>{apk.channel}</Badge>
-                      {isLatest && <Badge variant="default" className="text-[10px]">最新</Badge>}
+                      {isLatest && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-violet-500/40 ring-1 ring-violet-300/50">
+                          ★ 最新
+                        </span>
+                      )}
                       {apk.signed && (
                         <Badge variant="ok" className="gap-1 text-[10px]">
                           <CheckCircle2 className="h-2.5 w-2.5" />署名済
@@ -228,11 +234,44 @@ export default function ApkPage() {
                   )}
                 </div>
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">アクティブ端末</span>
-                    <span className="text-base font-semibold tabular-nums text-primary">{apk.active_install_count}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-muted-foreground">
+                  {(() => {
+                    const targets = apk.delivery_targets ?? [];
+                    const done = targets.filter((t) => t.status === 'completed').length;
+                    const stMap: Record<string, { label: string; cls: string }> = {
+                      completed: { label: '完了', cls: 'bg-emerald-500/15 text-emerald-500' },
+                      pending: { label: '待機', cls: 'bg-amber-500/15 text-amber-500' },
+                      failed: { label: '失敗', cls: 'bg-red-500/15 text-red-500' },
+                    };
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">配信先</span>
+                          {targets.length > 0 ? (
+                            <span className="text-[10.5px] font-medium tabular-nums text-muted-foreground">{done}/{targets.length} 完了</span>
+                          ) : (
+                            <span className="text-[10.5px] text-muted-foreground">未配信</span>
+                          )}
+                        </div>
+                        {targets.length > 0 && (
+                          <div className="max-h-36 overflow-y-auto rounded-md border divide-y">
+                            {targets.map((t) => {
+                              const st = stMap[t.status] ?? { label: t.status, cls: 'bg-muted text-muted-foreground' };
+                              return (
+                                <div key={t.device_id} className="flex items-center gap-1.5 px-2 py-1.5">
+                                  <span className="font-medium truncate">{t.device_name ?? t.device_id}</span>
+                                  {t.customer_id && (
+                                    <span className="font-mono text-[9px] text-amber-500/80 shrink-0">{t.customer_id}</span>
+                                  )}
+                                  <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${st.cls}`}>{st.label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center justify-between text-muted-foreground pt-1">
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" />アップロード</span>
                     <span>{fmtRelative(apk.uploaded_at)}</span>
                   </div>

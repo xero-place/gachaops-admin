@@ -338,6 +338,16 @@ export interface ApkRelease {
   signed: boolean;
   /** Number of devices currently running this version */
   active_install_count: number;
+  /** S146: このリリースを配信した端末（Task/TaskDeviceRun履歴ベース） */
+  delivery_targets?: ApkDeliveryTarget[];
+}
+
+export interface ApkDeliveryTarget {
+  device_id: string;
+  device_name?: string | null;
+  customer_id?: string | null;
+  status: string;
+  distributed_at?: string | null;
 }
 
 // ===== Audit logs =====
