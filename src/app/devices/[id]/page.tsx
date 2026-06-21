@@ -34,6 +34,7 @@ import {
   Power,
   RefreshCcw,
   Volume2,
+  Sun,
   // Sun, // S141: 輝度UI非表示につき未使用化
   Network,
   Smartphone,
@@ -176,6 +177,21 @@ export default function DeviceDetailPage() {
       alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '送信に失敗しました');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // S147c: 表示モード（通常/白黒/高コントラスト）。屋外視認性対策。アプリ内カラーマトリクス。
+  const [savingDisplayMode, setSavingDisplayMode] = useState(false);
+  const [displayMode, setDisplayMode] = useState<string>('normal');
+  const sendDisplayMode = async (mode: 'normal' | 'grayscale' | 'high_contrast') => {
+    setSavingDisplayMode(true);
+    try {
+      await api.post(`/devices/${params.id}/commands`, { type: 'set_display_mode', payload: { mode } });
+      setDisplayMode(mode);
+    } catch (e) {
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '送信に失敗しました');
+    } finally {
+      setSavingDisplayMode(false);
     }
   };
   const { states: playbackStates } = usePlaybackStream();
@@ -684,6 +700,39 @@ export default function DeviceDetailPage() {
                     saving={savingBrightness}
                     onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
                   /> */}
+
+                  {/* S147c: 表示モード（屋外視認性対策・運営専用）*/}
+                  {isSuperAdmin && (
+                    <div className="pt-2 border-t border-border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sun className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">表示モード（屋外視認性）</span>
+                      </div>
+                      <div className="flex gap-2">
+                        {([
+                          { key: 'normal', label: '通常' },
+                          { key: 'grayscale', label: '白黒' },
+                          { key: 'high_contrast', label: '高コントラスト' },
+                        ] as const).map((m) => (
+                          <button
+                            key={m.key}
+                            onClick={() => void sendDisplayMode(m.key)}
+                            disabled={savingDisplayMode}
+                            className={`flex-1 h-9 px-2 rounded-md text-xs font-medium border transition-colors disabled:opacity-60 ${
+                              displayMode === m.key
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-card border-border hover:bg-accent'
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        屋外で見えにくい場合に白黒・高コントラストを試せます（端末の明るさは変わりません）
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
