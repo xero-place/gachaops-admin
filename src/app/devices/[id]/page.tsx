@@ -183,7 +183,7 @@ export default function DeviceDetailPage() {
   // S147c: 表示モード（通常/白黒/高コントラスト）。屋外視認性対策。アプリ内カラーマトリクス。
   const [savingDisplayMode, setSavingDisplayMode] = useState(false);
   const [displayMode, setDisplayMode] = useState<string>('normal');
-  const sendDisplayMode = async (mode: 'normal' | 'grayscale' | 'high_contrast') => {
+  const sendDisplayMode = async (mode: 'normal' | 'grayscale' | 'hc1' | 'hc2' | 'hc3' | 'hc4') => {
     setSavingDisplayMode(true);
     try {
       await api.post(`/devices/${params.id}/commands`, { type: 'set_display_mode', payload: { mode } });
@@ -708,11 +708,14 @@ export default function DeviceDetailPage() {
                         <Sun className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">表示モード（屋外視認性）</span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {([
                           { key: 'normal', label: '通常' },
                           { key: 'grayscale', label: '白黒' },
-                          { key: 'high_contrast', label: '高コントラスト' },
+                          { key: 'hc1', label: '高コントラスト 弱' },
+                          { key: 'hc2', label: '中' },
+                          { key: 'hc3', label: '強' },
+                          { key: 'hc4', label: '最強' },
                         ] as const).map((m) => (
                           <button
                             key={m.key}
@@ -729,7 +732,7 @@ export default function DeviceDetailPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1.5">
-                        屋外で見えにくい場合に白黒・高コントラストを試せます（端末の明るさは変わりません）
+                        屋外で見えにくい場合に白黒・高コントラストを試せます
                       </p>
                     </div>
                   )}
