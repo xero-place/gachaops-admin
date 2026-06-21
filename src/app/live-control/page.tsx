@@ -193,7 +193,7 @@ export default function LiveControlPage() {
           </CardTitle>
           <p className="text-xs text-muted-foreground">よく使う操作を1クリックで</p>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <QuickAction
             icon={<Globe2 className="h-5 w-5" />}
             title="全マシン一斉切替"
@@ -204,6 +204,8 @@ export default function LiveControlPage() {
             })}
             disabled={onlineCount === 0}
           />
+          {/* S145: 「全端末を計画モードへ」は左サイドバー「計画配信」と重複のため非表示（コード温存・復活時は false→true） */}
+          {false && (
           <QuickAction
             icon={<Undo2 className="h-5 w-5" />}
             title="全端末を計画モードへ"
@@ -223,6 +225,7 @@ export default function LiveControlPage() {
             disabled={manualCount === 0}
             accent="muted"
           />
+          )}
           <Button
             variant="outline"
             className="h-auto p-4 flex flex-col items-start gap-2 text-left"

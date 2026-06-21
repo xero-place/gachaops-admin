@@ -173,6 +173,9 @@ function GroupNode({
         )}
         <Layers3 className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">{group.name}</span>
+        {canEdit && group.customer_id && (
+          <span className="text-[10px] font-mono text-amber-500/80">{group.customer_id}</span>
+        )}
         {group.linked && (
           <Badge variant="default" className="gap-1 text-[10px]">
             <Link2 className="h-2.5 w-2.5" />連動再生
