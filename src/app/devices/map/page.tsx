@@ -9,6 +9,8 @@ import { Building2, Plus, Minus, Maximize2, MapPin, Loader2 } from 'lucide-react
 import { api } from '@/lib/api';
 import type { Store, Device } from '@/types/domain';
 import { tokenStore } from '@/lib/token-store';
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const VIEW_W = 1000;
 const VIEW_H = 846;
@@ -47,6 +49,8 @@ export default function DevicesMapPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [locating, setLocating] = useState(false);
   const [locateMsg, setLocateMsg] = useState<string | null>(null);
+  const [locateDone, setLocateDone] = useState(false);
+  const [locateDoneCount, setLocateDoneCount] = useState(0);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
 
   const [vb, setVb] = useState<ViewBox>({ x: 0, y: 0, w: VIEW_W, h: VIEW_H });
@@ -79,10 +83,15 @@ export default function DevicesMapPage() {
     setLocateMsg(null);
     try {
       const res = await api.post<{ requested: number; total: number }>('/devices/locate-all');
-      setLocateMsg(`${res.requested}台に測位指示を送信。数秒後に反映されます…`);
+      setLocateMsg(`${res.requested}台に測位指示を送信。反映を待っています…`);
       // 端末がスキャン→報告するのを待ってからリフレッシュ（2回）
       setTimeout(() => { loadData(); }, 4000);
-      setTimeout(() => { loadData(); setLocateMsg(null); }, 9000);
+      setTimeout(() => {
+        loadData();
+        setLocateMsg(null);
+        setLocateDoneCount(res.requested);
+        setLocateDone(true);  // 完了ポップアップ表示
+      }, 9000);
     } catch (e) {
       console.warn('locate-all failed:', e);
       setLocateMsg('測位指示の送信に失敗しました');
@@ -373,6 +382,21 @@ export default function DevicesMapPage() {
           </Card>
         </div>
       </div>
+      {/* S147: 測位完了ポップアップ */}
+      <Dialog open={locateDone} onOpenChange={setLocateDone}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>位置情報を更新しました</DialogTitle>
+            <DialogDescription>
+              すべてのマシンの最新の位置情報が反映されました。
+              {locateDoneCount > 0 && `（${locateDoneCount}台に測位指示を送信）`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setLocateDone(false)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
