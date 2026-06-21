@@ -181,7 +181,8 @@ function GroupNode({
             <Link2 className="h-2.5 w-2.5" />連動再生
           </Badge>
         )}
-        {group.effect_enabled_default && (
+        {/* S145: 演出はグループ既定常時true・端末タブで制御のためバッジ非表示 */}
+        {false && group.effect_enabled_default && (
           <Badge variant="secondary" className="gap-1 text-[10px]">
             <Sparkles className="h-2.5 w-2.5" />演出ON
           </Badge>
@@ -236,7 +237,8 @@ function EditGroupDialog({
 }) {
   const [name, setName] = useState(group.name);
   const [linked, setLinked] = useState(group.linked);
-  const [effectDefault, setEffectDefault] = useState(group.effect_enabled_default);
+  // S145: 演出ON/OFFは端末タブで制御。グループ既定は常にtrue固定（三値フォールバックの参照先を維持）。UIは非表示。
+  const [effectDefault, setEffectDefault] = useState(true);
   const initialMemberIds = group.members.map((m) => m.device_id);
   const [memberIds, setMemberIds] = useState<string[]>(initialMemberIds);
   const initialMaster = group.members.find((m) => m.is_master)?.device_id ?? '';
@@ -309,10 +311,13 @@ function EditGroupDialog({
             <label htmlFor="edit-linked" className="text-xs">連動再生（複数台を同期）</label>
           </div>
 
+          {/* S145: 演出ON/OFFは端末タブで制御するため非表示。値は常にtrue固定。 */}
+          {false && (
           <div className="flex items-center gap-2">
             <Checkbox id="edit-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
             <label htmlFor="edit-effect" className="text-xs">演出をグループ既定で有効にする</label>
           </div>
+          )}
 
           {/* S145: 箸休め番組（運営lv1_superのみ表示・顧客には出ない） */}
           {isSuperAdmin && (
@@ -471,10 +476,13 @@ function CreateGroupDialog({
             <label htmlFor="new-linked" className="text-xs">連動再生（複数台を同期）</label>
           </div>
 
+          {/* S145: 演出ON/OFFは端末タブで制御するため非表示。値は常にtrue固定。 */}
+          {false && (
           <div className="flex items-center gap-2">
             <Checkbox id="new-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
             <label htmlFor="new-effect" className="text-xs">演出をグループ既定で有効にする</label>
           </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
