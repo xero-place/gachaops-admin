@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Minus, Maximize2 } from 'lucide-react';
+import { Building2, Plus, Minus, Maximize2, MapPin, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Store, Device } from '@/types/domain';
+import { tokenStore } from '@/lib/token-store';
 
 const VIEW_W = 1000;
 const VIEW_H = 846;
@@ -24,12 +25,29 @@ function project(lat: number, lng: number, w = VIEW_W, h = VIEW_H) {
   return { x, y };
 }
 
+
+// S147: 測位時刻の鮮度を判定。30分以内=現在地(緑)、それ以前=最終位置(グレー)
+function locFreshness(updatedAt: string | null): { fresh: boolean; label: string } {
+  if (!updatedAt) return { fresh: false, label: '位置未取得' };
+  const t = new Date(updatedAt).getTime();
+  if (isNaN(t)) return { fresh: false, label: '位置未取得' };
+  const diffMin = (Date.now() - t) / 60000;
+  if (diffMin < 30) return { fresh: true, label: '現在地' };
+  if (diffMin < 60) return { fresh: false, label: `最終位置 ${Math.round(diffMin)}分前` };
+  const diffH = diffMin / 60;
+  if (diffH < 24) return { fresh: false, label: `最終位置 ${Math.round(diffH)}時間前` };
+  return { fresh: false, label: `最終位置 ${Math.round(diffH / 24)}日前` };
+}
+
 interface ViewBox { x: number; y: number; w: number; h: number }
 
 export default function DevicesMapPage() {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
+  const [locating, setLocating] = useState(false);
+  const [locateMsg, setLocateMsg] = useState<string | null>(null);
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
 
   const [vb, setVb] = useState<ViewBox>({ x: 0, y: 0, w: VIEW_W, h: VIEW_H });
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -38,25 +56,40 @@ export default function DevicesMapPage() {
   // 現在の拡大率（1 = 全体表示）
   const scale = VIEW_W / vb.w;
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [s, d] = await Promise.all([
-          api.get<{ items?: Store[] } | Store[]>('/stores?limit=100'),
-          api.get<{ items?: Device[] } | Device[]>('/devices?limit=200'),
-        ]);
-        if (cancelled) return;
-        const storesArr = Array.isArray(s) ? s : (s.items ?? []);
-        const devicesArr = Array.isArray(d) ? d : (d.items ?? []);
-        setStores(storesArr);
-        setDevices(devicesArr);
-      } catch (e) {
-        console.warn('Map data fetch failed:', e);
-      }
-    })();
-    return () => { cancelled = true; };
+  const loadData = useCallback(async () => {
+    try {
+      const [s, d] = await Promise.all([
+        api.get<{ items?: Store[] } | Store[]>('/stores?limit=100'),
+        api.get<{ items?: Device[] } | Device[]>('/devices?limit=200'),
+      ]);
+      const storesArr = Array.isArray(s) ? s : (s.items ?? []);
+      const devicesArr = Array.isArray(d) ? d : (d.items ?? []);
+      setStores(storesArr);
+      setDevices(devicesArr);
+    } catch (e) {
+      console.warn('Map data fetch failed:', e);
+    }
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // S147: 位置を一括取得（lv1_super運営のみ・全顧客横断）
+  const handleLocateAll = useCallback(async () => {
+    setLocating(true);
+    setLocateMsg(null);
+    try {
+      const res = await api.post<{ requested: number; total: number }>('/devices/locate-all');
+      setLocateMsg(`${res.requested}台に測位指示を送信。数秒後に反映されます…`);
+      // 端末がスキャン→報告するのを待ってからリフレッシュ（2回）
+      setTimeout(() => { loadData(); }, 4000);
+      setTimeout(() => { loadData(); setLocateMsg(null); }, 9000);
+    } catch (e) {
+      console.warn('locate-all failed:', e);
+      setLocateMsg('測位指示の送信に失敗しました');
+    } finally {
+      setLocating(false);
+    }
+  }, [loadData]);
 
   // SVG座標へ変換（マウス位置 → viewBox内の座標）
   const toSvg = useCallback((clientX: number, clientY: number) => {
@@ -147,6 +180,27 @@ export default function DevicesMapPage() {
           <Card>
             <CardContent className="p-4">
               <div className="relative">
+                {/* S147: 位置を一括取得（運営lv1_superのみ）*/}
+                {isSuperAdmin && (
+                  <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                    <button
+                      onClick={handleLocateAll}
+                      disabled={locating}
+                      className="h-9 px-3 flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm text-xs font-medium disabled:opacity-60"
+                      aria-label="位置を一括取得"
+                    >
+                      {locating
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <MapPin className="h-3.5 w-3.5" />}
+                      位置を一括取得
+                    </button>
+                    {locateMsg && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-card/90 border border-border text-muted-foreground max-w-[180px]">
+                        {locateMsg}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {/* ズームコントロール */}
                 <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
                   <button
@@ -166,7 +220,7 @@ export default function DevicesMapPage() {
                   ><Maximize2 className="h-4 w-4" /></button>
                 </div>
                 {scale > 1.05 && (
-                  <div className="absolute top-2 left-2 z-10 text-[10px] px-1.5 py-0.5 rounded bg-card/90 border border-border text-muted-foreground tabular-nums">
+                  <div className="absolute top-14 left-2 z-10 text-[10px] px-1.5 py-0.5 rounded bg-card/90 border border-border text-muted-foreground tabular-nums">
                     {scale.toFixed(1)}×
                   </div>
                 )}
@@ -231,19 +285,28 @@ export default function DevicesMapPage() {
                             </text>
                           </g>
                         )}
-                        {/* 座標を持つ端末は実位置に個別ピン */}
+                        {/* 座標を持つ端末は実位置に個別ピン（S147: 測位鮮度で色分け）*/}
                         {geoDevices.map((d) => {
                           const { x, y } = project(d.latitude as number, d.longitude as number);
-                          const color = d.status === 'offline' ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
+                          const fresh = locFreshness(d.location_updated_at);
+                          // 現在地=緑(オフラインは警告色)、最終位置=グレー
+                          const color = !fresh.fresh
+                            ? 'hsl(var(--muted-foreground))'
+                            : d.status === 'offline' ? 'hsl(var(--warn))' : 'hsl(var(--ok))';
                           const r = 7 * inv;
                           const dHover = hoverId === d.id;
                           return (
                             <g key={d.id} onMouseEnter={() => setHoverId(d.id)} onMouseLeave={() => setHoverId(null)} style={{ cursor: 'pointer' }}>
-                              <circle cx={x} cy={y} r={r + 5 * inv} fill={color} opacity="0.18" className={dHover ? 'animate-pulse-soft' : ''} />
-                              <circle cx={x} cy={y} r={r} fill={color} opacity="0.9" stroke="white" strokeWidth={1 * inv} />
+                              <circle cx={x} cy={y} r={r + 5 * inv} fill={color} opacity={fresh.fresh ? 0.18 : 0.1} className={dHover && fresh.fresh ? 'animate-pulse-soft' : ''} />
+                              <circle cx={x} cy={y} r={r} fill={color} opacity={fresh.fresh ? 0.9 : 0.6} stroke="white" strokeWidth={1 * inv} strokeDasharray={fresh.fresh ? undefined : `${2 * inv} ${1.5 * inv}`} />
                               <text x={x} y={y + r + 12 * inv} textAnchor="middle" fontSize={9 * inv} fill="hsl(var(--foreground))" opacity="0.85">
                                 {d.name}
                               </text>
+                              {dHover && (
+                                <text x={x} y={y + r + 22 * inv} textAnchor="middle" fontSize={8 * inv} fill="hsl(var(--foreground))" opacity="0.6">
+                                  {fresh.label}
+                                </text>
+                              )}
                             </g>
                           );
                         })}

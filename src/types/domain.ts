@@ -123,6 +123,7 @@ export interface Device {
   /** 端末個別の設置座標 (S142, null=店舗座標にフォールバック) */
   latitude: number | null;
   longitude: number | null;
+  location_updated_at: string | null;  // S147 最終測位時刻
   group_ids: string[];
   /** Volume 0-100 */
   volume: number;
