@@ -44,8 +44,11 @@ export default function ApkPage() {
   const [loading, setLoading] = useState(true);
   const [distributeTarget, setDistributeTarget] = useState<ApkRelease | null>(null);
   const [distributeMode, setDistributeMode] = useState('device');
-  const [deviceIdsInput, setDeviceIdsInput] = useState('dev_test_101');
   const [groupIdInput, setGroupIdInput] = useState('');
+  // S146: 配信先をチェックボックス/グループ選択で選べるように
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  const [apkDevices, setApkDevices] = useState<{id:string; name?:string; status?:string}[]>([]);
+  const [apkGroups, setApkGroups] = useState<{id:string; name:string; customer_id?:string; members?:{device_id:string}[]}[]>([]);
   const [distributing, setDistributing] = useState(false);
   const [distributeError, setDistributeError] = useState<string | null>(null);
 
@@ -114,9 +117,8 @@ export default function ApkPage() {
       if (!gid) { setDistributeError('グループIDを入力してください'); return; }
       target = { group_id: gid };
     } else {
-      const ids = deviceIdsInput.split(',').map((s) => s.trim()).filter(Boolean);
-      if (ids.length === 0) { setDistributeError('端末IDを1つ以上入力してください'); return; }
-      target = { device_ids: ids };
+      if (selectedDeviceIds.length === 0) { setDistributeError('端末を1つ以上選択してください'); return; }
+      target = { device_ids: selectedDeviceIds };
     }
     setDistributing(true);
     setDistributeError(null);
@@ -143,6 +145,15 @@ export default function ApkPage() {
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res.items ?? []);
         setApkReleases(arr);
+        // S146: 配信先選択用に端末・グループ取得
+        try {
+          const dr = await api.get<{items?: typeof apkDevices} | typeof apkDevices>('/devices?limit=200');
+          const darr = Array.isArray(dr) ? dr : (dr.items ?? []);
+          if (!cancelled) setApkDevices(darr);
+          const gr = await api.get<{items?: typeof apkGroups} | typeof apkGroups>('/device-groups?limit=200');
+          const garr = Array.isArray(gr) ? gr : (gr.items ?? []);
+          if (!cancelled) setApkGroups((garr as typeof apkGroups).map((g) => ({ ...g, members: g.members ?? [] })));
+        } catch (e2) { console.error('[apk] devices/groups fetch failed:', e2); }
       } catch (e) {
         console.error('[apk] fetch failed:', e);
       } finally {
@@ -263,28 +274,62 @@ export default function ApkPage() {
 
               {distributeMode === 'device' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">端末ID（カンマ区切りで複数可）</label>
-                  <input
-                    type="text"
-                    value={deviceIdsInput}
-                    onChange={(e) => setDeviceIdsInput(e.target.value)}
-                    placeholder="dev_test_101"
-                    className="w-full rounded-md border bg-background px-3 py-2 text-xs"
-                  />
-                  <p className="text-[10.5px] text-muted-foreground">例: dev_test_101, dev_test_102</p>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium">配信する端末を選択</label>
+                    <div className="flex gap-2">
+                      <button type="button" className="text-[10.5px] text-primary hover:underline"
+                        onClick={() => setSelectedDeviceIds(apkDevices.map((d) => d.id))}>全選択</button>
+                      <button type="button" className="text-[10.5px] text-muted-foreground hover:underline"
+                        onClick={() => setSelectedDeviceIds([])}>解除</button>
+                    </div>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
+                    {apkDevices.length === 0 && (
+                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">端末がありません</div>
+                    )}
+                    {apkDevices.map((d) => {
+                      const checked = selectedDeviceIds.includes(d.id);
+                      const online = d.status === 'online';
+                      return (
+                        <label key={d.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-accent">
+                          <input type="checkbox" checked={checked}
+                            onChange={(e) => setSelectedDeviceIds((prev) =>
+                              e.target.checked ? [...prev, d.id] : prev.filter((x) => x !== d.id))} />
+                          <span className={online ? 'text-emerald-500' : 'text-muted-foreground'}>{online ? '●' : '○'}</span>
+                          <span className="font-medium">{d.name ?? d.id}</span>
+                          <span className="ml-auto font-mono text-[10px] text-muted-foreground">{d.id}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10.5px] text-muted-foreground">{selectedDeviceIds.length} 台選択中</p>
                 </div>
               )}
 
               {distributeMode === 'group' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">グループID</label>
-                  <input
-                    type="text"
-                    value={groupIdInput}
-                    onChange={(e) => setGroupIdInput(e.target.value)}
-                    placeholder="grp_..."
-                    className="w-full rounded-md border bg-background px-3 py-2 text-xs"
-                  />
+                  <label className="text-xs font-medium">配信するグループを選択</label>
+                  <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
+                    {apkGroups.length === 0 && (
+                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">グループがありません</div>
+                    )}
+                    {apkGroups.map((g) => {
+                      const sel = groupIdInput === g.id;
+                      const memberCount = g.members?.length ?? 0;
+                      return (
+                        <label key={g.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-accent">
+                          <input type="radio" name="apk-group" checked={sel}
+                            onChange={() => setGroupIdInput(g.id)} />
+                          <span className="font-medium">{g.name}</span>
+                          {g.customer_id && (
+                            <span className="font-mono text-[10px] text-amber-500/80">{g.customer_id}</span>
+                          )}
+                          <span className="ml-auto text-[10px] text-muted-foreground">{memberCount} 台</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10.5px] text-muted-foreground">グループ内の全メンバー端末に配信されます</p>
                 </div>
               )}
 
