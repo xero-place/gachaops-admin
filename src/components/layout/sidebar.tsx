@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Monitor,
   MapPinned,
-  Users2,
   CalendarRange,
   ClipboardList,
   Layers3,
@@ -69,7 +68,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: '顧客', icon: Briefcase },
       { href: '/stores', label: '店舗', icon: Building2 },
-      { href: '/users', label: 'ユーザ', icon: Users2 },
       { href: '/apk', label: 'APK', icon: Smartphone },
     ],
   },
