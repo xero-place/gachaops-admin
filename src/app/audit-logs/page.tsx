@@ -121,7 +121,9 @@ export default function AuditLogsPage() {
           const all: AuditLog[] = [];
           let cursor: string | null = null;
           for (let i = 0; i < 50; i++) {
-            const qs = `/audit-logs?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+            const qs: string = cursor
+              ? `/audit-logs?limit=200&cursor=${encodeURIComponent(cursor)}`
+              : '/audit-logs?limit=200';
             const res = await api.get<{ items?: AuditLog[]; pagination?: { next_cursor?: string | null } } | AuditLog[]>(qs);
             const items = Array.isArray(res) ? res : (res.items ?? []);
             all.push(...items);
