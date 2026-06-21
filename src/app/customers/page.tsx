@@ -355,7 +355,14 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
                 <Input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="秋田県男鹿市役所" />
               </Field>
               <Field label="プラン">
-                <Input value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="standard" />
+                <select
+                  value={plan}
+                  onChange={(e) => setPlan(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="standard">standard</option>
+                  <option value="premium">premium</option>
+                </select>
               </Field>
             </section>
           )}
@@ -534,7 +541,14 @@ function EditCustomerDialog({
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
           </Field>
           <Field label="プラン">
-            <Input value={plan} onChange={(e) => setPlan(e.target.value)} maxLength={40} />
+            <select
+              value={plan}
+              onChange={(e) => setPlan(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="standard">standard</option>
+              <option value="premium">premium</option>
+            </select>
           </Field>
           {error && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
