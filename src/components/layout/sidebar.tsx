@@ -14,7 +14,6 @@ import {
   Coins,
   Smartphone,
   ShieldCheck,
-  Activity,
   TerminalSquare,
   Building2,
   Briefcase,
@@ -74,7 +73,6 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'システム',
     items: [
-      { href: '/tasks', label: 'APK履歴', icon: Activity },
       { href: '/audit-logs', label: '監査ログ', icon: ShieldCheck },
       { href: '/ws-console', label: 'WSデバッグコンソール', icon: TerminalSquare },
       { href: '/settings', label: '環境設定', icon: Settings },
