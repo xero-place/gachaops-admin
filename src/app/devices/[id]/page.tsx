@@ -269,12 +269,17 @@ export default function DeviceDetailPage() {
       await api.post(`/devices/${detail.id}/screenshot`, {});
       await new Promise((r) => setTimeout(r, 1200));
       const nextUrl = `https://api.xero-place.com/videos/screenshots/${detail.id}.png?t=${Date.now()}`;
-      await new Promise<void>((resolve) => {
-        const img = new window.Image();
-        img.onload = () => { setLiveShot(nextUrl); resolve(); };
-        img.onerror = () => resolve(); // 失敗(リネーム隙間等)時は差し替えず前画像維持
-        img.src = nextUrl;
-      });
+      // S144: onload はデコード完了を保証せず「上だけ表示・下が欠ける」が起きる。
+      // img.decode() で完全にデコードできた時だけ差し替える。
+      // 撮れなかった/デコード失敗時は差し替えず前画像維持(従来設計を踏襲)。
+      const img = new window.Image();
+      img.src = nextUrl;
+      try {
+        await img.decode();
+        setLiveShot(nextUrl);
+      } catch {
+        // 画像未生成・切替隙間・デコード失敗 → 前画像維持
+      }
     } catch {
       // ライブ中は黙って次サイクルへ
     }
