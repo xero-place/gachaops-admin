@@ -89,8 +89,10 @@ export interface Store {
 export interface Device {
   id: string;
   customer_id: string;
+  customer_name?: string;  // S145: lv1_super横断表示用
   store_id: string;
   store_name: string;
+  group_names?: string[];  // S145: 所属グループ名（一覧の店舗列差し替え）
   /** Friendly name set by operators */
   name: string;
   /** Hardware identifier (Android serial / IMEI). Immutable. */

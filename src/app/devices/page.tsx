@@ -38,6 +38,7 @@ import {
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { DeviceCreateDialog } from '@/components/domain/device-create-dialog';
 import { api, ApiError } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';  // S145: lv1_super判定
 import type { Device, Store } from '@/types/domain';
 import { useLiveStore, applyOverridesToDevices } from '@/stores/live-control-store';
 import { fmtRelative } from '@/lib/format';
@@ -48,6 +49,7 @@ import type { DeviceStatus } from '@/types/domain';
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 
 export default function DevicesPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145: 顧客名表示の出し分け
   const { states: playbackStates } = usePlaybackStream();
   const [videoDevice, setVideoDevice] = useState<Device | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -260,7 +262,7 @@ export default function DevicesPage() {
                 />
               </TableHead>
               <TableHead>端末</TableHead>
-              <TableHead>店舗</TableHead>
+              <TableHead>グループ</TableHead>
               <TableHead>ステータス</TableHead>
               <TableHead>モード</TableHead>
               <TableHead>再生中</TableHead>
@@ -284,9 +286,16 @@ export default function DevicesPage() {
                   <Link href={`/devices/${d.id}`} className="hover:underline">
                     <div className="text-sm">{d.name}</div>
                     <div className="text-[10.5px] font-mono text-muted-foreground">{d.serial}</div>
+                    {isSuperAdmin && d.customer_name && (
+                      <div className="text-[10.5px] text-amber-500/90">{d.customer_name}</div>
+                    )}
                   </Link>
                 </TableCell>
-                <TableCell className="text-xs">{d.store_name}</TableCell>
+                <TableCell className="text-xs">
+                  {d.group_names && d.group_names.length > 0
+                    ? d.group_names.join('、')
+                    : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
