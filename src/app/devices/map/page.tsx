@@ -81,7 +81,7 @@ export default function DevicesMapPage() {
               <div className="relative">
                 {/* S147: 位置を一括取得（運営lv1_superのみ）*/}
                 {isSuperAdmin && (
-                  <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                  <div className="absolute top-2 left-2 z-[1000] flex flex-col items-start gap-1">
                     <button
                       onClick={handleLocateAll}
                       disabled={locating}
