@@ -13,9 +13,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';  // S145
 import { Loader2 } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
 
 type Store = {
   id: string;
@@ -41,28 +44,74 @@ export default function StoresPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
+  // S146: 店舗追加ダイアログ
+  const [addOpen, setAddOpen] = useState(false);
+  const [fName, setFName] = useState('');
+  const [fPref, setFPref] = useState('');
+  const [fAddr, setFAddr] = useState('');
+  const [fPostal, setFPostal] = useState('');
+  const [fPhone, setFPhone] = useState('');
+  const [fCustomerId, setFCustomerId] = useState('');
+  const [customers, setCustomers] = useState<{id:string; name:string}[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  async function loadStores() {
+    try {
+      const [sRes, dRes] = await Promise.all([
+        api.get<{items?: Store[]} | Store[]>('/stores?limit=200'),
+        api.get<{items?: Device[]} | Device[]>('/devices?limit=500'),
+      ]);
+      const sArr = Array.isArray(sRes) ? sRes : (sRes.items ?? []);
+      const dArr = Array.isArray(dRes) ? dRes : (dRes.items ?? []);
+      setStores(sArr);
+      setDevices(dArr);
+    } catch (e) {
+      console.error('[stores] fetch failed:', e);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const [sRes, dRes] = await Promise.all([
-          api.get<{items?: Store[]} | Store[]>('/stores?limit=200'),
-          api.get<{items?: Device[]} | Device[]>('/devices?limit=500'),
-        ]);
-        if (cancelled) return;
-        const sArr = Array.isArray(sRes) ? sRes : (sRes.items ?? []);
-        const dArr = Array.isArray(dRes) ? dRes : (dRes.items ?? []);
-        setStores(sArr);
-        setDevices(dArr);
-      } catch (e) {
-        console.error('[stores] fetch failed:', e);
-      } finally {
-        if (!cancelled) setLoading(false);
+      await loadStores();
+      if (isSuperAdmin) {
+        try {
+          const cRes = await api.get<{items?: {id:string;name:string}[]} | {id:string;name:string}[]>('/customers?limit=200');
+          if (!cancelled) setCustomers(Array.isArray(cRes) ? cRes : (cRes.items ?? []));
+        } catch (e) { console.error('[stores] customers fetch failed:', e); }
       }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleAddStore() {
+    if (!fName.trim()) { setAddError('店舗名を入力してください'); return; }
+    if (!fPref.trim()) { setAddError('都道府県を入力してください'); return; }
+    if (!fAddr.trim()) { setAddError('住所を入力してください'); return; }
+    setSaving(true);
+    setAddError(null);
+    try {
+      const body: Record<string, unknown> = {
+        name: fName.trim(),
+        prefecture: fPref.trim(),
+        address: fAddr.trim(),
+        postal_code: fPostal.trim() || null,
+        phone: fPhone.trim() || null,
+      };
+      if (isSuperAdmin && fCustomerId) body.customer_id = fCustomerId;
+      await api.post('/stores', body);
+      setAddOpen(false);
+      setFName(''); setFPref(''); setFAddr(''); setFPostal(''); setFPhone(''); setFCustomerId('');
+      await loadStores();
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
+      setAddError(`追加に失敗しました: ${msg}`);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -78,10 +127,75 @@ export default function StoresPage() {
     <AppShell title="店舗" breadcrumb={['ホーム', '店舗']}>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-muted-foreground">{stores.length} 店舗</p>
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" className="gap-1.5" onClick={() => { setAddError(null); setAddOpen(true); }}>
           <Plus className="h-3.5 w-3.5" />店舗を追加
         </Button>
       </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>店舗を追加</DialogTitle>
+            <DialogDescription>新しい店舗（設置先）を登録します。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {isSuperAdmin && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">顧客</label>
+                <select
+                  value={fCustomerId}
+                  onChange={(e) => setFCustomerId(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-xs"
+                >
+                  <option value="">（自テナント）</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}（{c.id}）</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">店舗名 <span className="text-red-500">*</span></label>
+              <input type="text" value={fName} onChange={(e) => setFName(e.target.value)}
+                placeholder="男鹿市役所" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">都道府県 <span className="text-red-500">*</span></label>
+              <input type="text" value={fPref} onChange={(e) => setFPref(e.target.value)}
+                placeholder="秋田県" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">住所 <span className="text-red-500">*</span></label>
+              <input type="text" value={fAddr} onChange={(e) => setFAddr(e.target.value)}
+                placeholder="男鹿市船川港船川字泉台66-1" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">郵便番号</label>
+                <input type="text" value={fPostal} onChange={(e) => setFPostal(e.target.value)}
+                  placeholder="010-0595" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">電話</label>
+                <input type="text" value={fPhone} onChange={(e) => setFPhone(e.target.value)}
+                  placeholder="0185-23-2111" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+              </div>
+            </div>
+            {addError && (
+              <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                {addError}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={saving}>キャンセル</Button>
+            <Button onClick={handleAddStore} disabled={saving} className="gap-1.5">
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              追加する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <Table>
