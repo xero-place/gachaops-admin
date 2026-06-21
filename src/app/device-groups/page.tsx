@@ -29,7 +29,7 @@ type DeviceGroup = {
   created_at?: string;
 };
 
-type DeviceLite = { id: string; name?: string };
+type DeviceLite = { id: string; name?: string; status?: string; current_program_name?: string | null };
 type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
 
 export default function DeviceGroupsPage() {
@@ -114,6 +114,8 @@ export default function DeviceGroupsPage() {
                 canEdit={isSuperAdmin}
                 onEdit={setEditing}
                 onDelete={setDeleting}
+                devices={devices}
+                programs={programs}
               />
             ))}
           </ul>
@@ -150,7 +152,7 @@ export default function DeviceGroupsPage() {
 }
 
 function GroupNode({
-  group, childrenList, depth, allGroups, canEdit, onEdit, onDelete,
+  group, childrenList, depth, allGroups, canEdit, onEdit, onDelete, devices, programs,
 }: {
   group: DeviceGroup;
   childrenList: DeviceGroup[];
@@ -159,7 +161,17 @@ function GroupNode({
   canEdit: boolean;
   onEdit: (g: DeviceGroup) => void;
   onDelete: (g: DeviceGroup) => void;
+  devices: DeviceLite[];
+  programs: ProgramLite[];
 }) {
+  // S145: メンバー端末の状態表示。restProgram名解決（NULL=既定の箸休め）。
+  const restName = group.rest_program_id
+    ? (programs.find((p) => p.id === group.rest_program_id)?.name ?? group.rest_program_id)
+    : '既定の箸休め';
+  const memberDevices = group.members.map((m) => ({
+    m,
+    d: devices.find((x) => x.id === m.device_id),
+  }));
   return (
     <li>
       <div
@@ -205,6 +217,33 @@ function GroupNode({
           </div>
         )}
       </div>
+      {group.members.length > 0 && (
+        <div className="space-y-0.5 mt-0.5 mb-1" style={{ paddingLeft: `${depth * 24 + 44}px` }}>
+          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <span className="opacity-70">箸休め:</span>
+            <span className="font-medium">{restName}</span>
+          </div>
+          {memberDevices.map(({ m, d }) => {
+            const online = d?.status === 'online';
+            return (
+              <div key={m.device_id} className="flex items-center gap-2 text-xs">
+                <span className={online ? 'text-emerald-500' : 'text-muted-foreground'}>
+                  {online ? '●' : '○'}
+                </span>
+                <span className="font-medium">{d?.name ?? m.device_id}</span>
+                {m.is_master && (
+                  <Crown className="h-3 w-3 text-amber-500" />
+                )}
+                <span className="ml-2 text-muted-foreground">
+                  {online
+                    ? (d?.current_program_name ? `再生中: ${d.current_program_name}` : '再生中: —')
+                    : 'オフライン'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {childrenList.length > 0 && (
         <ul className="space-y-1 mt-1">
           {childrenList.map((c) => (
@@ -217,6 +256,8 @@ function GroupNode({
               canEdit={canEdit}
               onEdit={onEdit}
               onDelete={onDelete}
+              devices={devices}
+              programs={programs}
             />
           ))}
         </ul>
