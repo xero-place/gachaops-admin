@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,7 +31,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock } from 'lucide-react';
+import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock, Pencil } from 'lucide-react';
 import {
   DeviceStatusBadge,
   PlayModeBadge,
@@ -52,6 +53,11 @@ export default function DevicesPage() {
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145: 顧客名表示の出し分け
   const { states: playbackStates } = usePlaybackStream();
   const [videoDevice, setVideoDevice] = useState<Device | null>(null);
+  // S146: 端末名変更
+  const [renameDevice, setRenameDevice] = useState<Device | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const handleForceRefresh = async (device: Device) => {
@@ -109,6 +115,24 @@ export default function DevicesPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleRename() {
+    if (!renameDevice) return;
+    const newName = renameValue.trim();
+    if (!newName) { setRenameError('端末名を入力してください'); return; }
+    setRenaming(true);
+    setRenameError(null);
+    try {
+      await api.patch(`/devices/${renameDevice.id}`, { name: newName });
+      setDevices((prev) => prev.map((d) => d.id === renameDevice.id ? { ...d, name: newName } : d));
+      setRenameDevice(null);
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
+      setRenameError(`変更に失敗しました: ${msg}`);
+    } finally {
+      setRenaming(false);
+    }
+  }
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -334,6 +358,15 @@ export default function DevicesPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
+                    title="端末名を変更"
+                    onClick={() => { setRenameDevice(d); setRenameValue(d.name); setRenameError(null); }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
                     disabled={d.status !== 'online'}
                     title="再生中の映像を見る"
                     onClick={() => setVideoDevice(d)}
@@ -421,6 +454,39 @@ export default function DevicesPage() {
           setDevices((prev) => [device, ...prev]);
         }}
       />
+
+      <Dialog open={!!renameDevice} onOpenChange={(o) => { if (!o) setRenameDevice(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>端末名を変更</DialogTitle>
+            <DialogDescription>{renameDevice?.serial}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !renaming) handleRename(); }}
+              maxLength={200}
+              autoFocus
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              placeholder="端末名"
+            />
+            {renameError && (
+              <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                {renameError}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDevice(null)} disabled={renaming}>キャンセル</Button>
+            <Button onClick={handleRename} disabled={renaming} className="gap-1.5">
+              {renaming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!videoDevice} onOpenChange={(o) => { if (!o) setVideoDevice(null); }}>
         <DialogContent className="sm:max-w-lg">
