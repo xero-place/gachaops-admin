@@ -36,6 +36,7 @@ const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> 
 };
 
 export default function AssetsPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -262,6 +263,9 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                 </button>
                 <div className="p-3">
                   <div className="text-xs font-medium truncate" title={a.name}>{a.name}</div>
+                  {isSuperAdmin && a.customer_id && (
+                    <div className="text-[9px] font-mono text-amber-500/80 truncate">{a.customer_id}</div>
+                  )}
                   <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-between">
                     <span>{fmtBytes(a.size)}</span>
                     {a.duration_ms && <span>{fmtDuration(a.duration_ms)}</span>}
@@ -310,6 +314,9 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                         )}
                       </div>
                       <span className="text-sm">{a.name}</span>
+                      {isSuperAdmin && a.customer_id && (
+                        <span className="text-[10px] font-mono text-amber-500/80">{a.customer_id}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell><Badge variant="muted" className="text-[10px] uppercase">{a.type}</Badge></TableCell>

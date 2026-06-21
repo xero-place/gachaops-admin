@@ -51,6 +51,7 @@ type Program = {
 };
 
 export default function ProgramsPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -192,6 +193,9 @@ export default function ProgramsPage() {
                 <Link href={`/programs/${p.id}`} className="hover:underline">
                   <h3 className="font-medium text-sm">{p.name}</h3>
                 </Link>
+                {isSuperAdmin && p.customer_id && (
+                  <span className="text-[10px] font-mono text-amber-500/80">{p.customer_id}</span>
+                )}
                 {p.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
                 )}

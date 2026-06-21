@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';  // S145
 import { Loader2 } from 'lucide-react';
 
 type Store = {
@@ -36,6 +37,7 @@ import { Plus, Building2, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
 export default function StoresPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const [stores, setStores] = useState<Store[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +109,9 @@ export default function StoresPage() {
                       <div>
                         <div className="text-sm font-medium">{s.name}</div>
                         <div className="text-[11px] text-muted-foreground">{s.prefecture}</div>
+                        {isSuperAdmin && s.customer_id && (
+                          <div className="text-[10px] font-mono text-amber-500/80">{s.customer_id}</div>
+                        )}
                       </div>
                     </div>
                   </TableCell>

@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { api, ApiError } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';  // S145
 import { Loader2, Plus, Trash2, CalendarClock } from 'lucide-react';
 
 // 日時指定型スロット（S125）。start_at/end_at は ISO8601(+09:00)。
@@ -66,6 +67,7 @@ function fmtSlot(iso: string): string {
 }
 
 export default function PlanSchedulesPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const [planSchedules, setPlanSchedules] = useState<PlanSchedule[]>([]);
   const [groups, setGroups] = useState<GroupLite[]>([]);
   const [programs, setPrograms] = useState<ProgramLite[]>([]);
@@ -228,6 +230,7 @@ export default function PlanSchedulesPage() {
             {planSchedules.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.name} {p.active ? '(有効)' : '(無効)'}
+                {isSuperAdmin && p.customer_id ? ` [${p.customer_id}]` : ''}
               </SelectItem>
             ))}
           </SelectContent>
