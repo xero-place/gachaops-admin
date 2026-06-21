@@ -109,7 +109,34 @@ export default function DeviceDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   // リモート設定: 音量・輝度の送信中フラグ
   const [savingVolume, setSavingVolume] = useState(false);
+  // S143: プロビジョニングコード発行
+  const [provCode, setProvCode] = useState<string | null>(null);
+  const [provIssuing, setProvIssuing] = useState(false);
+  const [provCopied, setProvCopied] = useState(false);
   // const [savingBrightness, setSavingBrightness] = useState(false); // S141: 輝度UI非表示
+
+  const issueProvCode = async () => {
+    if (provIssuing) return;
+    setProvIssuing(true);
+    setProvCopied(false);
+    try {
+      const res = await api.post<{ device_id: string; provisioning_code: string }>(
+        `/devices/${params.id}/provisioning-code`, {}
+      );
+      setProvCode(res.provisioning_code);
+    } catch (e) {
+      window.alert('コード発行に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setProvIssuing(false);
+    }
+  };
+  const copyProvCode = () => {
+    if (!provCode) return;
+    navigator.clipboard?.writeText(provCode).then(() => {
+      setProvCopied(true);
+      setTimeout(() => setProvCopied(false), 2000);
+    });
+  };
 
   const sendDeviceCommand = async (type: 'set_volume' | 'set_brightness', value: number) => {
     const payload = type === 'set_volume' ? { volume: value } : { brightness: value };
@@ -627,6 +654,33 @@ export default function DeviceDetailPage() {
                     saving={savingBrightness}
                     onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
                   /> */}
+                </CardContent>
+              </Card>
+
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-sm">プロビジョニングコード（端末登録用）</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    什器のタブレットでアプリを起動し、このコードを1つ入力すると登録が完了します（サーバURL・シリアルの入力は不要）。
+                  </p>
+                  {provCode ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-2xl font-bold tracking-widest tabular-nums select-all">{provCode}</span>
+                        <Button size="sm" variant="outline" onClick={copyProvCode}>
+                          {provCopied ? '✓ コピー済' : 'コピー'}
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-amber-400">⚠️ 再発行すると、以前のコードは無効になります。</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">まだ発行していません。下のボタンで発行してください。</p>
+                  )}
+                  <Button size="sm" onClick={issueProvCode} disabled={provIssuing}>
+                    {provIssuing ? '発行中…' : (provCode ? 'コードを再発行' : 'コードを発行')}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
