@@ -22,6 +22,7 @@ type DeviceGroup = {
   parent_id: string | null;
   linked: boolean;
   effect_enabled_default: boolean;
+  rest_program_id?: string | null;  // S145: グループ別箸休め（lv1_superのみ設定可）
   device_count: number;
   child_group_count: number;
   members: GroupMember[];
@@ -29,10 +30,12 @@ type DeviceGroup = {
 };
 
 type DeviceLite = { id: string; name?: string };
+type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
 
 export default function DeviceGroupsPage() {
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
+  const [programs, setPrograms] = useState<ProgramLite[]>([]);  // S145: 箸休めセレクタ用
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DeviceGroup | null>(null);
   const [creating, setCreating] = useState(false);
@@ -50,15 +53,18 @@ export default function DeviceGroupsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [groupsRes, devRes] = await Promise.all([
+        const [groupsRes, devRes, progRes] = await Promise.all([
           api.get<{ items?: DeviceGroup[] } | DeviceGroup[]>('/device-groups?limit=200'),
           api.get<{ items?: DeviceLite[] } | DeviceLite[]>('/devices?limit=200'),
+          api.get<{ items?: ProgramLite[] } | ProgramLite[]>('/programs?limit=200'),  // S145
         ]);
         if (cancelled) return;
         const groups = Array.isArray(groupsRes) ? groupsRes : (groupsRes.items ?? []);
         const devs = Array.isArray(devRes) ? devRes : (devRes.items ?? []);
+        const progs = Array.isArray(progRes) ? progRes : (progRes.items ?? []);  // S145
         setDeviceGroups(groups.map((g) => ({ ...g, members: g.members ?? [] })));
         setDevices(devs);
+        setPrograms(progs);  // S145
       } catch (e) {
         console.error('[device-groups] fetch failed:', e);
       } finally {
@@ -118,6 +124,8 @@ export default function DeviceGroupsPage() {
         <EditGroupDialog
           group={editing}
           devices={devices}
+          programs={programs}
+          isSuperAdmin={isSuperAdmin}
           onClose={() => setEditing(null)}
           onSaved={async () => { await reload(); setEditing(null); }}
         />
@@ -214,10 +222,12 @@ function GroupNode({
 }
 
 function EditGroupDialog({
-  group, devices, onClose, onSaved,
+  group, devices, programs, isSuperAdmin, onClose, onSaved,
 }: {
   group: DeviceGroup;
   devices: DeviceLite[];
+  programs: ProgramLite[];
+  isSuperAdmin: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -228,6 +238,8 @@ function EditGroupDialog({
   const [memberIds, setMemberIds] = useState<string[]>(initialMemberIds);
   const initialMaster = group.members.find((m) => m.is_master)?.device_id ?? '';
   const [masterId, setMasterId] = useState<string>(initialMaster);
+  const initialRest = group.rest_program_id ?? '';  // S145: '' = 既定箸休め
+  const [restProgramId, setRestProgramId] = useState<string>(initialRest);  // S145
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -254,6 +266,12 @@ function EditGroupDialog({
       };
       if (masterId) body.master_device_id = masterId;
       await api.patch(`/device-groups/${group.id}`, body);
+      // S145: 箸休めは lv1_super 専用エンドポイント。権限がある かつ 変更された時だけ叩く。
+      if (isSuperAdmin && restProgramId !== initialRest) {
+        await api.put(`/device-groups/${group.id}/rest-program`, {
+          rest_program_id: restProgramId || null,  // '' は「既定に戻す」
+        });
+      }
       onSaved();
     } catch (e) {
       console.error('[device-groups] save failed:', e);
@@ -292,6 +310,28 @@ function EditGroupDialog({
             <Checkbox id="edit-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
             <label htmlFor="edit-effect" className="text-xs">演出をグループ既定で有効にする</label>
           </div>
+
+          {/* S145: 箸休め番組（運営lv1_superのみ表示・顧客には出ない） */}
+          {isSuperAdmin && (
+            <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+              <label className="text-xs font-medium flex items-center gap-1.5">
+                <span className="text-amber-500">●</span>箸休め番組（運営専用）
+              </label>
+              <select
+                value={restProgramId}
+                onChange={(e) => setRestProgramId(e.target.value)}
+                className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="">既定の箸休めを使う</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground">
+                このグループの番組境界で挟む箸休め映像。未選択なら既定の箸休めになります。運営（lv1_super）のみ設定でき、顧客アカウントからは変更できません。
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
