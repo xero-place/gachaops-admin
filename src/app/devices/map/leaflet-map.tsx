@@ -48,13 +48,13 @@ export default function LeafletMap({ stores, devices }: Props) {
     <MapContainer
       center={center}
       zoom={geoDevices.length > 0 ? 11 : 6}
-      style={{ height: '100%', width: '100%', background: 'hsl(220 30% 10%)' }}
+      style={{ height: '100%', width: '100%', background: '#aadaff' }}
       scrollWheelZoom
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        maxZoom={20}
+        attribution='&copy; OpenStreetMap contributors'
+        url="https://{s}.tile.openstreetmap.jp/{z}/{x}/{y}.png"
+        maxZoom={19}
       />
 
       {/* 座標なし端末を店舗座標に集約表示 */}
