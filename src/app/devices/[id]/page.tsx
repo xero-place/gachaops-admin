@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePlaybackStream } from '@/hooks/use-playback-stream';
 import { PlaybackStatus } from '@/components/domain/playback-status';
-import { notFound, useParams } from 'next/navigation';
+import { notFound, useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -99,6 +99,11 @@ type DeviceDetail = {
 
 export default function DeviceDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  // S144: 端末削除(危険ゾーン)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [baseDetail, setBaseDetail] = useState<DeviceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchFailed, setFetchFailed] = useState(false);
@@ -136,6 +141,26 @@ export default function DeviceDetailPage() {
       setProvCopied(true);
       setTimeout(() => setProvCopied(false), 2000);
     });
+  };
+
+  // S144: 端末削除。orders は RESTRICT のため売上のある端末は失敗する(その旨を表示)。
+  // 削除すると什器・コイン設定・抽選/コイン履歴も CASCADE で消える。
+  const handleDeleteDevice = async () => {
+    if (deleting) return;
+    if (deleteConfirmText !== params.id) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.delete(`/devices/${params.id}`);
+      router.push('/devices');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // orders RESTRICT 等で失敗した場合
+      setDeleteError(
+        '削除に失敗しました。この端末に売上記録がある場合は削除できません。（' + msg + '）'
+      );
+      setDeleting(false);
+    }
   };
 
   const sendDeviceCommand = async (type: 'set_volume' | 'set_brightness', value: number) => {
@@ -680,6 +705,40 @@ export default function DeviceDetailPage() {
                   )}
                   <Button size="sm" onClick={issueProvCode} disabled={provIssuing}>
                     {provIssuing ? '発行中…' : (provCode ? 'コードを再発行' : 'コードを発行')}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* S144: 危険ゾーン（端末削除） */}
+              <Card className="mt-4 border-red-500/40">
+                <CardHeader>
+                  <CardTitle className="text-sm text-red-400">危険ゾーン：端末の削除</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    この操作は取り消せません。端末を削除すると、什器・コイン設定・抽選履歴・コイン投入履歴も一緒に削除されます。
+                    売上記録（注文）がある端末は削除できません。
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    削除するには、確認のため端末ID <span className="font-mono text-red-400 select-all">{params.id}</span> を入力してください。
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={params.id}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  />
+                  {deleteError && (
+                    <p className="text-xs text-red-400">{deleteError}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleDeleteDevice}
+                    disabled={deleting || deleteConfirmText !== params.id}
+                  >
+                    {deleting ? '削除中…' : 'この端末を削除する'}
                   </Button>
                 </CardContent>
               </Card>
