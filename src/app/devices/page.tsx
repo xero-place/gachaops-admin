@@ -34,7 +34,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock, Pencil } from 'lucide-react';
 import {
   DeviceStatusBadge,
-  PlayModeBadge,
 } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { DeviceCreateDialog } from '@/components/domain/device-create-dialog';
@@ -288,7 +287,8 @@ export default function DevicesPage() {
               <TableHead>端末</TableHead>
               <TableHead>グループ</TableHead>
               <TableHead>ステータス</TableHead>
-              <TableHead>モード</TableHead>
+              {/* S147c: モード列は非表示。play_modeは制御モードでUSB等の映像ソース実態を表せず誤解を生むため。発送後にルート1(signage連携で実ソース取得)で「映像」列として復活。 */}
+              {/* <TableHead>モード</TableHead> */}
               <TableHead>再生中</TableHead>
               <TableHead>音量</TableHead>
               <TableHead>最終接続</TableHead>
@@ -321,12 +321,14 @@ export default function DevicesPage() {
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
+                {/* S147c: モード列セル非表示（ヘッダーと対応）。発送後ルート1で復活。
                 <TableCell>
                   <div className="flex items-center gap-1.5">
                     <PlayModeBadge mode={d.play_mode} />
                     {overrides[d.id] && <Zap className="h-3 w-3 text-warn" />}
                   </div>
                 </TableCell>
+                */}
                 <TableCell className="text-xs">
                   {d.current_program_name ?? <span className="text-muted-foreground">—</span>}
                   {(() => {
