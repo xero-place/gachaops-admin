@@ -89,7 +89,7 @@ const EMPTY_OVERVIEW: NormalisedOverview = {
   medal_count_today: 0,
 };
 
-export function useDashboardData(): DashboardData {
+export function useDashboardData(customerId?: string): DashboardData {
   const [overview, setOverview] = useState<NormalisedOverview | null>(null);
   const [salesStats, setSalesStats] = useState<SalesPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,9 +101,10 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(null);
       try {
+        const cq = customerId ? `&customer_id=${encodeURIComponent(customerId)}` : '';
         const [ovRaw, salesRaw] = await Promise.all([
-          api.get<RawOverview>('/dashboard/overview'),
-          api.get<SalesPoint[] | { data: SalesPoint[] }>('/stats/sales?days=14'),
+          api.get<RawOverview>(`/dashboard/overview${customerId ? `?customer_id=${encodeURIComponent(customerId)}` : ''}`),
+          api.get<SalesPoint[] | { data: SalesPoint[] }>(`/stats/sales?days=14${cq}`),
         ]);
         if (cancelled) return;
         setOverview(normalise(ovRaw));
@@ -119,7 +120,7 @@ export function useDashboardData(): DashboardData {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [customerId]);
 
   return { overview, salesStats, loading, error };
 }

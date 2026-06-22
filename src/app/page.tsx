@@ -1,5 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +25,27 @@ import { SalesTrendChart } from './_components/sales-trend-chart';
 import { useDashboardData, useOfflineDevicesList } from '@/lib/dashboard-data';
 
 export default function DashboardPage() {
-  const { overview, salesStats, loading, error } = useDashboardData();
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
+  const [customerFilter, setCustomerFilter] = useState<string>('');  // ''=全顧客横断
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.get<{ items?: { id: string; name: string }[]; data?: { id: string; name: string }[] } | { id: string; name: string }[]>('/customers');
+        if (cancelled) return;
+        const arr = Array.isArray(r) ? r : (r.items ?? r.data ?? []);
+        setCustomers(arr);
+      } catch {
+        if (!cancelled) setCustomers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isSuperAdmin]);
+
+  const { overview, salesStats, loading, error } = useDashboardData(customerFilter || undefined);
   const { items: offlineDevices } = useOfflineDevicesList(6);
 
   if (loading || !overview) {
@@ -53,6 +76,21 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="ダッシュボード" breadcrumb={['ホーム']}>
+      {isSuperAdmin && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">表示対象:</span>
+          <select
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">全顧客（横断）</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {error && (
         <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-sm text-destructive">
           データ取得エラー: {error}
