@@ -314,6 +314,26 @@ function EditGroupDialog({
       .catch(() => setVwErr('素材の取得に失敗しました'));
   }, [vwEnabled, vwAssets.length]);
 
+  // S148: グループを開いたとき、保存済みビデオウォールを復元（チェック・行列・分割状態も保持）
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ items?: VideoWall[] } | VideoWall[]>(`/videowalls?group_id=${group.id}`)
+      .then((r) => {
+        if (cancelled) return;
+        const list = Array.isArray(r) ? r : (r.items ?? []);
+        if (list.length > 0) {
+          const latest = list[0];  // backendはcreated_at降順
+          setVw(latest);
+          setVwEnabled(true);
+          setVwRows(latest.rows);
+          setVwCols(latest.cols);
+          setVwBezel(latest.bezel_px);
+        }
+      })
+      .catch(() => { /* 無ければ何もしない */ });
+    return () => { cancelled = true; };
+  }, [group.id]);
+
   const vwCreate = async () => {
     if (!vwSourceId) { setVwErr('元動画を選択してください'); return; }
     const n = vwRows * vwCols;
@@ -342,6 +362,16 @@ function EditGroupDialog({
     if (!vw) return;
     try { const r = await api.patch<VideoWall>(`/videowalls/${vw.id}/tiles/${tileId}`, { device_id: deviceId || null }); setVw(r); }
     catch { setVwErr('割当の変更に失敗しました'); }
+  };
+  // S148: 実機に反映（各タイルをProgram化→担当端末へ同期配信）
+  const vwDeploy = async () => {
+    if (!vw) return;
+    setVwBusy(true); setVwErr(null);
+    try {
+      await api.post(`/videowalls/${vw.id}/deploy`, {});
+      setVwErr('実機に反映しました（各マシンで同期再生が開始されます）');
+    } catch { setVwErr('実機反映に失敗しました（分割実行と割当が完了しているか確認）'); }
+    finally { setVwBusy(false); }
   };
 
   const toggleMember = (id: string) => {
@@ -509,10 +539,15 @@ function EditGroupDialog({
                   <Button size="sm" variant="outline" onClick={vwCreate} disabled={vwBusy || !vwSourceId}>
                     {vwBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}作成
                   </Button>
-                  <Button size="sm" variant="outline" onClick={vwSplit} disabled={vwBusy || !vw}>分割実行</Button>
+                  <Button size="sm" variant="outline" onClick={vwSplit} disabled={vwBusy || !vw}>
+                    {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />分割中…</>) : '分割実行'}
+                  </Button>
                   <Button size="sm" variant="outline" onClick={vwAutoAssign} disabled={vwBusy || !vw}>自動割当</Button>
-                  <Button size="sm" onClick={() => setVwPreview(true)} disabled={!vw}>
-                    <Play className="h-3 w-3 mr-1" />実機投影プレビュー
+                  <Button size="sm" variant="outline" onClick={() => setVwPreview(true)} disabled={!vw}>
+                    <Play className="h-3 w-3 mr-1" />プレビュー
+                  </Button>
+                  <Button size="sm" onClick={vwDeploy} disabled={vwBusy || !vw || vw.status !== 'ready'}>
+                    実機に反映
                   </Button>
                 </div>
                 {vw && (
@@ -555,7 +590,7 @@ function EditGroupDialog({
         <VideoWallPreviewModal
           rows={vw.rows}
           cols={vw.cols}
-          bezelPx={Math.round(vw.bezel_px / 6)}
+          bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
           tiles={vw.tiles.map((t) => ({
             position_index: t.position_index, row: t.row, col: t.col,
             tile_asset_url: t.tile_asset_url ?? null,
