@@ -7,12 +7,12 @@
 import { useMemo } from "react";
 
 // 実機写真 634x880 上で測ったモニター四隅（px）
-const IMGW = 648;
-const IMGH = 1035;
-const TL: [number, number] = [133, 82];
-const TR: [number, number] = [493, 82];
-const BR: [number, number] = [493, 490];
-const BL: [number, number] = [133, 490];
+const IMGW = 524;
+const IMGH = 791;
+const TL: [number, number] = [79, 58];
+const TR: [number, number] = [439, 58];
+const BR: [number, number] = [439, 466];
+const BL: [number, number] = [79, 466];
 
 type Tile = {
   position_index: number;
@@ -71,6 +71,7 @@ export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
 }: Props) {
   const MW = machineWidth;
+  const MWH = (MW * IMGH) / IMGW;
   const SCALE = MW / IMGW;
   // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）。
   // これを四隅へ射影することで映像がモニター枠内にぴったり収まる（はみ出さない）。
