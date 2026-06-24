@@ -4,7 +4,8 @@
 // matrix3d射影ではめ込み、rows×colsぶん並べてベゼル間隔つきで表示する。
 // 既存コンポーネントには非依存（単体で動く）。
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // 実機写真 634x880 上で測ったモニター四隅（px）
 const IMGW = 524;
@@ -70,6 +71,10 @@ const PH_COLORS = ["#e2403f","#2a9d9d","#3399cc","#fbb333","#7cc555","#cc3999","
 export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
 }: Props) {
+  // S149: Portal化のためマウント検知（SSR時はdocumentが無いのでガード）
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const MW = machineWidth;
   const SCALE = MW / IMGW;
   // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）。
@@ -99,7 +104,9 @@ export default function VideoWallPreviewModal({
 
   const ordered = [...tiles].sort((a, b) => a.position_index - b.position_index);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       onClick={(e) => { e.stopPropagation(); onClose(); }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -172,6 +179,7 @@ export default function VideoWallPreviewModal({
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
