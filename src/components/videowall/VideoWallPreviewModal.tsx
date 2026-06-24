@@ -71,7 +71,6 @@ export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
 }: Props) {
   const MW = machineWidth;
-  const MWH = (MW * IMGH) / IMGW;
   const SCALE = MW / IMGW;
   // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）。
   // これを四隅へ射影することで映像がモニター枠内にぴったり収まる（はみ出さない）。
