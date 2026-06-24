@@ -555,7 +555,7 @@ function EditGroupDialog({
         <VideoWallPreviewModal
           rows={vw.rows}
           cols={vw.cols}
-          bezelPx={Math.max(6, Math.round(vw.bezel_px / 6))}
+          bezelPx={Math.round(vw.bezel_px / 6)}
           tiles={vw.tiles.map((t) => ({
             position_index: t.position_index, row: t.row, col: t.col,
             tile_asset_url: t.tile_asset_url ?? null,
