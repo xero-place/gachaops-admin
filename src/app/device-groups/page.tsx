@@ -302,6 +302,7 @@ function EditGroupDialog({
   const [vw, setVw] = useState<VideoWall | null>(null);
   const [vwBusy, setVwBusy] = useState(false);
   const [vwPreview, setVwPreview] = useState(false);
+  const [vwSplitSec, setVwSplitSec] = useState(0); // S149: 分割の経過秒数表示用
   const [vwErr, setVwErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -348,10 +349,59 @@ function EditGroupDialog({
     } catch { setVwErr('作成に失敗しました（権限・接続を確認）'); }
     finally { setVwBusy(false); }
   };
+  // S149: split開始→ready/failedまでポーリング。経過秒数を表示し、
+  //       ready到達時に auto-assign まで自動実行（分割→反映の2ステップ化）。
   const vwSplit = async () => {
-    if (!vw) return; setVwBusy(true); setVwErr(null);
-    try { const r = await api.post<VideoWall>(`/videowalls/${vw.id}/split`, {}); setVw(r); }
-    catch { setVwErr('分割の開始に失敗しました'); } finally { setVwBusy(false); }
+    if (!vw) return;
+    const wallId = vw.id;
+    setVwBusy(true); setVwErr(null); setVwSplitSec(0);
+    try {
+      const started = await api.post<VideoWall>(`/videowalls/${wallId}/split`, {});
+      setVw(started);
+      const t0 = Date.now();
+      const TIMEOUT_MS = 240000; // 1コアVPSで余裕を見て4分
+      // 1秒ごとに経過秒数を更新、3秒ごとに状態を取得
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await new Promise((res) => setTimeout(res, 1000));
+        const sec = Math.floor((Date.now() - t0) / 1000);
+        setVwSplitSec(sec);
+        if (Date.now() - t0 > TIMEOUT_MS) {
+          setVwErr('分割がタイムアウトしました。ログを確認してください。');
+          break;
+        }
+        if (sec % 3 !== 0) continue;
+        let latest: VideoWall | null = null;
+        try {
+          const list = await api.get<{ items?: VideoWall[] } | VideoWall[]>(`/videowalls?group_id=${group.id}`);
+          const arr = Array.isArray(list) ? list : (list.items ?? []);
+          latest = arr.find((w) => w.id === wallId) ?? null;
+        } catch { /* 一時的な失敗は無視して継続 */ }
+        if (!latest) continue;
+        if (latest.status === 'ready') {
+          // ready到達 → 自動割当まで自動実行
+          try {
+            const assigned = await api.post<VideoWall>(`/videowalls/${wallId}/auto-assign`, {});
+            setVw(assigned);
+            setVwErr('分割と自動割当が完了しました。「実機に反映」を押してください。');
+          } catch {
+            setVw(latest);
+            setVwErr('分割は完了しましたが自動割当に失敗しました。手動で割り当ててください。');
+          }
+          break;
+        }
+        if (latest.status === 'failed') {
+          setVw(latest);
+          setVwErr('分割に失敗しました。ログを確認してください。');
+          break;
+        }
+        setVw(latest); // splitting中も状態を反映
+      }
+    } catch {
+      setVwErr('分割の開始に失敗しました');
+    } finally {
+      setVwBusy(false); setVwSplitSec(0);
+    }
   };
   const vwAutoAssign = async () => {
     if (!vw) return; setVwBusy(true); setVwErr(null);
@@ -540,7 +590,7 @@ function EditGroupDialog({
                     {vwBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}作成
                   </Button>
                   <Button size="sm" variant="outline" onClick={vwSplit} disabled={vwBusy || !vw}>
-                    {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />分割中…</>) : '分割実行'}
+                    {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />分割中… {vwSplitSec}秒</>) : '分割実行'}
                   </Button>
                   <Button size="sm" variant="outline" onClick={vwAutoAssign} disabled={vwBusy || !vw}>自動割当</Button>
                   <Button size="sm" variant="outline" onClick={() => setVwPreview(true)} disabled={!vw}>

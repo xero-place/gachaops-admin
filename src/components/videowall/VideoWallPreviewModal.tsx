@@ -101,7 +101,8 @@ export default function VideoWallPreviewModal({
 
   return (
     <div
-      onClick={onClose}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: "fixed", inset: 0, background: "rgba(5,7,11,0.86)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -120,7 +121,7 @@ export default function VideoWallPreviewModal({
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#e8eaf0" }}>
             実機投影プレビュー（{rows}行 × {cols}列）
           </h2>
-          <button onClick={onClose}
+          <button onClick={(e) => { e.stopPropagation(); onClose(); }}
             style={{ background: "transparent", border: "none", color: "#8b94a6", fontSize: 22, cursor: "pointer" }}>×</button>
         </div>
         <p style={{ margin: "0 0 18px", color: "#8b94a6", fontSize: 13 }}>
