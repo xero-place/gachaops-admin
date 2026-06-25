@@ -88,15 +88,17 @@ export default function DevicesPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [devR, strR, planR] = await Promise.all([
+        const [devR, strR, planR, machR] = await Promise.all([
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
+          api.get<{ device_id: string; remaining_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
@@ -105,6 +107,10 @@ export default function DevicesPage() {
         setDevices(dArr);
         setStores(sArr);
         setPlanSchedules(pArr);
+        const mArr = Array.isArray(machR) ? machR : [];
+        const mMap: Record<string, { remaining_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
+        for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
+        setStockMap(mMap);
       } catch (e) {
         if (cancelled) return;
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -352,6 +358,29 @@ export default function DevicesPage() {
                     {d.volume}
                   </div>
                 </TableCell>
+                <TableCell className="text-xs tabular-nums">
+                  {(() => {
+                    const st = stockMap[d.id];
+                    if (!st) return <span className="text-muted-foreground">—</span>;
+                    const pct = st.low_stock_threshold > 0
+                      ? Math.min(100, Math.round((st.remaining_balls / Math.max(st.low_stock_threshold * 2, st.remaining_balls)) * 100))
+                      : 100;
+                    return (
+                      <div className="flex flex-col gap-0.5 min-w-[64px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className={st.is_low ? 'text-destructive font-semibold' : ''}>{st.remaining_balls}</span>
+                          <span className="text-muted-foreground">/ {st.low_stock_threshold}</span>
+                          {st.is_low && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-destructive/10 text-destructive font-medium">補充</span>
+                          )}
+                        </div>
+                        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                          <div className={`h-full rounded-full ${st.is_low ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {fmtRelative(d.last_heartbeat_at)}
                 </TableCell>
@@ -392,7 +421,7 @@ export default function DevicesPage() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-12">
+                <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-12">
                   条件に一致する端末がありません
                 </TableCell>
               </TableRow>
