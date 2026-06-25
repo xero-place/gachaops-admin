@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { tokenStore } from '@/lib/token-store';
 import { Loader2, Layers3, ChevronRight, Plus, Link2, Sparkles, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
 import VideoWallPreviewModal from '@/components/videowall/VideoWallPreviewModal';
 
@@ -45,7 +44,6 @@ export default function DeviceGroupsPage() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<DeviceGroup | null>(null);
 
-  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
 
   const reload = useCallback(async () => {
     const res = await api.get<{ items?: DeviceGroup[] } | DeviceGroup[]>('/device-groups?limit=200');
@@ -94,11 +92,9 @@ export default function DeviceGroupsPage() {
   return (
     <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
       <div className="flex items-center justify-end mb-4">
-        {isSuperAdmin && (
-          <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-            <Plus className="h-3.5 w-3.5" />新規グループ
-          </Button>
-        )}
+        <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+          <Plus className="h-3.5 w-3.5" />新規グループ
+        </Button>
       </div>
 
       <Card>
@@ -115,7 +111,7 @@ export default function DeviceGroupsPage() {
                 childrenList={childrenOf(root.id)}
                 depth={0}
                 allGroups={deviceGroups}
-                canEdit={isSuperAdmin}
+                canEdit={true}
                 onEdit={setEditing}
                 onDelete={setDeleting}
                 devices={devices}
@@ -131,7 +127,6 @@ export default function DeviceGroupsPage() {
           group={editing}
           devices={devices}
           programs={programs}
-          isSuperAdmin={isSuperAdmin}
           onClose={() => setEditing(null)}
           onSaved={async () => { await reload(); setEditing(null); }}
         />
@@ -271,12 +266,11 @@ function GroupNode({
 }
 
 function EditGroupDialog({
-  group, devices, programs, isSuperAdmin, onClose, onSaved,
+  group, devices, programs, onClose, onSaved,
 }: {
   group: DeviceGroup;
   devices: DeviceLite[];
   programs: ProgramLite[];
-  isSuperAdmin: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -447,8 +441,8 @@ function EditGroupDialog({
       };
       if (masterId) body.master_device_id = masterId;
       await api.patch(`/device-groups/${group.id}`, body);
-      // S145: 箸休めは lv1_super 専用エンドポイント。権限がある かつ 変更された時だけ叩く。
-      if (isSuperAdmin && restProgramId !== initialRest) {
+      // S145/S150: 箸休めは lv2_admin 以上に開放済み。変更された時だけ叩く。
+      if (restProgramId !== initialRest) {
         await api.put(`/device-groups/${group.id}/rest-program`, {
           rest_program_id: restProgramId || null,  // '' は「既定に戻す」
         });
@@ -495,8 +489,8 @@ function EditGroupDialog({
           </div>
           )}
 
-          {/* S145: 箸休め番組（運営lv1_superのみ表示・顧客には出ない） */}
-          {isSuperAdmin && (
+          {/* S145/S150: 箸休め番組（全アカウントで設定可。backendがcustomer_id絞り込みで自顧客のみ保証） */}
+          {true && (
             <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
               <label className="text-xs font-medium flex items-center gap-1.5">
                 <span className="text-amber-500">●</span>箸休め番組（運営専用）
