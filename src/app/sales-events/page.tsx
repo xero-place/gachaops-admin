@@ -261,6 +261,110 @@ export default function SalesEventsPage() {
   const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
 
+  const generateReport = useCallback(async () => {
+    let daily: Array<{ date: string; qr_revenue_yen: number; cash_revenue_yen: number; revenue_yen: number; medal_count: number }> = [];
+    try {
+      const sp = new URLSearchParams();
+      if (customerFilter !== 'all') sp.set('customer_id', customerFilter);
+      sp.set('days', '30');
+      const qs = sp.toString() ? `?${sp.toString()}` : '';
+      const r = await api.get<typeof daily>(`/stats/sales${qs}`);
+      daily = Array.isArray(r) ? r : [];
+    } catch (e) {
+      console.error('[report] stats/sales failed:', e);
+    }
+
+    const custName = customerFilter === 'all'
+      ? '全顧客'
+      : (customers.find((c) => c.id === customerFilter)?.name ?? customerFilter);
+    const periodLabel = (dateFrom || dateTo)
+      ? `${dateFrom || '—'} 〜 ${dateTo || '—'}`
+      : '全期間';
+    const issued = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const yen = (n: number) => '¥' + (n ?? 0).toLocaleString('ja-JP');
+
+    const dailyRows = daily.map((d) => `
+      <tr>
+        <td>${d.date}</td>
+        <td class="num">${yen(d.qr_revenue_yen)}</td>
+        <td class="num">${yen(d.cash_revenue_yen)}</td>
+        <td class="num strong">${yen(d.revenue_yen)}</td>
+        <td class="num">${(d.medal_count ?? 0).toLocaleString('ja-JP')}</td>
+      </tr>`).join('');
+
+    const dailyTotal = daily.reduce((a, d) => ({
+      qr: a.qr + (d.qr_revenue_yen || 0),
+      cash: a.cash + (d.cash_revenue_yen || 0),
+      rev: a.rev + (d.revenue_yen || 0),
+      medal: a.medal + (d.medal_count || 0),
+    }), { qr: 0, cash: 0, rev: 0, medal: 0 });
+
+    const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><title>売上レポート</title>
+<style>
+  * { font-family: "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", sans-serif; box-sizing: border-box; }
+  body { margin: 0; padding: 32px 36px; color: #1a1a1a; font-size: 12px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #c0392b; padding-bottom: 12px; margin-bottom: 20px; }
+  .head .title { font-size: 20px; font-weight: 700; }
+  .head .sub { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.6; }
+  .head .corp { text-align: right; font-size: 11px; color: #444; line-height: 1.6; }
+  h2 { font-size: 13px; margin: 22px 0 8px; padding-left: 8px; border-left: 4px solid #c0392b; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+  th { background: #f5f5f5; font-weight: 600; font-size: 11px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.strong { font-weight: 700; }
+  tr.total td { background: #fafafa; font-weight: 700; border-top: 2px solid #c0392b; }
+  .sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .foot { margin-top: 28px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+  @media print { body { padding: 0; } @page { margin: 16mm; } }
+</style></head>
+<body>
+  <div class="head">
+    <div>
+      <div class="title">売上レポート</div>
+      <div class="sub">対象顧客：${custName}<br>対象期間：${periodLabel}<br>発行日時：${issued}</div>
+    </div>
+    <div class="corp">株式会社ゼロプレイス<br>売上集計</div>
+  </div>
+
+  <h2>サマリー</h2>
+  <div class="sum-grid">
+    <table>
+      <tr><th colspan="2">本日</th></tr>
+      <tr><td>現金売上</td><td class="num">${yen(summary.today.cash_yen)}</td></tr>
+      <tr><td>QR決済売上</td><td class="num">${yen(summary.today.qr_yen)}</td></tr>
+      <tr><td>総売上</td><td class="num strong">${yen(summary.today.total_yen)}</td></tr>
+      <tr><td>メダル投入数</td><td class="num">${(summary.today.medal_count ?? 0).toLocaleString('ja-JP')}</td></tr>
+    </table>
+    <table>
+      <tr><th colspan="2">累計</th></tr>
+      <tr><td>現金売上</td><td class="num">${yen(summary.cumulative.cash_yen)}</td></tr>
+      <tr><td>QR決済売上</td><td class="num">${yen(summary.cumulative.qr_yen)}</td></tr>
+      <tr><td>総売上</td><td class="num strong">${yen(summary.cumulative.total_yen)}</td></tr>
+      <tr><td>メダル投入総数</td><td class="num">${(summary.cumulative.medal_count ?? 0).toLocaleString('ja-JP')}</td></tr>
+    </table>
+  </div>
+
+  <h2>日別推移（直近30日）</h2>
+  <table>
+    <thead><tr><th>日付</th><th class="num">QR売上</th><th class="num">現金売上</th><th class="num">合計</th><th class="num">メダル数</th></tr></thead>
+    <tbody>
+      ${dailyRows || '<tr><td colspan="5" style="text-align:center;color:#999;">データがありません</td></tr>'}
+      <tr class="total"><td>合計</td><td class="num">${yen(dailyTotal.qr)}</td><td class="num">${yen(dailyTotal.cash)}</td><td class="num">${yen(dailyTotal.rev)}</td><td class="num">${dailyTotal.medal.toLocaleString('ja-JP')}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot">本レポートは株式会社ゼロプレイスにより自動生成されました。現金・QRを売上として計上し、メダルは投入数のみを記録しています。</div>
+  <script>window.onload = function() { setTimeout(function(){ window.print(); }, 300); };</script>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { window.alert('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
+    w.document.write(html);
+    w.document.close();
+  }, [summary, customerFilter, customers, dateFrom, dateTo]);
+
   if (loading) {
     return (
       <AppShell title="売上管理" breadcrumb={['ホーム', '売上管理']}>
@@ -276,6 +380,11 @@ export default function SalesEventsPage() {
 
   return (
     <AppShell title="売上管理" breadcrumb={['ホーム', '売上管理']}>
+      <div className="flex justify-end mb-3">
+        <button onClick={() => void generateReport()} className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
+          レポート出力（PDF）
+        </button>
+      </div>
       {/* 本日 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <SalesCard
