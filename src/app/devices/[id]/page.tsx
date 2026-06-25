@@ -701,8 +701,8 @@ export default function DeviceDetailPage() {
                     onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
                   /> */}
 
-                  {/* S147c: 表示モード（屋外視認性対策・運営専用）*/}
-                  {isSuperAdmin && (
+                  {/* S147c: 表示モード（屋外視認性対策・自分の什器のみ操作可。backendがcustomer_id絞り込みで保証）*/}
+                  {detail && (
                     <div className="pt-2 border-t border-border">
                       <div className="flex items-center gap-2 mb-2">
                         <Sun className="h-4 w-4 text-muted-foreground" />
