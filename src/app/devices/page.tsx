@@ -297,6 +297,7 @@ export default function DevicesPage() {
               {/* <TableHead>モード</TableHead> */}
               <TableHead>再生中</TableHead>
               <TableHead>音量</TableHead>
+              <TableHead>在庫</TableHead>
               <TableHead>最終接続</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
