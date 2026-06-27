@@ -15,9 +15,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { api, auth } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil, UserCog } from 'lucide-react';
 
 type StoreForm = {
   id: string; name: string; address: string; prefecture: string;
@@ -58,6 +59,33 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const [impersonating, setImpersonating] = useState<string | null>(null);
+
+  // S157: enter a customer's admin console by impersonating their admin user.
+  const onOperateAs = async (cid: string) => {
+    setImpersonating(cid);
+    try {
+      const res = await api.get<{ items?: { id: string; role: string }[] } | { id: string; role: string }[]>(
+        `/users?customer_id=${encodeURIComponent(cid)}&limit=200`,
+      );
+      const list = Array.isArray(res) ? res : (res.items ?? []);
+      if (list.length === 0) {
+        alert('この顧客には操作可能なユーザーがいません。');
+        return;
+      }
+      // Prefer a lv2_admin; otherwise fall back to the first user.
+      const target = list.find((u) => u.role === 'lv2_admin') ?? list[0];
+      await auth.impersonate(target.id);
+      if (typeof window !== 'undefined') window.location.href = '/';
+      else router.replace('/');
+    } catch (e) {
+      console.error('[operate-as] failed:', e);
+      alert('成り代わりに失敗しました。');
+    } finally {
+      setImpersonating(null);
+    }
+  };
 
   const loadCustomers = useCallback(async () => {
     if (!isSuperAdmin) { setLoading(false); return; }
@@ -128,6 +156,19 @@ export default function CustomersPage() {
                         <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{c.store_count}</span>
                         <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />{c.device_count}</span>
                         <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{c.user_count}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onOperateAs(c.id)}
+                          disabled={impersonating === c.id}
+                        >
+                          {impersonating === c.id ? (
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                          ) : (
+                            <UserCog className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          この顧客で操作
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />編集
                         </Button>
