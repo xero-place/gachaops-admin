@@ -136,15 +136,72 @@ export interface LoginResponse {
   };
 }
 
+export interface OtpRequiredResponse {
+  status: 'otp_required';
+  email: string;
+  message: string;
+}
+
+export interface VerifyOtpResponse extends LoginResponse {
+  device_token: string;
+}
+
+export { tokenStore };
+
+export function isOtpRequired(
+  r: LoginResponse | OtpRequiredResponse,
+): r is OtpRequiredResponse {
+  return (r as OtpRequiredResponse).status === 'otp_required';
+}
+
+export interface ImpersonateResponse extends LoginResponse {
+  impersonated: true;
+}
+
 export const auth = {
-  async login(email: string, password: string, totp_code?: string): Promise<LoginResponse> {
-    const data = await api.post<LoginResponse>('/auth/login', {
+  async login(
+    email: string,
+    password: string,
+    totp_code?: string,
+  ): Promise<LoginResponse | OtpRequiredResponse> {
+    const device = tokenStore.getDevice();
+    const data = await api.post<LoginResponse | OtpRequiredResponse>(
+      '/auth/login',
+      {
+        email,
+        password,
+        ...(totp_code ? { totp_code } : {}),
+      },
+      device ? { headers: { 'x-device-token': device } } : undefined,
+    );
+    // OTP required -> do NOT store tokens; caller shows the code step.
+    if (isOtpRequired(data)) {
+      return data;
+    }
+    tokenStore.set(data.access_token, data.refresh_token, data.user);
+    return data;
+  },
+  async verifyOtp(email: string, code: string): Promise<VerifyOtpResponse> {
+    const data = await api.post<VerifyOtpResponse>('/auth/verify-otp', {
       email,
-      password,
-      ...(totp_code ? { totp_code } : {}),
+      code,
+    });
+    tokenStore.set(data.access_token, data.refresh_token, data.user);
+    if (data.device_token) tokenStore.setDevice(data.device_token);
+    return data;
+  },
+  // S157: lv1_super only. Saves the operator session, then swaps to the
+  // target user's tokens. stopImpersonation() restores the operator.
+  async impersonate(targetUserId: string): Promise<ImpersonateResponse> {
+    tokenStore.saveImpersonatorSnapshot();
+    const data = await api.post<ImpersonateResponse>('/auth/impersonate', {
+      target_user_id: targetUserId,
     });
     tokenStore.set(data.access_token, data.refresh_token, data.user);
     return data;
+  },
+  stopImpersonation(): boolean {
+    return tokenStore.restoreImpersonator();
   },
   async logout(): Promise<void> {
     try {

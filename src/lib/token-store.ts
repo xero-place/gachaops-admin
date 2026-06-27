@@ -9,6 +9,8 @@
 const ACCESS_KEY = 'gachaops_access_token';
 const REFRESH_KEY = 'gachaops_refresh_token';
 const USER_KEY = 'gachaops_user';
+const DEVICE_KEY = 'gachaops_device_token';
+const IMP_SNAPSHOT_KEY = 'gachaops_impersonator';
 
 export interface StoredUser {
   id: string;
@@ -42,6 +44,48 @@ export const tokenStore = {
       return null;
     }
   },
+  getDevice(): string | null {
+    if (!isClient()) return null;
+    return localStorage.getItem(DEVICE_KEY);
+  },
+  setDevice(token: string): void {
+    if (!isClient()) return;
+    localStorage.setItem(DEVICE_KEY, token);
+  },
+  // S157 impersonation: stash the operator's own session so we can
+  // restore it with one click after acting as another account.
+  saveImpersonatorSnapshot(): void {
+    if (!isClient()) return;
+    const access = localStorage.getItem(ACCESS_KEY);
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    const user = localStorage.getItem(USER_KEY);
+    if (!access || !refresh) return;
+    // Do not overwrite an existing snapshot (no nested impersonation).
+    if (localStorage.getItem(IMP_SNAPSHOT_KEY)) return;
+    localStorage.setItem(
+      IMP_SNAPSHOT_KEY,
+      JSON.stringify({ access, refresh, user }),
+    );
+  },
+  isImpersonating(): boolean {
+    if (!isClient()) return false;
+    return !!localStorage.getItem(IMP_SNAPSHOT_KEY);
+  },
+  restoreImpersonator(): boolean {
+    if (!isClient()) return false;
+    const raw = localStorage.getItem(IMP_SNAPSHOT_KEY);
+    if (!raw) return false;
+    try {
+      const snap = JSON.parse(raw) as { access: string; refresh: string; user: string | null };
+      localStorage.setItem(ACCESS_KEY, snap.access);
+      localStorage.setItem(REFRESH_KEY, snap.refresh);
+      if (snap.user) localStorage.setItem(USER_KEY, snap.user);
+    } catch {
+      return false;
+    }
+    localStorage.removeItem(IMP_SNAPSHOT_KEY);
+    return true;
+  },
   set(access: string, refresh: string, user?: StoredUser): void {
     if (!isClient()) return;
     localStorage.setItem(ACCESS_KEY, access);
@@ -53,6 +97,9 @@ export const tokenStore = {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(IMP_SNAPSHOT_KEY);
+    // NOTE: DEVICE_KEY is intentionally kept so a trusted device is not
+    // re-challenged for the email OTP after a normal logout (S157).
   },
   isAuthenticated(): boolean {
     return !!this.getAccess();

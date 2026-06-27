@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { AuthGate } from '@/components/layout/auth-gate';
+import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
 
 interface ShellProps {
   title: string;
@@ -15,6 +16,7 @@ export function AppShell({ title, breadcrumb, children }: ShellProps) {
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header title={title} breadcrumb={breadcrumb} />
+          <ImpersonationBanner />
           <main className="flex-1 p-6">{children}</main>
         </div>
       </div>

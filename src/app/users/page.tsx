@@ -13,8 +13,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { Loader2 } from 'lucide-react';
+import { api, auth, tokenStore } from '@/lib/api';
+import { Loader2, UserCog } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 type User = {
   id: string;
@@ -46,6 +47,20 @@ const ROLE_VARIANT: Record<UserRole, 'default' | 'destructive' | 'ok' | 'muted'>
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const me = tokenStore.getUser();
+  const isSuper = me?.role === 'lv1_super';
+
+  const onImpersonate = async (targetId: string) => {
+    try {
+      await auth.impersonate(targetId);
+      if (typeof window !== 'undefined') window.location.href = '/';
+      else router.replace('/');
+    } catch (e) {
+      console.error('[impersonate] failed:', e);
+      alert('成り代わりに失敗しました');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -124,7 +139,19 @@ export default function UsersPage() {
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{fmtRelative(u.last_login_at)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs">編集</Button>
+                  <div className="inline-flex items-center gap-1">
+                    {isSuper && me && u.id !== me.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => onImpersonate(u.id)}
+                      >
+                        <UserCog className="h-3.5 w-3.5" />このアカウントで操作
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-7 text-xs">編集</Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

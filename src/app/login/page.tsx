@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { auth, ApiError } from '@/lib/api';
+import { auth, ApiError, isOtpRequired } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,9 @@ function LoginForm() {
   const [password, setPassword] = useState('admin1234');
   const [totpCode, setTotpCode] = useState('');
   const [requireTotp, setRequireTotp] = useState(false);
+  const [emailCode, setEmailCode] = useState('');
+  const [requireEmailOtp, setRequireEmailOtp] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +34,19 @@ function LoginForm() {
     setSubmitting(true);
     setError(null);
     try {
-      await auth.login(email, password, requireTotp ? totpCode : undefined);
+      if (requireEmailOtp) {
+        // Step 2: verify the 6-digit email code.
+        await auth.verifyOtp(email, emailCode);
+        router.replace(search.get('next') || '/');
+        return;
+      }
+      // Step 1: password (and TOTP if this account uses an authenticator app).
+      const res = await auth.login(email, password, requireTotp ? totpCode : undefined);
+      if (isOtpRequired(res)) {
+        setRequireEmailOtp(true);
+        setInfo('確認コードをメールに送信しました。10分以内に入力してください。');
+        return;
+      }
       router.replace(search.get('next') || '/');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -143,6 +158,28 @@ function LoginForm() {
                         />
                       </div>
                     )}
+                    {requireEmailOtp && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="emailcode">確認コード (6桁)</Label>
+                        <Input
+                          id="emailcode"
+                          type="text"
+                          value={emailCode}
+                          onChange={(e) => setEmailCode(e.target.value)}
+                          inputMode="numeric"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          required
+                          disabled={submitting}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                    {info && (
+                      <div className="rounded-md bg-primary/10 border border-primary/30 p-3 text-xs text-foreground/80">
+                        {info}
+                      </div>
+                    )}
                     {error && (
                       <div className="rounded-md bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive flex items-start gap-2">
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -158,7 +195,7 @@ function LoginForm() {
                       ) : (
                         <>
                           <Lock className="h-4 w-4" />
-                          ログイン
+                          {requireEmailOtp ? 'コードを確認' : 'ログイン'}
                         </>
                       )}
                     </Button>
