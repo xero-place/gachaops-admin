@@ -92,17 +92,22 @@ export const tokenStore = {
     localStorage.setItem(REFRESH_KEY, refresh);
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
-  clear(): void {
+  // clear() drops the session. By default the device token is KEPT so an
+  // automatic expiry (refresh failure) leaves the device trusted and the
+  // next login can skip OTP (up to the 90-day device TTL). Pass
+  // { forgetDevice: true } on an explicit logout to fully sign out this
+  // device, which then requires the OTP code again next time.
+  // The real 422 fix lives in login/page.tsx (never send an empty code),
+  // so keeping the device token here is safe.
+  clear(opts?: { forgetDevice?: boolean }): void {
     if (!isClient()) return;
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(IMP_SNAPSHOT_KEY);
-    // S157-fix: also drop the device token. Keeping it across a logout /
-    // token-expiry left the login screen in a half-state that could fire
-    // verify-otp without a code (HTTP 422 lockout). A clean re-login
-    // (password -> OTP) is safer than skipping OTP on a remembered device.
-    localStorage.removeItem(DEVICE_KEY);
+    if (opts?.forgetDevice) {
+      localStorage.removeItem(DEVICE_KEY);
+    }
   },
   isAuthenticated(): boolean {
     return !!this.getAccess();

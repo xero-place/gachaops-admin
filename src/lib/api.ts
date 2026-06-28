@@ -209,6 +209,7 @@ export const auth = {
     } catch {
       // best-effort; clear tokens regardless
     }
-    tokenStore.clear();
+    // Explicit logout fully signs out this device (OTP required next time).
+    tokenStore.clear({ forgetDevice: true });
   },
 };
