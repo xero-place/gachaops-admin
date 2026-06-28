@@ -98,8 +98,11 @@ export const tokenStore = {
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(IMP_SNAPSHOT_KEY);
-    // NOTE: DEVICE_KEY is intentionally kept so a trusted device is not
-    // re-challenged for the email OTP after a normal logout (S157).
+    // S157-fix: also drop the device token. Keeping it across a logout /
+    // token-expiry left the login screen in a half-state that could fire
+    // verify-otp without a code (HTTP 422 lockout). A clean re-login
+    // (password -> OTP) is safer than skipping OTP on a remembered device.
+    localStorage.removeItem(DEVICE_KEY);
   },
   isAuthenticated(): boolean {
     return !!this.getAccess();

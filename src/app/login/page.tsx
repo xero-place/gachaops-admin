@@ -36,7 +36,12 @@ function LoginForm() {
     try {
       if (requireEmailOtp) {
         // Step 2: verify the 6-digit email code.
-        await auth.verifyOtp(email, emailCode);
+        const code = emailCode.trim();
+        if (code.length === 0) {
+          setError('確認コードを入力してください');
+          return;
+        }
+        await auth.verifyOtp(email, code);
         router.replace(search.get('next') || '/');
         return;
       }
@@ -186,7 +191,11 @@ function LoginForm() {
                         <span>{error}</span>
                       </div>
                     )}
-                    <Button type="submit" className="w-full gap-2 h-11" disabled={submitting}>
+                    <Button
+                      type="submit"
+                      className="w-full gap-2 h-11"
+                      disabled={submitting || (requireEmailOtp && emailCode.trim().length === 0)}
+                    >
                       {submitting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
