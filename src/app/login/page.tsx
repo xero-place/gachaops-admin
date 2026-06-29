@@ -13,12 +13,15 @@ import { AlertCircle, Loader2, Lock } from 'lucide-react';
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const [email, setEmail] = useState('admin@gachaops.example');
-  const [password, setPassword] = useState('admin1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [requireTotp, setRequireTotp] = useState(false);
   const [emailCode, setEmailCode] = useState('');
   const [requireEmailOtp, setRequireEmailOtp] = useState(false);
+  // The email confirmed at step 1; step 2 always verifies against this,
+  // never the live input field (prevents email-mismatch 422 lockouts).
+  const [otpEmail, setOtpEmail] = useState('');
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +44,23 @@ function LoginForm() {
           setError('確認コードを入力してください');
           return;
         }
-        await auth.verifyOtp(email, code);
+        // Verify against the email pinned at step 1, with a final guard so a
+        // blank/invalid value can never be sent (the cause of the 422 lockout).
+        const verifyEmail = (otpEmail || email).trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(verifyEmail)) {
+          setError('メールアドレスが正しくありません。最初からやり直してください。');
+          setRequireEmailOtp(false);
+          setEmailCode('');
+          return;
+        }
+        await auth.verifyOtp(verifyEmail, code);
         router.replace(search.get('next') || '/');
         return;
       }
       // Step 1: password (and TOTP if this account uses an authenticator app).
       const res = await auth.login(email, password, requireTotp ? totpCode : undefined);
       if (isOtpRequired(res)) {
+        setOtpEmail(email.trim());
         setRequireEmailOtp(true);
         setInfo('確認コードをメールに送信しました。10分以内に入力してください。');
         return;
