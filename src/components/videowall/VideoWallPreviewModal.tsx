@@ -123,10 +123,11 @@ export default function VideoWallPreviewModal({
   const bz = Math.max(0, realBezelPx);
   // S159 fix: 全て表示px(SCREEN_W/H)基準に統一する。
   // bz はタイル1024px基準なので、表示窓 SCREEN_W 基準へ換算する。
-  const bzDisp = bz * (SCREEN_W / TILE_W);
+  const bzDisp = bz * (SCREEN_W / TILE_W);   // 横方向ベゼル(表示px)
+  const bzDispV = bz * (SCREEN_H / TILE_H);  // 縦方向ベゼル(表示px, タイル縦長を考慮)
   // 元動画(1枚)を「全タイルを並べた仮想大画面」の表示サイズへ拡大する。
   const wallDispW = cols * SCREEN_W + (cols - 1) * bzDisp;
-  const wallDispH = rows * SCREEN_H + (rows - 1) * bzDisp;
+  const wallDispH = rows * SCREEN_H + (rows - 1) * bzDispV;
 
   // S159: inline panel — shrink each machine so up to ~20 tiles (e.g. 5 cols)
   // still fit inside the edit dialog; grid scrolls if taller than the cap.
@@ -184,7 +185,7 @@ export default function VideoWallPreviewModal({
                       style={{
                         position: "absolute",
                         left: -t.col * (SCREEN_W + bzDisp),
-                        top: -t.row * (SCREEN_H + bzDisp),
+                        top: -t.row * (SCREEN_H + bzDispV),
                         width: wallDispW,
                         height: wallDispH,
                         objectFit: "fill",
