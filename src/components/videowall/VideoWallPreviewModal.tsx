@@ -10,7 +10,6 @@
 //   × を押しても編集モーダルへ正しく戻る。
 
 import { useMemo, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 
 // 実機写真 634x880 上で測ったモニター四隅（px）
 const IMGW = 524;
@@ -128,62 +127,52 @@ export default function VideoWallPreviewModal({
   const kx = wallWpx / TILE_W; // 横の拡大率
   const ky = wallHpx / TILE_H; // 縦の拡大率
 
+  // S159: inline panel — shrink each machine so up to ~20 tiles (e.g. 5 cols)
+  // still fit inside the edit dialog; grid scrolls if taller than the cap.
+  const DISP_MW = Math.max(70, Math.min(MW, Math.floor(760 / Math.max(1, cols))));
+  const DISP_SCALE = DISP_MW / IMGW;
+  const dScreenW = (TR[0] - TL[0]) * DISP_SCALE;
+  const dScreenH = (BL[1] - TL[1]) * DISP_SCALE;
+  void dScreenW; void dScreenH;
   if (!mounted) return null;
 
-  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
-
-  return createPortal(
+  return (
     <div
-      data-vw-preview=""
-      // S159: 親の Radix Dialog へ pointer/click を漏らさない
-      onClickCapture={stop}
-      onMouseDownCapture={stop}
-      onPointerDownCapture={stop}
-      onClick={(e) => { e.stopPropagation(); onClose(); }}
       style={{
-        position: "fixed", inset: 0, background: "rgba(5,7,11,0.86)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 1000, padding: 24,
+        background: "#0b0d11", borderRadius: 14, padding: 16,
+        border: "1px solid #1c2230", marginTop: 8,
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#0b0d11", borderRadius: 16, padding: 24,
-          maxWidth: "92vw", maxHeight: "92vh", overflow: "auto",
-          boxShadow: "0 12px 60px rgba(0,0,0,0.7)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#e8eaf0" }}>
-            実機投影プレビュー（{rows}行 × {cols}列）
-          </h2>
-          <button onClick={(e) => { e.stopPropagation(); onClose(); }}
-            style={{ background: "transparent", border: "none", color: "#8b94a6", fontSize: 22, cursor: "pointer" }}>×</button>
-        </div>
-        <p style={{ margin: "0 0 6px", color: "#8b94a6", fontSize: 13 }}>
-          設定した行×列ぶんの実機に、分割映像を投影した様子です。モニター部分のみ映像が流れます。
-        </p>
-        <p style={{ margin: "0 0 18px", color: useReal ? "#7cc555" : "#e0a23a", fontSize: 12 }}>
-          {useReal
-            ? `実効果プレビュー：ベゼル ${bz}px ぶん隣の映像が画面の裏に隠れ、並べると連続して見えます。`
-            : "（元動画が取得できないため、焼き済みタイルで表示中。ベゼルの実効果は分割後に反映されます。）"}
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#e8eaf0" }}>
+          実機投影プレビュー（{rows}行 × {cols}列 / {rows * cols}台）
+        </h3>
+        <button type="button" onClick={onClose}
+          style={{ background: "transparent", border: "none", color: "#8b94a6", fontSize: 20, lineHeight: 1, cursor: "pointer" }}>×</button>
+      </div>
+      <p style={{ margin: "0 0 4px", color: "#8b94a6", fontSize: 11 }}>
+        設定した行×列ぶんの実機に、分割映像を投影した様子です。モニター部分のみ映像が流れます。
+      </p>
+      <p style={{ margin: "0 0 12px", color: useReal ? "#7cc555" : "#e0a23a", fontSize: 11 }}>
+        {useReal
+          ? `実効果プレビュー：ベゼル ${bz}px ぶん隣の映像が画面の裏に隠れ、並べると連続して見えます。`
+          : "（元動画が取得できないため、焼き済みタイルで表示中。ベゼルの実効果は分割後に反映されます。）"}
+      </p>
+      <div style={{ maxHeight: "46vh", overflow: "auto", borderRadius: 12 }}>
         <div style={{
           display: "inline-grid",
           gridTemplateColumns: `repeat(${cols}, auto)`,
           gap: bezelPx,
-          background: "#070809", padding: 16, borderRadius: 14,
+          background: "#070809", padding: 12, borderRadius: 12,
         }}>
           {ordered.map((t, i) => (
             <div key={t.position_index}
-              style={{ position: "relative", width: MW, aspectRatio: `${IMGW}/${IMGH}` }}>
+              style={{ position: "relative", width: DISP_MW, aspectRatio: `${IMGW}/${IMGH}` }}>
               <div style={{
                 position: "absolute", left: 0, top: 0, width: "100%", height: "100%",
                 transform: matrix3d, transformOrigin: "0 0", pointerEvents: "none",
               }}>
                 {useReal ? (
-                  // 表示窓を overflow:hidden にし、内側の video を wall サイズへ拡大→自タイル位置へオフセット
                   <div style={{
                     position: "absolute", left: 0, top: 0,
                     width: SCREEN_W, height: SCREEN_H, overflow: "hidden", transformOrigin: "0 0",
@@ -215,7 +204,7 @@ export default function VideoWallPreviewModal({
                     position: "absolute", left: 0, top: 0, width: SCREEN_W, height: SCREEN_H,
                     background: PH_COLORS[i % PH_COLORS.length],
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "#fff", fontWeight: 800, fontSize: 18,
+                    color: "#fff", fontWeight: 800, fontSize: 16,
                   }}>
                     R{t.row}C{t.col}
                   </div>
@@ -226,14 +215,13 @@ export default function VideoWallPreviewModal({
               {t.device_name && (
                 <div style={{
                   position: "absolute", bottom: 4, left: 0, right: 0, textAlign: "center",
-                  color: "#cfe", fontSize: 11, textShadow: "0 1px 2px #000",
+                  color: "#cfe", fontSize: 10, textShadow: "0 1px 2px #000",
                 }}>{t.device_name}</div>
               )}
             </div>
           ))}
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

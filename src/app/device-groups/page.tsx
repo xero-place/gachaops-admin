@@ -460,21 +460,8 @@ function EditGroupDialog({
   };
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o && !vwPreview) onClose(); }}>
-      <DialogContent
-        className="max-w-lg max-h-[85vh] overflow-y-auto"
-        onPointerDownOutside={(e) => {
-          // Block closing the edit dialog when interacting OUTSIDE the preview,
-          // but let clicks INSIDE the preview (e.g. its × button) through.
-          const t = e.target as HTMLElement | null;
-          if (vwPreview && !t?.closest?.("[data-vw-preview]")) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          const t = e.target as HTMLElement | null;
-          if (vwPreview && !t?.closest?.("[data-vw-preview]")) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => { if (vwPreview) e.preventDefault(); }}
-      >
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-sm">グループ編集：{group.name}</DialogTitle>
           <DialogDescription className="text-xs">
@@ -632,6 +619,21 @@ function EditGroupDialog({
                   </div>
                 )}
                 {vwErr && <p className="text-[10px] text-red-500">{vwErr}</p>}
+                {vwPreview && vw && (
+                  <VideoWallPreviewModal
+                    rows={vw.rows}
+                    cols={vw.cols}
+                    bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
+                    sourceUrl={vwAssets.find((a) => a.id === vwSourceId)?.url ?? null}
+                    realBezelPx={vwBezel}
+                    tiles={vw.tiles.map((t) => ({
+                      position_index: t.position_index, row: t.row, col: t.col,
+                      tile_asset_url: t.tile_asset_url ?? null,
+                      device_name: devices.find((d) => d.id === t.device_id)?.name ?? null,
+                    }))}
+                    onClose={() => setVwPreview(false)}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -646,21 +648,6 @@ function EditGroupDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-      {vwPreview && vw && (
-        <VideoWallPreviewModal
-          rows={vw.rows}
-          cols={vw.cols}
-          bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
-          sourceUrl={vwAssets.find((a) => a.id === vwSourceId)?.url ?? null}
-          realBezelPx={vwBezel}
-          tiles={vw.tiles.map((t) => ({
-            position_index: t.position_index, row: t.row, col: t.col,
-            tile_asset_url: t.tile_asset_url ?? null,
-            device_name: devices.find((d) => d.id === t.device_id)?.name ?? null,
-          }))}
-          onClose={() => setVwPreview(false)}
-        />
-      )}
     </Dialog>
   );
 }
