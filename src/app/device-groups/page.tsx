@@ -463,8 +463,16 @@ function EditGroupDialog({
     <Dialog open onOpenChange={(o) => { if (!o && !vwPreview) onClose(); }}>
       <DialogContent
         className="max-w-lg max-h-[85vh] overflow-y-auto"
-        onPointerDownOutside={(e) => { if (vwPreview) e.preventDefault(); }}
-        onInteractOutside={(e) => { if (vwPreview) e.preventDefault(); }}
+        onPointerDownOutside={(e) => {
+          // Block closing the edit dialog when interacting OUTSIDE the preview,
+          // but let clicks INSIDE the preview (e.g. its × button) through.
+          const t = e.target as HTMLElement | null;
+          if (vwPreview && !t?.closest?.("[data-vw-preview]")) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          const t = e.target as HTMLElement | null;
+          if (vwPreview && !t?.closest?.("[data-vw-preview]")) e.preventDefault();
+        }}
         onEscapeKeyDown={(e) => { if (vwPreview) e.preventDefault(); }}
       >
         <DialogHeader>

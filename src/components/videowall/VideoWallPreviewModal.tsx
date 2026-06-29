@@ -134,6 +134,7 @@ export default function VideoWallPreviewModal({
 
   return createPortal(
     <div
+      data-vw-preview=""
       // S159: 親の Radix Dialog へ pointer/click を漏らさない
       onClickCapture={stop}
       onMouseDownCapture={stop}
