@@ -322,7 +322,10 @@ function EditGroupDialog({
           setVwEnabled(true);
           setVwRows(latest.rows);
           setVwCols(latest.cols);
-          setVwBezel(latest.bezel_px);
+          // NOTE: bezel is intentionally NOT restored from the saved wall.
+          // The latest saved wall is often bezel_px=0, and auto-restoring it
+          // overwrote the operator's input, re-baking tiles at 0 every time.
+          // Bezel is now always driven by the live input field.
         }
       })
       .catch(() => { /* 無ければ何もしない */ });
