@@ -1,8 +1,13 @@
 "use client";
-// S148: ビデオウォール 実機投影プレビューモーダル
-// 実機写真(public/videowall/machine.png)のモニター部分に、各タイル動画を
-// matrix3d射影ではめ込み、rows×colsぶん並べてベゼル間隔つきで表示する。
-// 既存コンポーネントには非依存（単体で動く）。
+// S148/S159: ビデオウォール 実機投影プレビューモーダル
+// 実機写真(public/videowall/machine.png)のモニター部分に各タイル映像を matrix3d 射影ではめ込む。
+// S159: 実効果モード — sourceUrl があれば、各タイルが「元動画」を共有し、
+//   backend compute_tile_crops と同一ロジックで自分の crop 範囲だけを表示する。
+//   これにより、入力中のベゼル値を上げると「隠れる部分」が増えて、
+//   並べたとき映像が連続する“実際のベゼル補正効果”がリアルタイムに見える。
+//   sourceUrl が無い場合は従来どおり焼き済み tile_asset_url にフォールバック。
+// S159: 閉じる伝播遮断 — 親(編集 Radix Dialog)へ pointer/click を漏らさず、
+//   × を押しても編集モーダルへ正しく戻る。
 
 import { useMemo, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -15,21 +20,27 @@ const TR: [number, number] = [439, 58];
 const BR: [number, number] = [439, 466];
 const BL: [number, number] = [79, 466];
 
+// タイル実解像度（backend と一致：縦長 1024x1280）
+const TILE_W = 1024;
+const TILE_H = 1280;
+
 type Tile = {
   position_index: number;
   row: number;
   col: number;
-  tile_asset_url?: string | null; // 各タイル動画の公開URL（無ければ色プレースホルダ）
+  tile_asset_url?: string | null; // 焼き済みタイル動画（フォールバック用）
   device_name?: string | null;
 };
 
 type Props = {
   rows: number;
   cols: number;
-  bezelPx: number;        // 画面上のベゼル間隔（表示用px。実機ベゼルとは別の見た目用）
-  machineWidth?: number;  // 1台の表示幅(px)
-  tiles: Tile[];          // position_index順
+  bezelPx: number;            // 画面上のタイル間ギャップ（見た目用px）
+  machineWidth?: number;      // 1台の表示幅(px)
+  tiles: Tile[];              // position_index順
   onClose: () => void;
+  sourceUrl?: string | null;  // S159: 元動画URL（実効果モードの素）
+  realBezelPx?: number;       // S159: 入力中の実機ベゼル(px, タイル1024基準)
 };
 
 function solveHomography(
@@ -70,15 +81,14 @@ const PH_COLORS = ["#e2403f","#2a9d9d","#3399cc","#fbb333","#7cc555","#cc3999","
 
 export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
+  sourceUrl, realBezelPx = 0,
 }: Props) {
-  // S149: Portal化のためマウント検知（SSR時はdocumentが無いのでガード）
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
   const MW = machineWidth;
   const SCALE = MW / IMGW;
-  // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）。
-  // これを四隅へ射影することで映像がモニター枠内にぴったり収まる（はみ出さない）。
+  // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）
   const SCREEN_W = (TR[0] - TL[0]) * SCALE;
   const SCREEN_H = (BL[1] - TL[1]) * SCALE;
 
@@ -102,14 +112,33 @@ export default function VideoWallPreviewModal({
     return `matrix3d(${m.map((v) => v.toFixed(6)).join(",")})`;
   }, [SCALE, SCREEN_W, SCREEN_H]);
 
-  const ordered = [...tiles].sort((a, b) => a.position_index - b.position_index);
+  const ordered = useMemo(
+    () => [...tiles].sort((a, b) => a.position_index - b.position_index),
+    [tiles]
+  );
+
+  // S159: 実効果モードの幾何（backend compute_tile_crops と一致）
+  // 仮想大画面 wall を SCREEN(表示窓) 基準にスケールし、各タイルは
+  // 元動画を wall サイズへ拡大→自タイルの位置だけを表示窓で切り出す。
+  const useReal = !!sourceUrl;
+  const bz = Math.max(0, realBezelPx);
+  const wallWpx = cols * TILE_W + (cols - 1) * bz;     // 元解像度基準の仮想大画面幅
+  const wallHpx = rows * TILE_H + (rows - 1) * bz;     // 同 高さ
+  // 表示窓(SCREEN_W×SCREEN_H)＝タイル1枚分。倍率＝wall/tile。
+  const kx = wallWpx / TILE_W; // 横の拡大率
+  const ky = wallHpx / TILE_H; // 縦の拡大率
 
   if (!mounted) return null;
 
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
   return createPortal(
     <div
+      // S159: 親の Radix Dialog へ pointer/click を漏らさない
+      onClickCapture={stop}
+      onMouseDownCapture={stop}
+      onPointerDownCapture={stop}
       onClick={(e) => { e.stopPropagation(); onClose(); }}
-      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: "fixed", inset: 0, background: "rgba(5,7,11,0.86)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -131,8 +160,13 @@ export default function VideoWallPreviewModal({
           <button onClick={(e) => { e.stopPropagation(); onClose(); }}
             style={{ background: "transparent", border: "none", color: "#8b94a6", fontSize: 22, cursor: "pointer" }}>×</button>
         </div>
-        <p style={{ margin: "0 0 18px", color: "#8b94a6", fontSize: 13 }}>
+        <p style={{ margin: "0 0 6px", color: "#8b94a6", fontSize: 13 }}>
           設定した行×列ぶんの実機に、分割映像を投影した様子です。モニター部分のみ映像が流れます。
+        </p>
+        <p style={{ margin: "0 0 18px", color: useReal ? "#7cc555" : "#e0a23a", fontSize: 12 }}>
+          {useReal
+            ? `実効果プレビュー：ベゼル ${bz}px ぶん隣の映像が画面の裏に隠れ、並べると連続して見えます。`
+            : "（元動画が取得できないため、焼き済みタイルで表示中。ベゼルの実効果は分割後に反映されます。）"}
         </p>
         <div style={{
           display: "inline-grid",
@@ -147,7 +181,26 @@ export default function VideoWallPreviewModal({
                 position: "absolute", left: 0, top: 0, width: "100%", height: "100%",
                 transform: matrix3d, transformOrigin: "0 0", pointerEvents: "none",
               }}>
-                {t.tile_asset_url ? (
+                {useReal ? (
+                  // 表示窓を overflow:hidden にし、内側の video を wall サイズへ拡大→自タイル位置へオフセット
+                  <div style={{
+                    position: "absolute", left: 0, top: 0,
+                    width: SCREEN_W, height: SCREEN_H, overflow: "hidden", transformOrigin: "0 0",
+                  }}>
+                    <video
+                      src={sourceUrl!}
+                      autoPlay muted loop playsInline
+                      style={{
+                        position: "absolute",
+                        left: -t.col * (SCREEN_W + bz * SCALE),
+                        top: -t.row * (SCREEN_H + bz * SCALE),
+                        width: SCREEN_W * kx,
+                        height: SCREEN_H * ky,
+                        objectFit: "fill",
+                      }}
+                    />
+                  </div>
+                ) : t.tile_asset_url ? (
                   <video
                     src={t.tile_asset_url}
                     autoPlay muted loop playsInline

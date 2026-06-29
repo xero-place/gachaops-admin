@@ -30,7 +30,7 @@ type DeviceGroup = {
 };
 
 type DeviceLite = { id: string; name?: string; status?: string; current_program_name?: string | null };
-type VwAssetLite = { id: string; name: string; type?: string };
+type VwAssetLite = { id: string; name: string; type?: string; url?: string | null };
 type VwTile = { id: string; row: number; col: number; position_index: number; tile_asset_id?: string | null; device_id?: string | null; tile_asset_url?: string | null };
 type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; tiles: VwTile[] };
 type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
@@ -638,6 +638,8 @@ function EditGroupDialog({
           rows={vw.rows}
           cols={vw.cols}
           bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
+          sourceUrl={vwAssets.find((a) => a.id === vwSourceId)?.url ?? null}
+          realBezelPx={vwBezel}
           tiles={vw.tiles.map((t) => ({
             position_index: t.position_index, row: t.row, col: t.col,
             tile_asset_url: t.tile_asset_url ?? null,
