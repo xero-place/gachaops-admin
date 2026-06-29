@@ -121,11 +121,12 @@ export default function VideoWallPreviewModal({
   // 元動画を wall サイズへ拡大→自タイルの位置だけを表示窓で切り出す。
   const useReal = !!sourceUrl;
   const bz = Math.max(0, realBezelPx);
-  const wallWpx = cols * TILE_W + (cols - 1) * bz;     // 元解像度基準の仮想大画面幅
-  const wallHpx = rows * TILE_H + (rows - 1) * bz;     // 同 高さ
-  // 表示窓(SCREEN_W×SCREEN_H)＝タイル1枚分。倍率＝wall/tile。
-  const kx = wallWpx / TILE_W; // 横の拡大率
-  const ky = wallHpx / TILE_H; // 縦の拡大率
+  // S159 fix: 全て表示px(SCREEN_W/H)基準に統一する。
+  // bz はタイル1024px基準なので、表示窓 SCREEN_W 基準へ換算する。
+  const bzDisp = bz * (SCREEN_W / TILE_W);
+  // 元動画(1枚)を「全タイルを並べた仮想大画面」の表示サイズへ拡大する。
+  const wallDispW = cols * SCREEN_W + (cols - 1) * bzDisp;
+  const wallDispH = rows * SCREEN_H + (rows - 1) * bzDisp;
 
   // S159: inline panel — shrink each machine so up to ~20 tiles (e.g. 5 cols)
   // still fit inside the edit dialog; grid scrolls if taller than the cap.
@@ -182,10 +183,10 @@ export default function VideoWallPreviewModal({
                       autoPlay muted loop playsInline
                       style={{
                         position: "absolute",
-                        left: -t.col * (SCREEN_W + bz * SCALE),
-                        top: -t.row * (SCREEN_H + bz * SCALE),
-                        width: SCREEN_W * kx,
-                        height: SCREEN_H * ky,
+                        left: -t.col * (SCREEN_W + bzDisp),
+                        top: -t.row * (SCREEN_H + bzDisp),
+                        width: wallDispW,
+                        height: wallDispH,
                         objectFit: "fill",
                       }}
                     />
