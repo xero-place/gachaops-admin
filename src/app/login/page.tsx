@@ -33,7 +33,12 @@ function LoginForm() {
   }, [router, search]);
 
   const onSubmit = async (e: React.FormEvent) => {
+    // Stop the browser's native form POST (form-urlencoded to /auth/login),
+    // which races the fetch login, returns 422, and reloads the page —
+    // wiping the OTP state so login never completes.
     e.preventDefault();
+    e.stopPropagation();
+    if (submitting) return;        // guard double submit
     setSubmitting(true);
     setError(null);
     try {
@@ -205,7 +210,8 @@ function LoginForm() {
                       </div>
                     )}
                     <Button
-                      type="submit"
+                      type="button"
+                      onClick={onSubmit}
                       className="w-full gap-2 h-11"
                       disabled={submitting || (requireEmailOtp && emailCode.trim().length === 0)}
                     >
