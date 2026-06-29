@@ -32,7 +32,7 @@ type DeviceGroup = {
 type DeviceLite = { id: string; name?: string; status?: string; current_program_name?: string | null };
 type VwAssetLite = { id: string; name: string; type?: string; url?: string | null };
 type VwTile = { id: string; row: number; col: number; position_index: number; tile_asset_id?: string | null; device_id?: string | null; tile_asset_url?: string | null };
-type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; tiles: VwTile[] };
+type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; source_asset_id?: string | null; tiles: VwTile[] };
 type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
 
 export default function DeviceGroupsPage() {
@@ -574,8 +574,13 @@ function EditGroupDialog({
                   </div>
                   <div>
                     <label className="text-[10px] text-muted-foreground">ベゼル補正(px)</label>
-                    <input type="number" min={0} max={400} value={vwBezel}
-                      onChange={(e) => setVwBezel(Math.max(0, Number(e.target.value)))}
+                    <input type="number" min={0} max={400}
+                      value={vwBezel === 0 ? "" : vwBezel}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/^0+(?=\d)/, "");
+                        setVwBezel(v === "" ? 0 : Math.max(0, Math.min(400, Number(v))));
+                      }}
                       className="w-full rounded border bg-background px-2 py-1 text-xs" />
                   </div>
                   <div className="flex items-end text-[10px] text-muted-foreground">
@@ -624,7 +629,7 @@ function EditGroupDialog({
                     rows={vw.rows}
                     cols={vw.cols}
                     bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
-                    sourceUrl={vwAssets.find((a) => a.id === vwSourceId)?.url ?? null}
+                    sourceUrl={vwAssets.find((a) => a.id === (vwSourceId || vw.source_asset_id))?.url ?? null}
                     realBezelPx={vwBezel}
                     tiles={vw.tiles.map((t) => ({
                       position_index: t.position_index, row: t.row, col: t.col,
