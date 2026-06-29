@@ -72,14 +72,16 @@ async function call<T>(
     headers.Authorization = `Bearer ${access}`;
   }
 
+  const { headers: _initHeaders, body: _initBody, ...initRest } = init ?? {};
+  void _initHeaders; void _initBody;
   const res = await fetch(BASE_URL + path, {
+    ...initRest,
     method,
     headers,
     body: body !== undefined
       ? (isForm ? (body as FormData) : JSON.stringify(body))
       : undefined,
     cache: 'no-store',
-    ...init,
   });
 
   // Auto-refresh on 401 (once)
