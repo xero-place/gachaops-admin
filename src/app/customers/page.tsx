@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, auth } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil, UserCog } from 'lucide-react';
 
 type StoreForm = {
@@ -26,6 +27,8 @@ type StoreForm = {
 };
 type DeviceForm = {
   id: string; name: string; serial: string; store_index: number; is_master: boolean;
+  /* === S161 onboard existing === */
+  source_mode: 'new' | 'existing'; existing_device_id: string;
 };
 type OnboardResult = {
   customer_id: string;
@@ -50,6 +53,7 @@ const EMPTY_STORE: StoreForm = {
 };
 const EMPTY_DEVICE: DeviceForm = {
   id: '', name: '', serial: '', store_index: 0, is_master: false,
+  source_mode: 'new', existing_device_id: '',
 };
 
 export default function CustomersPage() {
@@ -236,6 +240,25 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
 
   const masterCount = devices.filter((d) => d.is_master).length;
 
+  /* === S161 onboard existing: 自社ストック端末 === */
+  const [stockDevices, setStockDevices] = useState<{ id: string; name: string; serial: string; store_name?: string }[]>([]);
+  useEffect(() => {
+    const myCid = tokenStore.getUser()?.customer_id;
+    const isSuper = tokenStore.getUser()?.role === 'lv1_super';
+    if (!isSuper || !myCid) return;
+    void (async () => {
+      try {
+        const res = await api.get<{ items?: { id: string; name: string; serial: string; customer_id: string; store_name?: string }[] } | { id: string; name: string; serial: string; customer_id: string; store_name?: string }[]>('/devices?limit=200');
+        const arr = Array.isArray(res) ? res : (res.items ?? []);
+        // 案X: 自社(cust_demo=自分のcustomer_id)所属のみをストックとして提示
+        setStockDevices(arr.filter((d) => d.customer_id === myCid).map((d) => ({ id: d.id, name: d.name, serial: d.serial, store_name: d.store_name })));
+      } catch {
+        /* 取得失敗時はストック選択を出さない（新規登録のみで運用可能） */
+      }
+    })();
+  }, []);
+  const newDeviceCount = devices.filter((d) => d.source_mode === 'new').length;
+
   function setStore(patch: Partial<StoreForm>) {
     setStores([{ ...stores[0], ...patch }]);
   }
@@ -257,9 +280,15 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
     if (!stores[0].name.trim() || !stores[0].address.trim() || !stores[0].prefecture.trim())
       return '店舗の名前・住所・都道府県は必須です';
     for (const d of devices) {
+      /* === S161 onboard existing === */
+      if (d.source_mode === 'existing') {
+        if (!d.existing_device_id) return '「自社ストックから選択」の端末が未選択です';
+        if (d.is_master && newDeviceCount > 0) return '新規登録の端末があるため、既存端末を master にはできません（master は新規端末から選んでください）';
+        continue;
+      }
       if (!d.name.trim() || !d.serial.trim()) return '全端末の名前・シリアルは必須です';
     }
-    const serials = devices.map((d) => d.serial.trim());
+    const serials = devices.filter((d) => d.source_mode === 'new').map((d) => d.serial.trim());
     if (new Set(serials).size !== serials.length) return '端末シリアルが重複しています';
     if (makeGroup && linked && devices.length > 0 && masterCount !== 1)
       return '連動グループには master 端末を1台だけ指定してください';
@@ -289,7 +318,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
           postal_code: s.postal_code.trim() || null,
           phone: s.phone.trim() || null,
         })),
-        devices: devices.map((d) => ({
+        devices: devices.filter((d) => d.source_mode === 'new').map((d) => ({
           id: d.id.trim() || undefined,
           name: d.name.trim(),
           serial: d.serial.trim(),
@@ -312,6 +341,23 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
         },
       };
       const res = await api.post<OnboardResult>('/customers/onboard', payload);
+
+      /* === S161 onboard existing: 既存端末を新顧客へ付け替え + グループ追加 === */
+      const existing = devices.filter((d) => d.source_mode === 'existing' && d.existing_device_id);
+      for (const d of existing) {
+        const targetStoreId = res.store_ids[d.store_index];
+        if (!targetStoreId) continue;
+        await api.post(`/devices/${d.existing_device_id}/reassign`, { target_store_id: targetStoreId });
+      }
+      if (res.group_id && existing.length > 0) {
+        const addIds = existing.map((d) => d.existing_device_id);
+        const existingMaster = existing.find((d) => d.is_master)?.existing_device_id;
+        const body: { add_device_ids: string[]; master_device_id?: string } = { add_device_ids: addIds };
+        // 既存端末を master にできるのは新規0台時のみ（validateで担保済）
+        if (existingMaster && newDeviceCount === 0) body.master_device_id = existingMaster;
+        await api.patch(`/device-groups/${res.group_id}`, body);
+      }
+
       setResult(res);
       onCreated();
     } catch (e: unknown) {
@@ -450,19 +496,52 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
                       </Button>
                     )}
                   </div>
-                  <Field label="端末ID（任意）">
-                    <Input value={d.id} onChange={(e) => setDevice(i, { id: e.target.value })} placeholder={`dev_oga_0${i + 1}`} />
-                  </Field>
-                  <Field label="端末名 *">
-                    <Input value={d.name} onChange={(e) => setDevice(i, { name: e.target.value })} placeholder={`男鹿市役所 #${i + 1}`} />
-                  </Field>
-                  <Field label="シリアル *">
-                    <Input value={d.serial} onChange={(e) => setDevice(i, { serial: e.target.value })} placeholder={`SN-OGA-0${i + 1}`} />
-                  </Field>
+                  {/* === S161 onboard existing: 登録方法トグル === */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDevice(i, { source_mode: 'new' })}
+                      className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'new' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
+                    >新規登録</button>
+                    <button
+                      type="button"
+                      onClick={() => setDevice(i, { source_mode: 'existing' })}
+                      className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'existing' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
+                    >自社ストックから選択</button>
+                  </div>
+
+                  {d.source_mode === 'new' ? (
+                    <>
+                      <Field label="端末ID（任意）">
+                        <Input value={d.id} onChange={(e) => setDevice(i, { id: e.target.value })} placeholder={`dev_oga_0${i + 1}`} />
+                      </Field>
+                      <Field label="端末名 *">
+                        <Input value={d.name} onChange={(e) => setDevice(i, { name: e.target.value })} placeholder={`男鹿市役所 #${i + 1}`} />
+                      </Field>
+                      <Field label="シリアル *">
+                        <Input value={d.serial} onChange={(e) => setDevice(i, { serial: e.target.value })} placeholder={`SN-OGA-0${i + 1}`} />
+                      </Field>
+                    </>
+                  ) : (
+                    <Field label="自社ストックの端末 *">
+                      <Select value={d.existing_device_id} onValueChange={(v) => setDevice(i, { existing_device_id: v })}>
+                        <SelectTrigger><SelectValue placeholder={stockDevices.length ? '端末を選択' : '自社ストックがありません'} /></SelectTrigger>
+                        <SelectContent>
+                          {stockDevices.map((sd) => (
+                            <SelectItem key={sd.id} value={sd.id}>{sd.name}（{sd.serial}{sd.store_name ? ` / ${sd.store_name}` : ''}）</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+
                   <label className="flex items-center gap-2 text-sm">
                     <Checkbox checked={d.is_master} onCheckedChange={(c) => c === true && setMaster(i)} />
                     master（連動グループの基準端末）
                   </label>
+                  {d.source_mode === 'existing' && d.is_master && newDeviceCount > 0 && (
+                    <p className="text-[11px] text-red-500">新規端末があるため既存端末は master にできません（master は新規から選択）。</p>
+                  )}
                 </div>
               ))}
               {makeGroup && linked && masterCount !== 1 && (
