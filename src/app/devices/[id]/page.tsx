@@ -215,6 +215,72 @@ export default function DeviceDetailPage() {
 
   // Tier 1-I: Force-refresh handler (remote power-cycle equivalent)
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
+
+  /* === S161 reassign UI (state) === */
+  const [reCustList, setReCustList] = useState<{ id: string; name: string }[]>([]);
+  const [reStoreList, setReStoreList] = useState<{ id: string; customer_id: string; name: string }[]>([]);
+  const [reCustomerId, setReCustomerId] = useState('');
+  const [reStoreId, setReStoreId] = useState('');
+  const [rePreview, setRePreview] = useState<{
+    current_customer_name?: string | null;
+    coin_insertion_event_count: number;
+    gacha_draw_count: number;
+    coin_setting_count: number;
+    group_membership_count: number;
+    has_dedicated_pool: boolean;
+  } | null>(null);
+  const [reBusy, setReBusy] = useState(false);
+  const [reErr, setReErr] = useState<string | null>(null);
+  const [reDone, setReDone] = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    void (async () => {
+      try {
+        const cs = await api.get<{ items?: { id: string; name: string }[] } | { id: string; name: string }[]>('/customers?limit=200');
+        const cList = Array.isArray(cs) ? cs : (cs.items ?? []);
+        setReCustList(cList);
+        const ss = await api.get<{ items?: { id: string; customer_id: string; name: string }[] } | { id: string; customer_id: string; name: string }[]>('/stores?limit=200');
+        const sList = Array.isArray(ss) ? ss : (ss.items ?? []);
+        setReStoreList(sList);
+      } catch {
+        /* 一覧取得失敗時は付け替えUIを黙って無効化（致命ではない） */
+      }
+    })();
+  }, [isSuperAdmin]);
+
+  const reLoadPreview = useCallback(async () => {
+    setReErr(null); setRePreview(null);
+    try {
+      const pv = await api.get<{
+        current_customer_name?: string | null;
+        coin_insertion_event_count: number;
+        gacha_draw_count: number;
+        coin_setting_count: number;
+        group_membership_count: number;
+        has_dedicated_pool: boolean;
+      }>(`/devices/${params.id}/reassign-preview`);
+      setRePreview(pv);
+    } catch (e) {
+      setReErr(e instanceof ApiError ? e.message : '取得に失敗しました');
+    }
+  }, [params.id]);
+
+  const reExecute = useCallback(async () => {
+    if (!reStoreId) return;
+    setReBusy(true); setReErr(null);
+    try {
+      await api.post(`/devices/${params.id}/reassign`, { target_store_id: reStoreId });
+      setReDone(true);
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      setReErr(e instanceof ApiError ? e.message : '付け替えに失敗しました');
+    } finally {
+      setReBusy(false);
+    }
+  }, [params.id, reStoreId]);
+  /* === /S161 reassign UI (state) === */
+
   const [savingQr, setSavingQr] = useState(false);
   const [savingEffect, setSavingEffect] = useState(false);
 
@@ -799,6 +865,97 @@ export default function DeviceDetailPage() {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* === S161 reassign UI === */}
+              {isSuperAdmin && (
+                <Card className="mt-4 border-amber-500/40">
+                  <CardHeader>
+                    <CardTitle className="text-sm text-amber-400">運営専用：所属顧客を変更（付け替え）</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      この端末を別の顧客・店舗へ付け替えます。運営（lv1_super）のみ表示されます。
+                      付け替え時、この端末の<span className="text-amber-400">抽選履歴・コイン投入履歴は削除</span>され、
+                      現在のグループからは外れます（価格設定と専用プールは新しい顧客へ引き継がれます）。
+                    </p>
+
+                    {reDone ? (
+                      <p className="text-sm text-emerald-400">付け替えました。画面を更新します…</p>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">移動先の顧客</label>
+                            <Select
+                              value={reCustomerId}
+                              onValueChange={(v) => { setReCustomerId(v); setReStoreId(''); setRePreview(null); }}
+                            >
+                              <SelectTrigger><SelectValue placeholder="顧客を選択" /></SelectTrigger>
+                              <SelectContent>
+                                {reCustList
+                                  .filter((c) => c.id !== detail.customer_id)
+                                  .map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}（{c.id}）</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-muted-foreground">移動先の店舗</label>
+                            <Select
+                              value={reStoreId}
+                              onValueChange={(v) => setReStoreId(v)}
+                              disabled={!reCustomerId}
+                            >
+                              <SelectTrigger><SelectValue placeholder={reCustomerId ? '店舗を選択' : '先に顧客を選択'} /></SelectTrigger>
+                              <SelectContent>
+                                {reStoreList
+                                  .filter((st) => st.customer_id === reCustomerId)
+                                  .map((st) => (
+                                    <SelectItem key={st.id} value={st.id}>{st.name}（{st.id}）</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => void reLoadPreview()} disabled={!reStoreId}>
+                            影響を確認
+                          </Button>
+                        </div>
+
+                        {rePreview && (
+                          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs space-y-1">
+                            <div className="text-amber-300 font-medium">この付け替えで起きること</div>
+                            <div>現在の顧客: <span className="font-mono">{rePreview.current_customer_name ?? detail.customer_id}</span></div>
+                            <div>削除される抽選履歴: <span className="tabular-nums">{rePreview.gacha_draw_count}</span> 件</div>
+                            <div>削除されるコイン投入履歴: <span className="tabular-nums">{rePreview.coin_insertion_event_count}</span> 件</div>
+                            <div>外れるグループ所属: <span className="tabular-nums">{rePreview.group_membership_count}</span> 件</div>
+                            <div>引き継ぐ価格設定: <span className="tabular-nums">{rePreview.coin_setting_count}</span> 件{rePreview.has_dedicated_pool ? '・専用プールあり' : ''}</div>
+                          </div>
+                        )}
+
+                        {reErr && <p className="text-xs text-red-400">{reErr}</p>}
+
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => void reExecute()}
+                          disabled={reBusy || !reStoreId || !rePreview}
+                        >
+                          {reBusy ? '付け替え中…' : 'この端末を選択した顧客へ付け替える'}
+                        </Button>
+                        {!rePreview && reStoreId && (
+                          <p className="text-[11px] text-muted-foreground">※先に「影響を確認」を押してください。</p>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+              {/* === /S161 reassign UI === */}
             </TabsContent>
 
             <TabsContent value="screenshots">
