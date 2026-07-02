@@ -1,23 +1,20 @@
 'use client';
 
 /**
- * useLivePlayback — Phase 7.2 Step C
+ * useLivePlayback — Phase 7.2 Step C（S166 多重接続防止版）
  *
- * Subscribes to the backend SSE stream at /dashboard/playback-stream and
- * pushes incoming state into useLivePlaybackStore so any component can
- * read the latest "what is each device playing" snapshot.
+ * backend の SSE ストリーム /v1/dashboard/playback-stream を購読し、
+ * useLivePlaybackStore に最新の再生状態を流し込む。
  *
- * Why fetch + ReadableStream instead of EventSource?
- *   The browser's EventSource API doesn't support custom headers, so we
- *   can't send Authorization: Bearer <token>. fetch() does, and we can
- *   parse the SSE format manually — it's just lines of "data: <json>\n\n".
+ * なぜ EventSource でなく fetch + ReadableStream か:
+ *   EventSource はカスタムヘッダを付けられず Authorization: Bearer を
+ *   送れない。fetch なら送れるので、SSE 形式（"data: <json>\n\n"）を
+ *   手動パースする。
  *
- * Reconnection:
- *   - Exponential backoff starting at 500ms, capped at 10s.
- *   - Automatic on stream close or fetch error.
- *   - Cancelled on unmount.
- *
- * Mock mode:
+ * S166 修正（503 連発の根治）:
+ *   - 多重接続防止: connect() は同時に 1 本しか走らせない（connectingRef）。
+ *   - 再接続前に必ず直前の接続を abort（接続の積み上げ＝HTTP 同時接続枯渇を防ぐ）。
+ *   - 指数バックオフ（500ms → 最大 10s）、unmount で確実に停止。
  */
 import { useEffect, useRef } from 'react';
 import { tokenStore } from '@/lib/token-store';
@@ -30,21 +27,44 @@ import {
 export function useLivePlayback() {
   const setStates = useLivePlaybackStore((s) => s.setStates);
   const setConnected = useLivePlaybackStore((s) => s.setConnected);
+
   const cancelledRef = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
+  const connectingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const access = tokenStore.getAccess();
-    if (!access) return;
-
     cancelledRef.current = false;
     let backoff = 500;
 
-    const connect = async () => {
+    const scheduleReconnect = () => {
       if (cancelledRef.current) return;
-      const url = `${api.baseUrl}/dashboard/playback-stream`;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(connect, backoff);
+      backoff = Math.min(10000, backoff * 2);
+    };
+
+    async function connect() {
+      if (cancelledRef.current) return;
+      // 多重接続防止: 既に接続処理中なら何もしない
+      if (connectingRef.current) return;
+
+      const access = tokenStore.getAccess();
+      if (!access) {
+        scheduleReconnect();
+        return;
+      }
+
+      // 念のため直前の接続を確実に閉じる（積み上げ防止）
+      if (controllerRef.current) {
+        try { controllerRef.current.abort(); } catch { /* noop */ }
+        controllerRef.current = null;
+      }
+
+      connectingRef.current = true;
       const controller = new AbortController();
       controllerRef.current = controller;
+      const url = `${api.baseUrl}/dashboard/playback-stream`;
 
       try {
         const res = await fetch(url, {
@@ -53,6 +73,7 @@ export function useLivePlayback() {
             Accept: 'text/event-stream',
           },
           signal: controller.signal,
+          cache: 'no-store',
         });
 
         if (!res.ok || !res.body) {
@@ -60,7 +81,7 @@ export function useLivePlayback() {
         }
 
         setConnected(true);
-        backoff = 500; // reset on successful connect
+        backoff = 500; // 成功したらバックオフをリセット
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -71,7 +92,6 @@ export function useLivePlayback() {
           if (done) break;
           buf += decoder.decode(value, { stream: true });
 
-          // SSE events are separated by "\n\n", lines start with "data: "
           let idx: number;
           while ((idx = buf.indexOf('\n\n')) !== -1) {
             const event = buf.slice(0, idx);
@@ -98,31 +118,34 @@ export function useLivePlayback() {
                   }
                   setStates(map);
                 } catch {
-                  // Malformed event; skip silently (server may send heartbeats etc later)
+                  // 壊れたイベントは黙って無視（heartbeat 等）
                 }
               }
             }
           }
         }
       } catch {
-        // fetch was aborted (unmount) or network error
+        // abort（unmount）やネットワークエラー
         if (cancelledRef.current) return;
       } finally {
+        connectingRef.current = false;
         setConnected(false);
       }
 
-      // Reconnect with backoff
-      if (!cancelledRef.current) {
-        setTimeout(connect, backoff);
-        backoff = Math.min(10000, backoff * 2);
-      }
-    };
+      // ストリームが閉じたら再接続
+      scheduleReconnect();
+    }
 
     connect();
 
     return () => {
       cancelledRef.current = true;
-      controllerRef.current?.abort();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (controllerRef.current) {
+        try { controllerRef.current.abort(); } catch { /* noop */ }
+        controllerRef.current = null;
+      }
+      connectingRef.current = false;
       setConnected(false);
     };
   }, [setStates, setConnected]);
