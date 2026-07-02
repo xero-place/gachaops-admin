@@ -21,6 +21,10 @@ export type PlaybackState = 'playing' | 'paused' | 'idle';
 
 export interface DevicePlayback {
   state: PlaybackState;
+  position_ms: number;
+  duration_ms: number;
+  memory_mb: number;
+  asset_url?: string;
   updated_at_ms?: number;
 }
 

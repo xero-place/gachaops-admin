@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePlaybackStream } from '@/hooks/use-playback-stream';
+import { useLivePlayback } from '@/hooks/use-live-playback';
+import { useLivePlaybackStore } from '@/stores/live-playback-store';
 import { PlaybackStatus } from '@/components/domain/playback-status';
 import { notFound, useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -194,7 +195,8 @@ export default function DeviceDetailPage() {
       setSavingDisplayMode(false);
     }
   };
-  const { states: playbackStates } = usePlaybackStream();
+  useLivePlayback();
+  const playbackStates = useLivePlaybackStore((s) => s.states);
 
   useEffect(() => {
     let cancelled = false;

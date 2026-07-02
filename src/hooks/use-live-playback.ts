@@ -80,7 +80,22 @@ export function useLivePlayback() {
               if (line.startsWith('data: ')) {
                 const json = line.slice(6);
                 try {
-                  const map = JSON.parse(json) as Record<string, DevicePlayback>;
+                  const raw = JSON.parse(json) as Record<string, Record<string, unknown>>;
+                  const map: Record<string, DevicePlayback> = {};
+                  for (const [devId, v] of Object.entries(raw)) {
+                    const num = (x: unknown) => {
+                      const n = typeof x === 'number' ? x : Number(x);
+                      return Number.isFinite(n) ? n : 0;
+                    };
+                    map[devId] = {
+                      state: (v.state as DevicePlayback['state']) ?? 'idle',
+                      position_ms: num(v.position_ms),
+                      duration_ms: num(v.duration_ms),
+                      memory_mb: num(v.memory_mb),
+                      asset_url: typeof v.asset_url === 'string' ? v.asset_url : undefined,
+                      updated_at_ms: v.updated_at_ms != null ? num(v.updated_at_ms) : undefined,
+                    };
+                  }
                   setStates(map);
                 } catch {
                   // Malformed event; skip silently (server may send heartbeats etc later)
