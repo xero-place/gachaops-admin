@@ -25,7 +25,7 @@ export interface DevicePlayback {
   duration_ms: number;
   memory_mb: number;
   asset_url?: string;
-  updated_at_ms?: number;
+  updated_at_ms: number;
 }
 
 interface LivePlaybackStore {

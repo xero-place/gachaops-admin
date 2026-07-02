@@ -93,7 +93,7 @@ export function useLivePlayback() {
                       duration_ms: num(v.duration_ms),
                       memory_mb: num(v.memory_mb),
                       asset_url: typeof v.asset_url === 'string' ? v.asset_url : undefined,
-                      updated_at_ms: v.updated_at_ms != null ? num(v.updated_at_ms) : undefined,
+                      updated_at_ms: num(v.updated_at_ms),
                     };
                   }
                   setStates(map);
