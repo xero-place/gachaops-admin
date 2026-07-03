@@ -356,7 +356,7 @@ function EditGroupDialog({
       const started = await api.post<VideoWall>(`/videowalls/${wallId}/split`, {});
       setVw(started);
       const t0 = Date.now();
-      const TIMEOUT_MS = 240000; // 1コアVPSで余裕を見て4分
+      const TIMEOUT_MS = 1800000; // S181: scale除去後も5120x1280x5枚直列は20分級。余裕を見て30分
       // 1秒ごとに経過秒数を更新、3秒ごとに状態を取得
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -364,7 +364,7 @@ function EditGroupDialog({
         const sec = Math.floor((Date.now() - t0) / 1000);
         setVwSplitSec(sec);
         if (Date.now() - t0 > TIMEOUT_MS) {
-          setVwErr('分割がタイムアウトしました。ログを確認してください。');
+          setVwErr('分割に時間がかかっています。バックグラウンドで継続中です。数分おいて画面を再読み込みし、状態をご確認ください。');
           break;
         }
         if (sec % 3 !== 0) continue;
