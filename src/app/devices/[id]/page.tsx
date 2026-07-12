@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { tokenStore } from '@/lib/token-store';
+import { useT } from '@/i18n/useT';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DrawOrderMappingEditor } from '@/components/domain/draw-order-mapping-editor';
 import {
@@ -102,6 +103,7 @@ type DeviceDetail = {
 export default function DeviceDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { t, locale, formatPrice } = useT();
   // S144: 端末削除(危険ゾーン)
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -633,7 +635,7 @@ export default function DeviceDetailPage() {
     <AppShell title={detail.name} breadcrumb={['ホーム', '端末', detail.id]}>
       <div className="mb-4 flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />一覧へ戻る</Link>
+          <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.common.back}</Link>
         </Button>
         <DeviceStatusBadge status={detail.status} />
         <PlayModeBadge mode={detail.play_mode} />
@@ -691,13 +693,13 @@ export default function DeviceDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
-              <TabsTrigger value="overview">概要</TabsTrigger>
-              <TabsTrigger value="settings">価格</TabsTrigger>
-              <TabsTrigger value="effects">演出</TabsTrigger>
-              <TabsTrigger value="screenshots">スクリーンショット</TabsTrigger>
-              <TabsTrigger value="schedules">電源スケジュール</TabsTrigger>
-              <TabsTrigger value="history">APK履歴</TabsTrigger>
-                <TabsTrigger value="stock">在庫</TabsTrigger>
+              <TabsTrigger value="overview">{t.device.tabs.overview}</TabsTrigger>
+              <TabsTrigger value="settings">{t.device.tabs.pricing}</TabsTrigger>
+              <TabsTrigger value="effects">{t.device.tabs.effects}</TabsTrigger>
+              <TabsTrigger value="screenshots">{t.device.tabs.screenshots}</TabsTrigger>
+              <TabsTrigger value="schedules">{t.device.tabs.powerSchedule}</TabsTrigger>
+              <TabsTrigger value="history">{t.device.tabs.apkHistory}</TabsTrigger>
+                <TabsTrigger value="stock">{t.device.tabs.inventory}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -1053,20 +1055,20 @@ export default function DeviceDetailPage() {
             <TabsContent value="settings">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">料金・支払い</CardTitle>
+                  <CardTitle className="text-sm">{t.pricing.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
-                      この端末はまだ設定ができません（什器が未登録です）。
+                      {t.pricing.machineMissing}
                     </p>
                   ) : !curPool ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        この端末専用の設定がまだありません。下のボタンで用意してください。
+                        {t.pricing.noPool}
                       </p>
                       <Button size="sm" disabled={settingsSaving} onClick={ensureSettings}>
-                        {settingsSaving ? '準備中...' : 'この端末専用の設定を用意する'}
+                        {settingsSaving ? t.common.preparing : t.pricing.ensureButton}
                       </Button>
                       {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
                     </div>
@@ -1074,32 +1076,37 @@ export default function DeviceDetailPage() {
                     <>
                       {/* 投入の受付方法（現金 / メダル / 受け付けない） */}
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">投入の受付方法</div>
+                        <div className="text-sm font-medium">{t.pricing.acceptMethod.title}</div>
                         <p className="text-xs text-muted-foreground">
-                          この什器に投入されたものをどう扱うかを設定します。1台につき一つです。
+                          {t.pricing.acceptMethod.description}
                         </p>
                         <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer transition-colors ${acceptMode === 'cash' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
                           <input type="radio" name="accept-mode" className="mt-0.5"
                             checked={acceptMode === 'cash'}
                             onChange={() => setAcceptMode('cash')} />
                           <span>
-                            <span className="block font-medium">現金</span>
+                            <span className="block font-medium">{t.pricing.acceptMethod.cash.label}</span>
+                            {t.pricing.acceptMethod.cash.description ? (
                             <span className="block text-xs text-muted-foreground">
-                              100円玉・500円玉を売上（円）として計上します。
+                              {t.pricing.acceptMethod.cash.description}
                             </span>
+                            ) : null}
                           </span>
                         </label>
 
                         {/* 1回の料金（現金のときだけ表示） */}
                         {acceptMode === 'cash' && (
                           <div className="ml-6 space-y-1">
-                            <label htmlFor="set-price" className="text-sm font-medium">1回の料金</label>
+                            <label htmlFor="set-price" className="text-sm font-medium">{t.pricing.pricePerPlay.label}</label>
                             <div className="flex items-center gap-2">
                               <input id="set-price" type="number" inputMode="numeric"
                                 className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                                 value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
-                              <span className="text-sm text-muted-foreground">円（ハンドル1回ぶん）</span>
+                              <span className="text-sm text-muted-foreground">{t.pricing.pricePerPlay.suffix}</span>
                             </div>
+                            {locale === 'en' && (
+                              <div className="text-xs text-muted-foreground">≈ {formatPrice(parseInt(setPrice, 10) || 0)}</div>
+                            )}
                           </div>
                         )}
 
@@ -1108,9 +1115,9 @@ export default function DeviceDetailPage() {
                             checked={acceptMode === 'token'}
                             onChange={() => setAcceptMode('token')} />
                           <span>
-                            <span className="block font-medium">メダル</span>
+                            <span className="block font-medium">{t.pricing.acceptMethod.token.label}</span>
                             <span className="block text-xs text-muted-foreground">
-                              トークンメダルを枚数として記録します（売上には含めません）。
+                              {t.pricing.acceptMethod.token.description}
                             </span>
                           </span>
                         </label>
@@ -1119,9 +1126,9 @@ export default function DeviceDetailPage() {
                             checked={acceptMode === 'none'}
                             onChange={() => setAcceptMode('none')} />
                           <span>
-                            <span className="block font-medium">受け付けない</span>
+                            <span className="block font-medium">{t.pricing.acceptMethod.none.label}</span>
                             <span className="block text-xs text-muted-foreground">
-                              無料ガチャ、またはQR決済のみで運用します。
+                              {t.pricing.acceptMethod.none.description}
                             </span>
                           </span>
                         </label>
@@ -1131,21 +1138,21 @@ export default function DeviceDetailPage() {
                       {isSuperAdmin && (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium">QRコード決済</div>
+                          <div className="text-sm font-medium">{t.pricing.qr.title}</div>
                           {savingQr && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                         </div>
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={detail.qr_enabled ?? false} disabled={savingQr}
                             onChange={(e) => void handleQrToggle(e.target.checked)} />
-                          QRコード決済を受け付ける
+                          {t.pricing.qr.checkbox}
                         </label>
-                        <p className="text-xs text-muted-foreground">ONにするとモニターにQRを表示します（チェックで即時反映・契約先には表示されません）</p>
+                        <p className="text-xs text-muted-foreground">{t.pricing.qr.note}</p>
                       </div>
                       )}
 
                       <div className="flex items-center gap-2">
                         <Button size="sm" disabled={settingsSaving} onClick={saveSettings}>
-                          {settingsSaving ? '保存中...' : '保存する'}
+                          {settingsSaving ? t.common.saving : t.common.save}
                         </Button>
                         {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
                       </div>
@@ -1194,10 +1201,10 @@ export default function DeviceDetailPage() {
                   ) : !machine?.pool_id ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        この端末専用の設定がまだありません。下のボタンで用意してください。
+                        {t.pricing.noPool}
                       </p>
                       <Button size="sm" disabled={settingsSaving} onClick={ensureSettings}>
-                        {settingsSaving ? '準備中...' : 'この端末専用の設定を用意する'}
+                        {settingsSaving ? t.common.preparing : t.pricing.ensureButton}
                       </Button>
                       {settingsMsg && <p className="text-xs text-muted-foreground">{settingsMsg}</p>}
                     </div>
@@ -1320,22 +1327,22 @@ export default function DeviceDetailPage() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-sm">基本情報</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t.device.basicInfo.title}</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <KV label="ID" value={detail.id} mono />
-              <KV label="シリアル" value={detail.serial} mono />
-              <KV label="店舗" value={detail.store_name ?? ""} />
-              <KV label="最終接続" value={fmtRelative(detail.last_heartbeat_at)} />
-              <KV label="作成" value={fmtDate(detail.created_at)} />
+              <KV label={t.device.basicInfo.id} value={detail.id} mono />
+              <KV label={t.device.basicInfo.serial} value={detail.serial} mono />
+              <KV label={t.device.basicInfo.store} value={detail.store_name ?? ""} />
+              <KV label={t.device.basicInfo.lastSeen} value={fmtRelative(detail.last_heartbeat_at)} />
+              <KV label={t.device.basicInfo.created} value={fmtDate(detail.created_at)} />
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">技術情報</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t.device.techInfo.title}</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <KV label={<span className="flex items-center gap-1.5"><Smartphone className="h-3 w-3" />アプリ</span>} value={detail.app_version ?? '—'} mono />
-              <KV label={<span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" />OS</span>} value={detail.android_version ?? '—'} />
-              <KV label={<span className="flex items-center gap-1.5"><Network className="h-3 w-3" />IP</span>} value={detail.ip_address ?? '—'} mono />
+              <KV label={<span className="flex items-center gap-1.5"><Smartphone className="h-3 w-3" />{t.device.techInfo.app}</span>} value={detail.app_version ?? '—'} mono />
+              <KV label={<span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" />{t.device.techInfo.os}</span>} value={detail.android_version ?? '—'} />
+              <KV label={<span className="flex items-center gap-1.5"><Network className="h-3 w-3" />{t.device.techInfo.ip}</span>} value={detail.ip_address ?? '—'} mono />
             </CardContent>
           </Card>
 

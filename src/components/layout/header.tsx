@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { tokenStore, type StoredUser } from '@/lib/token-store';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { LocaleBootstrap } from '@/components/LocaleBootstrap';
 import { auth } from '@/lib/api';
 
 export function Header({ title, breadcrumb }: { title: string; breadcrumb?: string[] }) {
@@ -50,6 +52,10 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
             LIVE API
           </span>
         )}
+        {/* ログインユーザーごとの言語を読み込む（初期化・非表示） */}
+        <LocaleBootstrap userId={user?.customer_id ?? null} />
+        {/* 言語スイッチャー（日本語/English） */}
+        <LanguageSwitcher />
         {false && (
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-warn/15 text-warn">
             MOCK
