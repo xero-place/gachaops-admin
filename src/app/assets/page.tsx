@@ -94,10 +94,10 @@ export default function AssetsPage() {
     e.target.value = '';
 
     // 1 GB limit
-    const MAX_BYTES = 1024 * 1024 * 1024;
+    const MAX_BYTES = 1503238553; // 1.4 GiB (raised from 1 GiB / backendのMAX_UPLOAD_BYTESと一致)
     if (file.size > MAX_BYTES) {
       window.alert(`ファイルサイズが大きすぎます (${(file.size / 1024 / 1024).toFixed(1)} MB)
-最大: 1024 MB (1 GB)`);
+最大: 1.4 GB`);
       return;
     }
 
