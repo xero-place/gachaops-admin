@@ -65,6 +65,8 @@ export const ja = {
       title: "QRコード決済",
       checkbox: "QRコード決済を受け付ける",
       note: "ONにするとモニターにQRを表示します（チェックで即時反映・契約先には表示されません）",
+      localeLabel: "英語で表示する",
+      localeNote: "ONにするとモニターのQR画面が英語表示になります（金額はドル換算・100円=$1.00）",
     },
   },
   language: {
@@ -142,6 +144,8 @@ export const en: Dictionary = {
       title: "QR payment",
       checkbox: "Accept QR payment",
       note: "When on, a QR code is shown on the monitor (applies instantly; not shown to the client).",
+      localeLabel: "Show in English",
+      localeNote: "When on, the monitor QR screen is shown in English (amount in USD, 100 yen = $1.00).",
     },
   },
   language: {

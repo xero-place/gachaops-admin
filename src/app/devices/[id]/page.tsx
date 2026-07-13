@@ -79,6 +79,7 @@ type DeviceDetail = {
   brightness: number;
   group_ids: string[];
   qr_enabled?: boolean;
+  qr_locale?: string;
   effect_enabled?: boolean | null;
   manual_override_expires_at?: string | null;
   recent_task_runs?: RecentTaskRun[];
@@ -286,6 +287,7 @@ export default function DeviceDetailPage() {
   /* === /S161 reassign UI (state) === */
 
   const [savingQr, setSavingQr] = useState(false);
+  const [savingLocale, setSavingLocale] = useState(false);
   const [savingEffect, setSavingEffect] = useState(false);
 
   const handleQrToggle = async (next: boolean) => {
@@ -297,6 +299,19 @@ export default function DeviceDetailPage() {
       alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
     } finally {
       setSavingQr(false);
+    }
+  };
+
+  const handleLocaleToggle = async (checked: boolean) => {
+    const next = checked ? 'en' : 'ja';
+    setSavingLocale(true);
+    try {
+      await api.patch(`/devices/${params.id}/qr_locale`, { qr_locale: next });
+      setBaseDetail((prev) => (prev ? { ...prev, qr_locale: next } : prev));
+    } catch (e) {
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
+    } finally {
+      setSavingLocale(false);
     }
   };
 
@@ -1147,6 +1162,12 @@ export default function DeviceDetailPage() {
                           {t.pricing.qr.checkbox}
                         </label>
                         <p className="text-xs text-muted-foreground">{t.pricing.qr.note}</p>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+                          <input type="checkbox" checked={(detail.qr_locale ?? 'ja') === 'en'} disabled={savingLocale}
+                            onChange={(e) => void handleLocaleToggle(e.target.checked)} />
+                          {t.pricing.qr.localeLabel}
+                        </label>
+                        <p className="text-xs text-muted-foreground">{t.pricing.qr.localeNote}</p>
                       </div>
                       )}
 
