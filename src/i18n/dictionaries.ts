@@ -68,6 +68,16 @@ export const ja = {
       localeLabel: "英語で表示する",
       localeNote: "ONにするとモニターのQR画面が英語表示になります（金額はドル換算・100円=$1.00）",
     },
+    pulseUnit: {
+      label: "1パルス単価（円）",
+      suffix: "円 ／ 1パルス（運営専用）",
+      note: "什器のコインアクセプタ物理設定（1パルス＝何円）と必ず一致させてください。高額什器はこの値を上げてパルス数を9以下に抑えます。",
+      exampleMid: "円 ÷ ",
+      exampleTail: "円 = ",
+      pulseWord: "パルス",
+      warnOver9: "⚠ パルス数が9を超えています。什器は最大9パルスまでしか出せません。単価を上げてください。",
+      warnIndivisible: "△ 料金が単価で割り切れません。端数はパルスに反映されません（切り捨て）。",
+    },
   },
   language: {
     label: "言語",
@@ -146,6 +156,16 @@ export const en: Dictionary = {
       note: "When on, a QR code is shown on the monitor (applies instantly; not shown to the client).",
       localeLabel: "Show in English",
       localeNote: "When on, the monitor QR screen is shown in English (amount in USD, 100 yen = $1.00).",
+    },
+    pulseUnit: {
+      label: "Yen per pulse",
+      suffix: "yen / pulse (operator only)",
+      note: "Must match the coin acceptor's physical setting (yen per pulse). For high-value machines, raise this to keep pulses at 9 or fewer.",
+      exampleMid: " yen / ",
+      exampleTail: " yen = ",
+      pulseWord: " pulses",
+      warnOver9: "\u26A0 Pulses exceed 9. The machine can emit at most 9 pulses. Increase the unit.",
+      warnIndivisible: "\u25B3 Price is not divisible by the unit. The remainder is dropped (floor).",
     },
   },
   language: {

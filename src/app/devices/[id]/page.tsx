@@ -80,6 +80,7 @@ type DeviceDetail = {
   group_ids: string[];
   qr_enabled?: boolean;
   qr_locale?: string;
+  pulse_unit_yen?: number;
   effect_enabled?: boolean | null;
   manual_override_expires_at?: string | null;
   recent_task_runs?: RecentTaskRun[];
@@ -288,6 +289,8 @@ export default function DeviceDetailPage() {
 
   const [savingQr, setSavingQr] = useState(false);
   const [savingLocale, setSavingLocale] = useState(false);
+  const [savingPulseUnit, setSavingPulseUnit] = useState(false);
+  const [pulseUnitInput, setPulseUnitInput] = useState<string>('');
   const [savingEffect, setSavingEffect] = useState(false);
 
   const handleQrToggle = async (next: boolean) => {
@@ -312,6 +315,26 @@ export default function DeviceDetailPage() {
       alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
     } finally {
       setSavingLocale(false);
+    }
+  };
+
+  const handlePulseUnitSave = async () => {
+    const raw = (pulseUnitInput ?? '').trim();
+    if (raw === '') return;
+    const unit = parseInt(raw, 10);
+    if (!Number.isFinite(unit) || unit < 1) {
+      alert('1パルス単価は1以上の整数で入力してください');
+      return;
+    }
+    if (unit === (baseDetail?.pulse_unit_yen ?? 100)) return; // 変化なしは保存しない
+    setSavingPulseUnit(true);
+    try {
+      await api.patch(`/devices/${params.id}/pulse_unit_yen`, { pulse_unit_yen: unit });
+      setBaseDetail((prev) => (prev ? { ...prev, pulse_unit_yen: unit } : prev));
+    } catch (e) {
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
+    } finally {
+      setSavingPulseUnit(false);
     }
   };
 
@@ -1168,6 +1191,41 @@ export default function DeviceDetailPage() {
                           {t.pricing.qr.localeLabel}
                         </label>
                         <p className="text-xs text-muted-foreground">{t.pricing.qr.localeNote}</p>
+                        {/* S183: 1パルス単価（円）— 運営専用。什器コインアクセプタ物理設定と一致必須。 */}
+                        <div className="pt-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{t.pricing.pulseUnit.label}</span>
+                            {savingPulseUnit && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="number" inputMode="numeric" min={1}
+                              className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              value={pulseUnitInput === '' ? String(detail.pulse_unit_yen ?? 100) : pulseUnitInput}
+                              disabled={savingPulseUnit}
+                              onChange={(e) => setPulseUnitInput(e.target.value)}
+                              onBlur={() => void handlePulseUnitSave()} />
+                            <span className="text-sm text-muted-foreground">{t.pricing.pulseUnit.suffix}</span>
+                          </div>
+                          {(() => {
+                            const unit = parseInt(pulseUnitInput === '' ? String(detail.pulse_unit_yen ?? 100) : pulseUnitInput, 10);
+                            const price = parseInt(setPrice, 10);
+                            if (!Number.isFinite(unit) || unit < 1) return null;
+                            if (!Number.isFinite(price) || price < 1) return (
+                              <p className="text-xs text-muted-foreground">{t.pricing.pulseUnit.note}</p>
+                            );
+                            const pulses = Math.floor(price / unit);
+                            const indivisible = price % unit !== 0;
+                            const over9 = pulses > 9;
+                            return (
+                              <div className="text-xs space-y-0.5">
+                                <p className="text-muted-foreground">{price}{t.pricing.pulseUnit.exampleMid}{unit}{t.pricing.pulseUnit.exampleTail}{pulses}{t.pricing.pulseUnit.pulseWord}</p>
+                                {over9 && <p className="text-red-600 dark:text-red-400">{t.pricing.pulseUnit.warnOver9}</p>}
+                                {indivisible && <p className="text-amber-600 dark:text-amber-400">{t.pricing.pulseUnit.warnIndivisible}</p>}
+                              </div>
+                            );
+                          })()}
+                          <p className="text-xs text-muted-foreground">{t.pricing.pulseUnit.note}</p>
+                        </div>
                       </div>
                       )}
 
