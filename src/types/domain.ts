@@ -129,6 +129,8 @@ export interface Device {
   volume: number;
   /** Brightness 0-100 */
   brightness: number;
+  /** S197: 表示モード(normal/grayscale/hc1-hc4) */
+  display_mode?: string;
   /** 所属プール (gacha_machines.pool_id), Session 51 */
   pool_id: string | null;
   pool_name: string | null;

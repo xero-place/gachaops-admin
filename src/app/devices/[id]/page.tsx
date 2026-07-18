@@ -77,6 +77,7 @@ type DeviceDetail = {
   ip_address?: string | null;
   volume: number;
   brightness: number;
+  display_mode?: string;  // S197
   group_ids: string[];
   qr_enabled?: boolean;
   qr_locale?: string;
@@ -209,6 +210,7 @@ export default function DeviceDetailPage() {
         const d = await api.get<DeviceDetail>(`/devices/${params.id}`);
         if (cancelled) return;
         setBaseDetail(d);
+        setDisplayMode(d.display_mode ?? 'normal');  // S197: 保存済み表示モードでボタン復元
       } catch (e) {
         console.error('[devices/[id]] fetch failed:', e);
         if (!cancelled) setFetchFailed(true);
