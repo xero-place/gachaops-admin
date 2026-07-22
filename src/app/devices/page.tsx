@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { usePlaybackStream } from '@/hooks/use-playback-stream';
 import { PlaybackStatus } from '@/components/domain/playback-status';
 import {
@@ -142,6 +142,37 @@ export default function DevicesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [storeFilter, setStoreFilter] = useState<string>('all');
+  // S200: remember list filters across navigation (device detail → back).
+  // Restore after mount (hydration-safe); skip the first persist so the saved
+  // value is never overwritten by the initial defaults.
+  const filtersHydrated = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('gachaops_devices_filter');
+      if (raw) {
+        const f = JSON.parse(raw) as { search?: string; statusFilter?: string; storeFilter?: string };
+        if (typeof f.search === 'string') setSearch(f.search);
+        if (typeof f.statusFilter === 'string') setStatusFilter(f.statusFilter);
+        if (typeof f.storeFilter === 'string') setStoreFilter(f.storeFilter);
+      }
+    } catch {
+      // ignore corrupt / unavailable storage
+    }
+  }, []);
+  useEffect(() => {
+    if (!filtersHydrated.current) {
+      filtersHydrated.current = true;
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        'gachaops_devices_filter',
+        JSON.stringify({ search, statusFilter, storeFilter }),
+      );
+    } catch {
+      // ignore storage failures (private mode etc.)
+    }
+  }, [search, statusFilter, storeFilter]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
