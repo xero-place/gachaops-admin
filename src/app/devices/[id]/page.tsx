@@ -31,9 +31,9 @@ import { PowerScheduleEditor } from './PowerScheduleEditor';
 import { api, ApiError } from '@/lib/api';
 import type { GachaMachine, GachaPool, GachaEffectPack } from '@/types/domain';
 import {
+  // S201: force-refresh & power-off buttons removed
   ArrowLeft,
   Camera,
-  Power,
   RefreshCcw,
   Volume2,
   Sun,
@@ -118,7 +118,6 @@ export default function DeviceDetailPage() {
   const restorePlan = useLiveStore((s) => s.restorePlan);
   const [tab, setTab] = useState('overview');
   // Tier 1-I: Force-refresh state
-  const [refreshing, setRefreshing] = useState(false);
   // リモート設定: 音量・輝度の送信中フラグ
   const [savingVolume, setSavingVolume] = useState(false);
   // S143: プロビジョニングコード発行
@@ -350,37 +349,6 @@ export default function DeviceDetailPage() {
       alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
     } finally {
       setSavingEffect(false);
-    }
-  };
-
-  const handleForceRefresh = async () => {
-    if (refreshing) return;
-    const ok = window.confirm(
-      `⚠️ ${detail.name} を強制リフレッシュしますか?\n\n` +
-      `この操作は:\n` +
-      `1. デバイスに停止コマンドを送信\n` +
-      `2. 1.5 秒待機\n` +
-      `3. 最後の動画を再送信 (5秒先で再生)\n\n` +
-      `(電源 OFF/ON と同等の効果)`
-    );
-    if (!ok) return;
-    setRefreshing(true);
-    try {
-      const res = await api.post<{ status: string; asset_url?: string }>(
-        `/devices/${detail.id}/force_refresh`,
-        {}
-      );
-      if (res.status === 'refreshed') {
-        window.alert(`✅ 強制リフレッシュ完了\n動画を再送信しました`);
-      } else if (res.status === 'stopped_only') {
-        window.alert(`⚠️ 停止のみ実行\n(前回の動画情報なし)`);
-      } else {
-        window.alert(`✅ 送信完了\nstatus: ${res.status}`);
-      }
-    } catch (e) {
-      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -689,18 +657,6 @@ export default function DeviceDetailPage() {
           >
             <Zap className="h-3.5 w-3.5" />映像を切替
           </Button>
-          {/* Tier 1-I: 強制リフレッシュボタン (緊急時のリモート電源 OFF/ON 相当) */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
-            disabled={refreshing || detail.status !== 'online'}
-            onClick={handleForceRefresh}
-            title="動画送信後に1台だけ動かない時の緊急操作"
-          >
-            <RefreshCcw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'リフレッシュ中...' : '強制リフレッシュ'}
-          </Button>
           {isManual && (
             <Button
               variant="outline"
@@ -722,9 +678,6 @@ export default function DeviceDetailPage() {
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || restarting} onClick={handleRestartApp}>
             <RefreshCcw className="h-3.5 w-3.5" />再起動
-          </Button>
-          <Button variant="destructive" size="sm" className="gap-1.5" disabled={detail.status !== 'online'}>
-            <Power className="h-3.5 w-3.5" />電源OFF
           </Button>
         </div>
       </div>
