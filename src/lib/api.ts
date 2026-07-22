@@ -29,29 +29,54 @@ export interface ProblemDetails {
   errors?: { field: string; code: string; message: string }[];
 }
 
-let refreshing: Promise<boolean> | null = null;
+type RefreshOutcome = 'refreshed' | 'stale' | 'authfail' | 'transient'; // S199
+let refreshing: Promise<RefreshOutcome> | null = null;
 
-async function tryRefresh(): Promise<boolean> {
-  if (refreshing) return refreshing;
+// S199: refresh-token handling hardened for the backend's rotating refresh
+// tokens + reuse-detection (auth.py refresh → "family revoked").
+//   1. Serialize refresh across ALL tabs via the Web Locks API so two tabs
+//      never present the same refresh token at once (the backend would treat
+//      that as a replay and revoke the whole family → every tab logged out).
+//   2. If another tab already refreshed while we waited for the lock, do NOT
+//      refresh again — return 'stale' so the caller retries with the new token.
+//   3. Only a real 401/403 from /auth/refresh is an auth failure; a network
+//      error or 5xx is 'transient' and must NOT drop the session.
+async function performRefresh(usedAccess: string | null): Promise<RefreshOutcome> {
+  // Another tab rotated the token while we waited for the lock.
+  if (usedAccess && tokenStore.getAccess() !== usedAccess) return 'stale';
   const refresh = tokenStore.getRefresh();
-  if (!refresh) return false;
-  refreshing = (async () => {
-    try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh }),
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      tokenStore.set(data.access_token, data.refresh_token, tokenStore.getUser() ?? undefined);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshing = null;
-    }
-  })();
+  if (!refresh) return 'authfail';
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+  } catch {
+    return 'transient'; // network blip — keep the session
+  }
+  if (res.ok) {
+    const data = await res.json();
+    tokenStore.set(data.access_token, data.refresh_token, tokenStore.getUser() ?? undefined);
+    return 'refreshed';
+  }
+  return res.status === 401 || res.status === 403 ? 'authfail' : 'transient';
+}
+
+async function tryRefresh(usedAccess: string | null): Promise<RefreshOutcome> {
+  const nav = (typeof navigator !== 'undefined' ? navigator : undefined) as
+    | (Navigator & { locks?: { request: (name: string, cb: () => Promise<RefreshOutcome>) => Promise<RefreshOutcome> } })
+    | undefined;
+  if (nav?.locks?.request) {
+    // Cross-tab mutual exclusion: only one refresh runs at a time per origin.
+    return nav.locks.request('gachaops_token_refresh', () => performRefresh(usedAccess));
+  }
+  // Fallback (SSR / very old browsers): single-flight within this tab only.
+  if (refreshing) return refreshing;
+  refreshing = performRefresh(usedAccess).finally(() => {
+    refreshing = null;
+  });
   return refreshing;
 }
 
@@ -84,17 +109,22 @@ async function call<T>(
     cache: 'no-store',
   });
 
-  // Auto-refresh on 401 (once)
+  // Auto-refresh on 401 (once). S199: tell a real auth failure apart from a
+  // transient/stale one so a blip or a cross-tab race never logs the user out.
   if (res.status === 401 && !retried && tokenStore.getRefresh() && !path.startsWith('/auth/')) {
-    const refreshed = await tryRefresh();
-    if (refreshed) {
+    const outcome = await tryRefresh(access);
+    if (outcome === 'refreshed' || outcome === 'stale') {
       return call<T>(method, path, body, init, true);
     }
-    // Refresh failed → clear tokens, send to login
-    tokenStore.clear();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+    if (outcome === 'authfail') {
+      // Refresh token genuinely invalid/revoked → sign out.
+      tokenStore.clear();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
+    // 'transient' → keep the session; the error is surfaced below and the
+    // user can retry. No clear(), no redirect.
   }
 
   if (!res.ok) {
