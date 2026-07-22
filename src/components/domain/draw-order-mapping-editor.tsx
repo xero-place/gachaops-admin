@@ -9,6 +9,11 @@
  *
  * props:
  *   - poolId: 対象プール ID（端末の専用プール）。空文字なら何も表示しない。
+ *   - deviceId: 排出順カウンタ(draw_count)のリセット用。省略時はリセットUIを出さない。
+ *       ★S197: engine.py:98 の `next_order = machine.draw_count + 1` が排出順を決める。
+ *       カウンタが進んでいると 1番目に設定した演出が出ない（実例: 106 が draw_count=52
+ *       のため、1..4 にマッピングしても 53番目の演出しか出なかった）。イベント前に
+ *       0 に戻せるようにする。在庫(remaining_balls)には触れない。
  *   - packs: 演出パック一覧（親が /gacha/effect-packs で取得して渡す）。
  *   - defaultEffectPackId: L1 デフォルト演出の現在値（pool.default_effect_pack_id）。
  *   - onDefaultEffectChange: L1 を保存したとき新しい pool を親へ通知（任意）。
@@ -51,6 +56,7 @@ import {
   AlertCircle,
   Save,
   CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 
 const MAX_DRAW_ORDER = 100;
@@ -77,6 +83,8 @@ interface Props {
   packs: GachaEffectPack[];
   defaultEffectPackId?: string | null;
   onDefaultEffectChange?: (pool: GachaPool) => void;
+  /** ★S197: 排出順カウンタのリセット用。省略時はリセットUIを表示しない。 */
+  deviceId?: string;
 }
 
 export function DrawOrderMappingEditor({
@@ -84,7 +92,49 @@ export function DrawOrderMappingEditor({
   packs,
   defaultEffectPackId,
   onDefaultEffectChange,
+  deviceId,
 }: Props) {
+  // ★S197: 排出順カウンタ (gacha_machines.draw_count)
+  const [drawCount, setDrawCount] = useState<number | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const loadDrawCount = useCallback(async () => {
+    if (!deviceId) return;
+    try {
+      const m = await api.get<{ draw_count: number }>(
+        `/gacha/devices/${deviceId}/machine`,
+      );
+      setDrawCount(m.draw_count);
+    } catch {
+      setDrawCount(null); // machine 未作成などは黙って非表示
+    }
+  }, [deviceId]);
+
+  useEffect(() => {
+    void loadDrawCount();
+  }, [loadDrawCount]);
+
+  const handleResetDrawCount = useCallback(async () => {
+    if (!deviceId) return;
+    setResetting(true);
+    setError(null);
+    try {
+      const m = await api.post<{ draw_count: number }>(
+        `/gacha/devices/${deviceId}/machine/reset-draw-count`,
+        {},
+      );
+      setDrawCount(m.draw_count);
+      setResetDialogOpen(false);
+      setSuccessMsg('排出順カウンタをリセットしました。次の排出から 1 番目の演出になります。');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      setError(`カウンタのリセットに失敗しました: ${msg}`);
+    } finally {
+      setResetting(false);
+    }
+  }, [deviceId]);
   const [effects, setEffects] = useState<GachaDrawOrderEffect[]>([]);
   const [, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -336,11 +386,39 @@ export function DrawOrderMappingEditor({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">排出順 → 演出マッピング (1〜{MAX_DRAW_ORDER} 番)</CardTitle>
-            <Button onClick={() => setBulkDialogOpen(true)} variant="outline">
-              <Plus className="h-4 w-4 mr-1" />
-              一括設定
-            </Button>
+            <div>
+              <CardTitle className="text-sm">排出順 → 演出マッピング (1〜{MAX_DRAW_ORDER} 番)</CardTitle>
+              {/* ★S197: 次に出る排出順を明示。ここがズレていると設定通りの演出が出ない。 */}
+              {deviceId && drawCount !== null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  現在 {drawCount} 回排出済み → 次は{' '}
+                  <span className="font-medium text-foreground">
+                    {drawCount + 1} 番
+                  </span>{' '}
+                  の演出が出ます
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {deviceId && drawCount !== null && (
+                <Button
+                  onClick={() => setResetDialogOpen(true)}
+                  variant="outline"
+                  disabled={resetting}
+                >
+                  {resetting ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                  )}
+                  カウンタをリセット
+                </Button>
+              )}
+              <Button onClick={() => setBulkDialogOpen(true)} variant="outline">
+                <Plus className="h-4 w-4 mr-1" />
+                一括設定
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -503,6 +581,36 @@ export function DrawOrderMappingEditor({
             <Button onClick={handleEditSave} disabled={editSaving}>
               {editSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               <span className="ml-2">保存</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ★S197: 排出順カウンタ リセット確認ダイアログ ─── */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>排出順カウンタをリセット</DialogTitle>
+            <DialogDescription>
+              排出順カウンタを 0 に戻します。次の排出から 1 番目の演出になります。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>
+              現在 <span className="font-medium">{drawCount ?? 0}</span> 回排出済みです。
+              リセット後、次の排出は <span className="font-medium">1 番</span> になります。
+            </p>
+            <p className="text-muted-foreground">
+              在庫（残数・総数）は変更されません。演出の順番だけを戻します。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={() => void handleResetDrawCount()} disabled={resetting}>
+              {resetting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              リセットする
             </Button>
           </DialogFooter>
         </DialogContent>

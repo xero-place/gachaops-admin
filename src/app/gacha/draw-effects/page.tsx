@@ -186,6 +186,7 @@ export default function GachaDrawEffectsPage() {
         {selectedPool && !ensuring && (
           <DrawOrderMappingEditor
             poolId={selectedPoolId}
+            deviceId={selectedDeviceId}
             packs={packs}
             defaultEffectPackId={selectedPool.default_effect_pack_id}
             onDefaultEffectChange={handleDefaultEffectChange}

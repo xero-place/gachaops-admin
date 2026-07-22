@@ -1292,6 +1292,7 @@ export default function DeviceDetailPage() {
                   ) : (
                     <DrawOrderMappingEditor
                       poolId={machine.pool_id}
+                      deviceId={machine.device_id}
                       packs={effectPacks}
                       defaultEffectPackId={curPool?.default_effect_pack_id ?? null}
                       onDefaultEffectChange={(pl) => setCurPool(pl)}
