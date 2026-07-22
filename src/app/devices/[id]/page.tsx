@@ -802,6 +802,8 @@ export default function DeviceDetailPage() {
                 </CardContent>
               </Card>
 
+              {/* S202: 運営(lv1_super)のみ表示 */}
+              {isSuperAdmin && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-sm">プロビジョニングコード（端末登録用）</CardTitle>
@@ -828,8 +830,10 @@ export default function DeviceDetailPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
-              {/* S144: 危険ゾーン（端末削除） */}
+              {/* S144: 危険ゾーン（端末削除）/ S202: 運営(lv1_super)のみ表示 */}
+              {isSuperAdmin && (
               <Card className="mt-4 border-red-500/40">
                 <CardHeader>
                   <CardTitle className="text-sm text-red-400">危険ゾーン：端末の削除</CardTitle>
@@ -862,6 +866,7 @@ export default function DeviceDetailPage() {
                   </Button>
                 </CardContent>
               </Card>
+              )}
 
               {/* === S161 reassign UI === */}
               {isSuperAdmin && (
