@@ -91,7 +91,12 @@ export default function VideoWallPreviewModal({
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  const MW = machineWidth;
+  // S223: 射影ジオメトリは「実際に表示される1台幅(DISP_MW)」を基準にする。
+  //   従来は MW(=machineWidth=180固定) 基準でジオメトリを作りつつ、実機写真は
+  //   列数が多いと DISP_MW に縮小して表示していたため、5列以上で映像だけ約2.4倍に
+  //   はみ出して大きくズレていた（4列以下は DISP_MW==MW で偶然一致していた）。
+  const DISP_MW = Math.max(70, Math.min(machineWidth, Math.floor(760 / Math.max(1, cols))));
+  const MW = DISP_MW;
   const SCALE = MW / IMGW;
   // 映像要素のサイズ＝モニター四隅が作る矩形の実寸（表示px）
   const SCREEN_W = (TR[0] - TL[0]) * SCALE;
@@ -181,12 +186,16 @@ export default function VideoWallPreviewModal({
           const ctx = cv.getContext("2d");
           if (!ctx) continue;
           const { sx, sy, sw, sh } = cropOf(t.row, t.col, nW, nH);
-          // 出力 canvas 解像度は固定（TILE比。表示は CSS で SCREEN_W/H に伸ばす）。
-          if (cv.width !== TILE_W || cv.height !== TILE_H) {
-            cv.width = TILE_W; cv.height = TILE_H;
+          // S223: 出力canvasの内部解像度は「表示サイズ」に合わせて軽量化する。
+          //   従来は常に 1024x1280 で 10枚×60fps 描画していたため、重い(高解像度)動画で
+          //   塗り負荷が過大になり RAF が回りきらず「映像が流れない」ように見えていた。
+          const cw = Math.max(2, Math.round(SCREEN_W));
+          const ch = Math.max(2, Math.round(SCREEN_H));
+          if (cv.width !== cw || cv.height !== ch) {
+            cv.width = cw; cv.height = ch;
           }
           try {
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, TILE_W, TILE_H);
+            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
           } catch {
             // videoがまだ描画不能な一瞬は無視（次フレームで復帰）
           }
@@ -196,11 +205,7 @@ export default function VideoWallPreviewModal({
     };
     rafRef.current = requestAnimationFrame(draw);
     return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
-  }, [useReal, mounted, natSize, ordered, cropOf]);
-
-  // S159: inline panel — shrink each machine so up to ~20 tiles (e.g. 5 cols)
-  // still fit inside the edit dialog; grid scrolls if taller than the cap.
-  const DISP_MW = Math.max(70, Math.min(MW, Math.floor(760 / Math.max(1, cols))));
+  }, [useReal, mounted, natSize, ordered, cropOf, SCREEN_W, SCREEN_H]);
 
   if (!mounted) return null;
 
@@ -208,7 +213,7 @@ export default function VideoWallPreviewModal({
     <div
       style={{
         background: "#0b0d11", borderRadius: 14, padding: 16,
-        border: "1px solid #1c2230", marginTop: 8,
+        border: "1px solid #1c2230", marginTop: 8, position: "relative",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -233,14 +238,21 @@ export default function VideoWallPreviewModal({
           ref={videoRef}
           src={sourceUrl!}
           crossOrigin="anonymous"
-          autoPlay muted loop playsInline
+          autoPlay muted loop playsInline preload="auto"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth > 0 && v.videoHeight > 0) {
               setNatSize({ w: v.videoWidth, h: v.videoHeight });
             }
           }}
-          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", left: -9999, top: -9999 }}
+          onError={(e) => {
+            // S223: 重い動画が流れない時の原因切り分け（CORS/ネットワーク/コーデック）。
+            const err = e.currentTarget.error;
+            console.warn("[VideoWallPreview] source video error", err?.code, err?.message, sourceUrl);
+          }}
+          // S223: 画面外(-9999)だと Chrome がデコードをスロットルし、重い動画のフレームが
+          //   canvas に届かず真っ白/停止になる。ビューポート内に 2px の不可視要素として置く。
+          style={{ position: "absolute", left: 0, top: 0, width: 2, height: 2, opacity: 0.01, pointerEvents: "none", zIndex: 0 }}
         />
       )}
 
