@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { fmtRelative, fmtDuration, fmtBytes } from '@/lib/format';
-import { Search, Plus, Layers, HardDrive, Clock, Eye, ChevronRight, Film, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Layers, HardDrive, Clock, Eye, Film, Image as ImageIcon } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 
 type ScenePreview = {
@@ -18,6 +18,7 @@ type ScenePreview = {
   asset_type: 'video' | 'image' | 'gif' | null;
   thumbnail_url: string | null;
   asset_duration_ms?: number | null;
+  asset_name?: string | null;  // S224: セットされた素材名
 };
 
 // Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
@@ -129,53 +130,44 @@ export default function ProgramsPage() {
           {filtered.map((p) => (
             <Card key={p.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all">
               <Link href={`/programs/${p.id}`}>
-                <div className="aspect-video bg-muted relative p-3 flex items-center justify-center overflow-hidden">
+                <div className="aspect-video bg-muted relative overflow-hidden">
+                  {/* S224: サムネを枠いっぱいに(object-cover)。単一シーンは全面、複数は均等分割で全高表示 */}
                   {p.scene_previews && p.scene_previews.length > 0 ? (() => {
                     const n = p.scene_previews.length;
-                    // Dynamic sizing: bigger for fewer scenes, smaller for many
-                    const cfg =
-                      n <= 2  ? { thumb: 'w-28 h-28', icon: 'h-8 w-8',    badge: 'w-5 h-5 text-[12px]', dur: 'text-[10px]', arrow: 'h-4 w-4', gap: 'gap-2' }
-                    : n <= 4  ? { thumb: 'w-20 h-20', icon: 'h-6 w-6',    badge: 'w-5 h-5 text-[11px]', dur: 'text-[9px]',  arrow: 'h-4 w-4', gap: 'gap-1.5' }
-                    : n <= 6  ? { thumb: 'w-16 h-16', icon: 'h-5 w-5',    badge: 'w-4 h-4 text-[10px]', dur: 'text-[8px]',  arrow: 'h-3 w-3', gap: 'gap-1' }
-                    : n <= 8  ? { thumb: 'w-14 h-14', icon: 'h-4 w-4',    badge: 'w-4 h-4 text-[9px]',  dur: 'text-[8px]',  arrow: 'h-3 w-3', gap: 'gap-1' }
-                    :           { thumb: 'w-12 h-12', icon: 'h-3.5 w-3.5',badge: 'w-3.5 h-3.5 text-[9px]', dur: 'text-[7px]', arrow: 'h-2.5 w-2.5', gap: 'gap-0.5' };
                     return (
-                      <div className={`flex items-center ${cfg.gap} max-w-full overflow-x-auto`}>
+                      <div className="absolute inset-0 flex">
                         {p.scene_previews.map((scene, i) => (
-                          <div key={scene.scene_id} className={`flex items-center ${cfg.gap} flex-shrink-0`}>
-                            <div className={`relative ${cfg.thumb} rounded overflow-hidden bg-black/60 flex-shrink-0`}>
-                              {scene.thumbnail_url ? (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                  src={scene.thumbnail_url}
-                                  alt={`シーン ${i + 1}`}
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  {scene.asset_type === 'video' ? (
-                                    <Film className={`${cfg.icon} text-muted-foreground`} />
-                                  ) : (
-                                    <ImageIcon className={`${cfg.icon} text-muted-foreground`} />
-                                  )}
-                                </div>
-                              )}
-                              <div className={`absolute top-0 left-0 bg-primary text-primary-foreground font-bold ${cfg.badge} flex items-center justify-center rounded-br`}>
+                          <div key={scene.scene_id} className="relative flex-1 min-w-0 h-full bg-black/60 border-r border-black/25 last:border-r-0">
+                            {scene.thumbnail_url ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={scene.thumbnail_url}
+                                alt={`シーン ${i + 1}`}
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                {scene.asset_type === 'video' ? (
+                                  <Film className="h-7 w-7 text-muted-foreground" />
+                                ) : (
+                                  <ImageIcon className="h-7 w-7 text-muted-foreground" />
+                                )}
+                              </div>
+                            )}
+                            {n > 1 && (
+                              <div className="absolute bottom-0 left-0 bg-primary/90 text-primary-foreground font-bold text-[9px] px-1 rounded-tr">
                                 {i + 1}
                               </div>
-                              <div className={`absolute bottom-0 left-0 right-0 bg-black/75 text-white ${cfg.dur} text-center px-0.5 leading-tight`}>
-                                {getDisplayDurationSec(scene)}s
-                              </div>
-                            </div>
-                            {i < p.scene_previews!.length - 1 && (
-                              <ChevronRight className={`${cfg.arrow} text-muted-foreground flex-shrink-0`} />
                             )}
+                            <div className="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] px-1 leading-tight">
+                              {getDisplayDurationSec(scene)}s
+                            </div>
                           </div>
                         ))}
                       </div>
                     );
                   })() : (
-                    <div className="text-xs text-muted-foreground">シーンなし</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">シーンなし</div>
                   )}
                   {!p.published && (
                     <Badge variant="warn" className="absolute top-2 left-2">下書き</Badge>
@@ -196,6 +188,16 @@ export default function ProgramsPage() {
                 {isSuperAdmin && p.customer_id && (
                   <span className="text-[10px] font-mono text-amber-500/80">{p.customer_id}</span>
                 )}
+                {/* S224: セットされた素材名 */}
+                {(() => {
+                  const mats = [...new Set((p.scene_previews ?? []).map((s) => s.asset_name).filter(Boolean))];
+                  return mats.length > 0 ? (
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Film className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{mats.join(' / ')}</span>
+                    </div>
+                  ) : null;
+                })()}
                 {p.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
                 )}

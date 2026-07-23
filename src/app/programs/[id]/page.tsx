@@ -48,6 +48,7 @@ type Scene = {
   primary_asset_type?: 'video' | 'image' | 'gif' | null;
   primary_thumbnail_url?: string | null;
   primary_asset_duration_ms?: number | null;
+  primary_asset_name?: string | null;  // S224: セットされた素材名
 };
 
 // Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
@@ -266,12 +267,11 @@ export default function ProgramDetailPage() {
               ) : (
 (() => {
                   const n = scenes.length;
+                  // S224: サムネを枠いっぱいに拡大（16:9寄りの大きめ枠＋object-cover）
                   const thumbSize =
-                    n <= 2 ? 'w-24 h-24' :
-                    n <= 4 ? 'w-20 h-20' :
-                    n <= 6 ? 'w-16 h-16' :
-                    n <= 8 ? 'w-14 h-14' :
-                              'w-12 h-12';
+                    n <= 4 ? 'w-40 h-24' :
+                    n <= 8 ? 'w-32 h-20' :
+                              'w-24 h-16';
                   const iconSize =
                     n <= 2 ? 'h-7 w-7' :
                     n <= 4 ? 'h-6 w-6' :
@@ -301,7 +301,7 @@ export default function ProgramDetailPage() {
                         <img
                           src={sc.primary_thumbnail_url}
                           alt={sc.name}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: sc.background_color ?? '#475569' }}>
@@ -323,6 +323,12 @@ export default function ProgramDetailPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{sc.name}</div>
+                      {sc.primary_asset_name && (
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate mt-0.5">
+                          <Film className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{sc.primary_asset_name}</span>
+                        </div>
+                      )}
                       <div className="text-xs text-muted-foreground">
                         {fmtDuration(getDisplayDurationSec(sc) * 1000)}
                         {sc.widget_count && sc.widget_count > 0 ? ` · ${sc.widget_count} ウィジェット` : ''}

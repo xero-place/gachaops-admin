@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Monitor,
@@ -22,12 +23,14 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { tokenStore } from '@/lib/token-store';
 
 interface NavItem {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
   badge?: string;
+  superOnly?: boolean;  // S224: lv1_super(運営)のみ表示。顧客アカウントでは非表示。
 }
 
 interface NavGroup {
@@ -65,7 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: '設定',
     items: [
-      { href: '/customers', label: '顧客', icon: Briefcase },
+      { href: '/customers', label: '顧客', icon: Briefcase, superOnly: true },
       { href: '/stores', label: '店舗', icon: Building2 },
       { href: '/apk', label: 'アップデート', icon: Smartphone },
     ],
@@ -73,8 +76,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'システム',
     items: [
-      { href: '/audit-logs', label: '監査ログ', icon: ShieldCheck },
-      { href: '/ws-console', label: 'WSデバッグコンソール', icon: TerminalSquare },
+      { href: '/audit-logs', label: '監査ログ', icon: ShieldCheck, superOnly: true },
+      { href: '/ws-console', label: 'WSデバッグコンソール', icon: TerminalSquare, superOnly: true },
       { href: '/settings', label: '環境設定', icon: Settings },
     ],
   },
@@ -82,6 +85,11 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  // S224: 運営(lv1_super)以外＝顧客アカウントでは superOnly 項目を非表示。
+  // マウント後にロール確定（SSRとのhydration不一致を避けるため、初期はnull→superOnlyは隠す）。
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => { setRole(tokenStore.getUser()?.role ?? null); }, []);
+  const isSuper = role === 'lv1_super';
 
   return (
     <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r bg-card/40">
@@ -106,13 +114,16 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => {
+          const items = group.items.filter((item) => !item.superOnly || isSuper);
+          if (items.length === 0) return null;
+          return (
           <div key={group.label} className="mb-5">
             <div className="px-3 mb-1.5 text-[10px] font-semibold text-muted-foreground/70 tracking-widest uppercase">
               {group.label}
             </div>
             <ul className="space-y-0.5">
-              {group.items.map((item) => {
+              {items.map((item) => {
                 const active =
                   pathname === item.href ||
                   (item.href !== '/' && pathname?.startsWith(item.href));
@@ -140,7 +151,8 @@ export function Sidebar() {
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
       <div className="border-t p-3 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-2">
