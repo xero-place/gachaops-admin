@@ -216,6 +216,7 @@ export default function VideoWallPreviewModal({
         <video
           ref={videoRef}
           src={sourceUrl!}
+          crossOrigin="anonymous"
           autoPlay muted loop playsInline
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
