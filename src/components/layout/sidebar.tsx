@@ -67,7 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: '顧客', icon: Briefcase },
       { href: '/stores', label: '店舗', icon: Building2 },
-      { href: '/apk', label: 'APK', icon: Smartphone },
+      { href: '/apk', label: 'アップデート', icon: Smartphone },
     ],
   },
   {
