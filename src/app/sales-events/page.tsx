@@ -12,12 +12,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 import { Loader2, Search, Coins, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import type { SalesEvent } from '@/types/domain';
 
 interface CustomerLite { id: string; name: string }
 interface DeviceLite { id: string; name: string }
+interface StoreLite { id: string; name: string }
+interface GroupLite { id: string; name: string }
 
 interface SummaryBucket {
   cash_yen: number;
@@ -65,8 +68,8 @@ function fmtBreakdown(bd?: Record<string, number> | null): string | null {
   const parts = Object.entries(bd)
     .filter(([, n]) => n > 0)
     .sort((a, b) => Number(b[0]) - Number(a[0]))
-    .map(([yen, n]) => `${yen}円×${n}`);
-  return parts.length ? parts.join(', ') : null;
+    .map(([yen, n]) => `${yen}円×${n}枚`);
+  return parts.length ? parts.join(' / ') : null;
 }
 
 function KindBadge({ kind }: { kind: SalesEvent['kind'] }) {
@@ -153,6 +156,8 @@ export default function SalesEventsPage() {
   const [total, setTotal] = useState(0);
   const [customers, setCustomers] = useState<CustomerLite[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
+  const [stores, setStores] = useState<StoreLite[]>([]);
+  const [groups, setGroups] = useState<GroupLite[]>([]);
   const [summary, setSummary] = useState<SummaryResp>({ today: EMPTY_BUCKET, cumulative: EMPTY_BUCKET });
   const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
 
@@ -162,9 +167,12 @@ export default function SalesEventsPage() {
   const [kindFilter, setKindFilter] = useState('all');
   const [customerFilter, setCustomerFilter] = useState('all');
   const [deviceFilter, setDeviceFilter] = useState('all');
+  const [storeFilter, setStoreFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
+  const isSuper = tokenStore.getUser()?.role === 'lv1_super';  // 顧客ロールでは顧客プルダウン非表示
 
   // フィルタ → クエリ文字列（summary と list で共通）
   const buildParams = useCallback((includePaging: boolean): string => {
@@ -172,6 +180,8 @@ export default function SalesEventsPage() {
     if (kindFilter !== 'all') p.set('payment_method', kindFilter);
     if (customerFilter !== 'all') p.set('customer_id', customerFilter);
     if (deviceFilter !== 'all') p.set('device_id', deviceFilter);
+    if (storeFilter !== 'all') p.set('store_id', storeFilter);
+    if (groupFilter !== 'all') p.set('group_id', groupFilter);
     const fromUtc = jstDateToUtcStart(dateFrom);
     const toUtc = jstDateToUtcEnd(dateTo);
     if (fromUtc) p.set('date_from', fromUtc);
@@ -181,20 +191,24 @@ export default function SalesEventsPage() {
       p.set('offset', String(page * PAGE_SIZE));
     }
     return p.toString();
-  }, [kindFilter, customerFilter, deviceFilter, dateFrom, dateTo, page]);
+  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo, page]);
 
   // 初回：顧客・端末リスト
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [cu, dv] = await Promise.all([
+        const [cu, dv, st, gr] = await Promise.all([
           api.get<{ items?: CustomerLite[] } | CustomerLite[]>('/customers?limit=200').catch(() => []),
           api.get<{ items?: DeviceLite[] } | DeviceLite[]>('/devices?limit=200').catch(() => []),
+          api.get<{ items?: StoreLite[] } | StoreLite[]>('/stores?limit=200').catch(() => []),
+          api.get<{ items?: GroupLite[] } | GroupLite[]>('/device-groups?limit=200').catch(() => []),
         ]);
         if (cancelled) return;
         setCustomers(Array.isArray(cu) ? cu : (cu.items ?? []));
         setDevices(Array.isArray(dv) ? dv : (dv.items ?? []));
+        setStores(Array.isArray(st) ? st : (st.items ?? []));
+        setGroups(Array.isArray(gr) ? gr : (gr.items ?? []));
       } catch (e) {
         console.error('[sales-events] meta fetch failed:', e);
       }
@@ -208,12 +222,14 @@ export default function SalesEventsPage() {
     if (kindFilter !== 'all') p.set('payment_method', kindFilter);
     if (customerFilter !== 'all') p.set('customer_id', customerFilter);
     if (deviceFilter !== 'all') p.set('device_id', deviceFilter);
+    if (storeFilter !== 'all') p.set('store_id', storeFilter);
+    if (groupFilter !== 'all') p.set('group_id', groupFilter);
     const fromUtc = jstDateToUtcStart(dateFrom);
     const toUtc = jstDateToUtcEnd(dateTo);
     if (fromUtc) p.set('date_from', fromUtc);
     if (toUtc) p.set('date_to', toUtc);
     return p.toString();
-  }, [kindFilter, customerFilter, deviceFilter, dateFrom, dateTo]);
+  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -276,7 +292,7 @@ export default function SalesEventsPage() {
   }, [buildParams]);
 
   // フィルタを変えたら1ページ目へ戻す
-  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, deviceFilter, dateFrom, dateTo]);
+  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo]);
 
   // 検索はクライアント側（現ページ内の絞り込み）
   const visible = useMemo(() => {
@@ -465,12 +481,32 @@ export default function SalesEventsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="全顧客" /></SelectTrigger>
+          {isSuper && (
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="全顧客" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全ての顧客</SelectItem>
+                {customers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={storeFilter} onValueChange={setStoreFilter}>
+            <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue placeholder="全店舗" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全ての顧客</SelectItem>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem value="all">全ての店舗</SelectItem>
+              {stores.map((st) => (
+                <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={groupFilter} onValueChange={setGroupFilter}>
+            <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue placeholder="全グループ" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全てのグループ</SelectItem>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -525,9 +561,7 @@ export default function SalesEventsPage() {
                     <th className="text-right font-normal py-1.5 px-3">¥100 (枚 / 円)</th>
                     <th className="text-right font-normal py-1.5 px-3">¥500 (枚 / 円)</th>
                     <th className="text-right font-normal py-1.5 px-3">その他</th>
-                    <th className="text-right font-normal py-1.5 px-3">現金合計</th>
-                    <th className="text-right font-normal py-1.5 px-3">抽選排出</th>
-                    <th className="text-right font-normal py-1.5 pl-3">残クレジット</th>
+                    <th className="text-right font-normal py-1.5 pl-3">現金合計</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -545,13 +579,7 @@ export default function SalesEventsPage() {
                           : <span className="text-muted-foreground">—</span>}
                       </td>
                       <td className="text-right tabular-nums py-1.5 px-3 text-muted-foreground">{r.other_sum > 0 ? fmtYen(r.other_sum) : '—'}</td>
-                      <td className="text-right tabular-nums py-1.5 px-3 font-medium">{fmtYen(r.cash_total)}</td>
-                      <td className="text-right tabular-nums py-1.5 px-3 text-muted-foreground">{fmtYen(r.drawn_total)}</td>
-                      <td className="text-right tabular-nums py-1.5 pl-3">
-                        {r.credit_balance > 0
-                          ? <span className="text-orange-500 font-medium">{fmtYen(r.credit_balance)}</span>
-                          : <span className="text-muted-foreground">{fmtYen(r.credit_balance)}</span>}
-                      </td>
+                      <td className="text-right tabular-nums py-1.5 pl-3 font-medium">{fmtYen(r.cash_total)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -588,9 +616,9 @@ export default function SalesEventsPage() {
                     : (
                       <div className="flex flex-col items-end leading-tight">
                         <span>{fmtYen(e.amount_yen ?? 0)}</span>
-                        {e.kind === 'cash' && fmtBreakdown(e.metadata?.breakdown) && (
+                        {e.kind === 'cash' && fmtBreakdown(e.coin_breakdown) && (
                           <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
-                            {fmtBreakdown(e.metadata?.breakdown)}
+                            {fmtBreakdown(e.coin_breakdown)}
                           </span>
                         )}
                       </div>

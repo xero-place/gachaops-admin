@@ -533,4 +533,5 @@ export interface SalesEvent {
   token_count: number | null;
   occurred_at: string;
   metadata?: { breakdown?: Record<string, number> } | null;
+  coin_breakdown?: Record<string, number> | null;  // S215: 現金1プレイの硬貨内訳
 }
