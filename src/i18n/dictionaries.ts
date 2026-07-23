@@ -31,7 +31,7 @@ export const ja = {
     },
     techInfo: {
       title: "技術情報",
-      app: "アプリ",
+      app: "APKバージョン",
       os: "OS",
       ip: "IP",
     },
@@ -119,7 +119,7 @@ export const en: Dictionary = {
     },
     techInfo: {
       title: "Technical info",
-      app: "App",
+      app: "APK version",
       os: "OS",
       ip: "IP",
     },
