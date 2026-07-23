@@ -134,7 +134,6 @@ export default function DeviceGroupsPage() {
       {creating && (
         <CreateGroupDialog
           devices={devices}
-          allGroups={deviceGroups}
           onClose={() => setCreating(false)}
           onSaved={async () => { await reload(); setCreating(false); }}
         />
@@ -517,11 +516,18 @@ function EditGroupDialog({
           <div className="space-y-1.5">
             <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
             <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
-              {devices.map((d) => {
+              {[...devices]
+                .sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online'))
+                .map((d) => {
                 const isMember = memberIds.includes(d.id);
+                const online = d.status === 'online';
                 return (
-                  <div key={d.id} className="flex items-center gap-2 px-3 py-2">
+                  <div key={d.id} className={`flex items-center gap-2 px-3 py-2 ${online ? '' : 'opacity-50'}`}>
                     <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
+                    <span
+                      className={online ? 'text-emerald-500 text-xs leading-none' : 'text-muted-foreground text-xs leading-none'}
+                      title={online ? 'オンライン' : 'オフライン'}
+                    >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
                     <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -658,15 +664,13 @@ function EditGroupDialog({
 }
 
 function CreateGroupDialog({
-  devices, allGroups, onClose, onSaved,
+  devices, onClose, onSaved,
 }: {
   devices: DeviceLite[];
-  allGroups: DeviceGroup[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState('');
-  const [parentId, setParentId] = useState<string>('');
   const [linked, setLinked] = useState(false);
   const [effectDefault, setEffectDefault] = useState(true);
   const [memberIds, setMemberIds] = useState<string[]>([]);
@@ -688,7 +692,7 @@ function CreateGroupDialog({
     try {
       const created = await api.post<{ id: string }>('/device-groups', {
         name,
-        parent_id: parentId || null,
+        parent_id: null,
         linked,
       });
       const needsPatch = effectDefault === false || memberIds.length > 0 || !!masterId;
@@ -730,20 +734,6 @@ function CreateGroupDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">親グループ（任意）</label>
-            <select
-              value={parentId}
-              onChange={(e) => setParentId(e.target.value)}
-              className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-            >
-              <option value="">（なし・ルート）</option>
-              {allGroups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-
           <div className="flex items-center gap-2">
             <Checkbox id="new-linked" checked={linked} onCheckedChange={(c) => setLinked(c === true)} />
             <label htmlFor="new-linked" className="text-xs">連動再生（複数台を同期）</label>
@@ -760,11 +750,18 @@ function CreateGroupDialog({
           <div className="space-y-1.5">
             <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
             <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
-              {devices.map((d) => {
+              {[...devices]
+                .sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online'))
+                .map((d) => {
                 const isMember = memberIds.includes(d.id);
+                const online = d.status === 'online';
                 return (
-                  <div key={d.id} className="flex items-center gap-2 px-3 py-2">
+                  <div key={d.id} className={`flex items-center gap-2 px-3 py-2 ${online ? '' : 'opacity-50'}`}>
                     <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
+                    <span
+                      className={online ? 'text-emerald-500 text-xs leading-none' : 'text-muted-foreground text-xs leading-none'}
+                      title={online ? 'オンライン' : 'オフライン'}
+                    >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
                     <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">

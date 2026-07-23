@@ -142,6 +142,7 @@ export default function DevicesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [storeFilter, setStoreFilter] = useState<string>('all');
+  const [groupFilter, setGroupFilter] = useState<string>('all');  // S209: group filter
   // S200: remember list filters across navigation (device detail → back).
   // Restore after mount (hydration-safe); skip the first persist so the saved
   // value is never overwritten by the initial defaults.
@@ -150,10 +151,11 @@ export default function DevicesPage() {
     try {
       const raw = sessionStorage.getItem('gachaops_devices_filter');
       if (raw) {
-        const f = JSON.parse(raw) as { search?: string; statusFilter?: string; storeFilter?: string };
+        const f = JSON.parse(raw) as { search?: string; statusFilter?: string; storeFilter?: string; groupFilter?: string };
         if (typeof f.search === 'string') setSearch(f.search);
         if (typeof f.statusFilter === 'string') setStatusFilter(f.statusFilter);
         if (typeof f.storeFilter === 'string') setStoreFilter(f.storeFilter);
+        if (typeof f.groupFilter === 'string') setGroupFilter(f.groupFilter);
       }
     } catch {
       // ignore corrupt / unavailable storage
@@ -167,12 +169,12 @@ export default function DevicesPage() {
     try {
       sessionStorage.setItem(
         'gachaops_devices_filter',
-        JSON.stringify({ search, statusFilter, storeFilter }),
+        JSON.stringify({ search, statusFilter, storeFilter, groupFilter }),
       );
     } catch {
       // ignore storage failures (private mode etc.)
     }
-  }, [search, statusFilter, storeFilter]);
+  }, [search, statusFilter, storeFilter, groupFilter]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -181,17 +183,29 @@ export default function DevicesPage() {
 
   const effectiveDevices = useMemo(() => applyOverridesToDevices(devices, overrides), [devices, overrides]);
 
+  // S209: group options derived from loaded devices (group_ids <-> group_names by index).
+  const groupOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    devices.forEach((d) => {
+      (d.group_ids ?? []).forEach((gid, i) => {
+        if (gid && !m.has(gid)) m.set(gid, d.group_names?.[i] ?? gid);
+      });
+    });
+    return Array.from(m, ([id, name]) => ({ id, name }));
+  }, [devices]);
+
   const filtered = useMemo(() => {
     return effectiveDevices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
       if (storeFilter !== 'all' && d.store_id !== storeFilter) return false;
+      if (groupFilter !== 'all' && !(d.group_ids ?? []).includes(groupFilter)) return false;
       if (search) {
         const s = search.toLowerCase();
         if (!d.name.toLowerCase().includes(s) && !d.serial.toLowerCase().includes(s)) return false;
       }
       return true;
     });
-  }, [search, statusFilter, storeFilter, effectiveDevices]);
+  }, [search, statusFilter, storeFilter, groupFilter, effectiveDevices]);
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -274,6 +288,28 @@ export default function DevicesPage() {
               <SelectItem value="all">すべての店舗</SelectItem>
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="ステータス" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての状態</SelectItem>
+              <SelectItem value="online">オンライン</SelectItem>
+              <SelectItem value="offline">オフライン</SelectItem>
+              <SelectItem value="maintenance">保守中</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={groupFilter} onValueChange={setGroupFilter}>
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue placeholder="グループ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべてのグループ</SelectItem>
+              {groupOptions.map((g) => (
+                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
