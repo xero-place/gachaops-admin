@@ -460,7 +460,7 @@ function EditGroupDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className={`${vwPreview ? "max-w-5xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle className="text-sm">グループ編集：{group.name}</DialogTitle>
           <DialogDescription className="text-xs">

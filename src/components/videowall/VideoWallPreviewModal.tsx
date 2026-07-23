@@ -150,6 +150,22 @@ export default function VideoWallPreviewModal({
     return { sx, sy, sw, sh };
   }, [rows, cols, bz]);
 
+  // S219b: オフスクリーン動画は autoPlay 属性だけだと環境により再生開始しないことがある。
+  // muted なので明示 play() はポリシー上許可される。canplay/loadeddata でも念押し。
+  useEffect(() => {
+    if (!useReal || !mounted) return;
+    const v = videoRef.current;
+    if (!v) return;
+    const kick = () => { void v.play().catch(() => {}); };
+    kick();
+    v.addEventListener("loadeddata", kick);
+    v.addEventListener("canplay", kick);
+    return () => {
+      v.removeEventListener("loadeddata", kick);
+      v.removeEventListener("canplay", kick);
+    };
+  }, [useReal, mounted]);
+
   // S160: 描画ループ。単一 video のフレームを各 canvas へ drawImage。
   useEffect(() => {
     if (!useReal || !mounted || !natSize) return;
