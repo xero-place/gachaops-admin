@@ -29,6 +29,19 @@ interface SummaryResp {
   today: SummaryBucket;
   cumulative: SummaryBucket;
 }
+interface DeviceCashRow {
+  device_id: string;
+  device_name: string;
+  customer_name: string;
+  yen100_count: number;
+  yen100_sum: number;
+  yen500_count: number;
+  yen500_sum: number;
+  other_sum: number;
+  cash_total: number;
+  drawn_total: number;
+  credit_balance: number;
+}
 interface ListResp {
   items: SalesEvent[];
   total: number;
@@ -141,6 +154,7 @@ export default function SalesEventsPage() {
   const [customers, setCustomers] = useState<CustomerLite[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
   const [summary, setSummary] = useState<SummaryResp>({ today: EMPTY_BUCKET, cumulative: EMPTY_BUCKET });
+  const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -213,6 +227,24 @@ export default function SalesEventsPage() {
         if (!cancelled) setSummary(sum);
       } catch (e) {
         console.error('[sales-events] summary fetch failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [summaryParams]);
+
+  // S213: 端末別 現金内訳。summary と同じフィルタで再フェッチ。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sp = new URLSearchParams(summaryParams);
+        sp.delete('payment_method');
+        const qs = sp.toString() ? `?${sp.toString()}` : '';
+        const rows = await api.get<DeviceCashRow[]>(`/sales-events/by-device${qs}`);
+        if (!cancelled) setByDevice(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        console.error('[sales-events] by-device fetch failed:', e);
+        if (!cancelled) setByDevice([]);
       }
     })();
     return () => { cancelled = true; };
@@ -476,6 +508,58 @@ export default function SalesEventsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {byDevice.length > 0 && (
+        <Card className="mb-4">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Coins className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium">端末別 現金内訳</span>
+              <span className="text-[11px] text-muted-foreground">¥100投入の多い順。残クレジット＝機械内に残った端数（次の投入まで抽選にならない分）。</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-left font-normal py-1.5 pr-3">端末</th>
+                    <th className="text-right font-normal py-1.5 px-3">¥100 (枚 / 円)</th>
+                    <th className="text-right font-normal py-1.5 px-3">¥500 (枚 / 円)</th>
+                    <th className="text-right font-normal py-1.5 px-3">その他</th>
+                    <th className="text-right font-normal py-1.5 px-3">現金合計</th>
+                    <th className="text-right font-normal py-1.5 px-3">抽選排出</th>
+                    <th className="text-right font-normal py-1.5 pl-3">残クレジット</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byDevice.map((r) => (
+                    <tr key={r.device_id} className="border-b last:border-0">
+                      <td className="py-1.5 pr-3">{r.device_name || r.device_id}</td>
+                      <td className="text-right tabular-nums py-1.5 px-3">
+                        {r.yen100_count > 0
+                          ? <><span className="text-amber-600 font-medium">{r.yen100_count}枚</span> <span className="text-muted-foreground">/ {fmtYen(r.yen100_sum)}</span></>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="text-right tabular-nums py-1.5 px-3">
+                        {r.yen500_count > 0
+                          ? <>{r.yen500_count}枚 <span className="text-muted-foreground">/ {fmtYen(r.yen500_sum)}</span></>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="text-right tabular-nums py-1.5 px-3 text-muted-foreground">{r.other_sum > 0 ? fmtYen(r.other_sum) : '—'}</td>
+                      <td className="text-right tabular-nums py-1.5 px-3 font-medium">{fmtYen(r.cash_total)}</td>
+                      <td className="text-right tabular-nums py-1.5 px-3 text-muted-foreground">{fmtYen(r.drawn_total)}</td>
+                      <td className="text-right tabular-nums py-1.5 pl-3">
+                        {r.credit_balance > 0
+                          ? <span className="text-orange-500 font-medium">{fmtYen(r.credit_balance)}</span>
+                          : <span className="text-muted-foreground">{fmtYen(r.credit_balance)}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <Table>
