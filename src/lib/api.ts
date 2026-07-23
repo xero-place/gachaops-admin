@@ -7,7 +7,7 @@
  * Configuration:
  *   NEXT_PUBLIC_API_BASE_URL=https://api.xero-place.com/v1   ← real backend (required)
  */
-import { tokenStore } from './token-store';
+import { tokenStore, type StoredUser } from './token-store';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 
@@ -191,6 +191,10 @@ export interface ImpersonateResponse extends LoginResponse {
 }
 
 export const auth = {
+  // S216: 現在ログイン中ユーザーをサーバから取得（ヘッダーのゲスト表示の自己修復用）。
+  async me(): Promise<StoredUser> {
+    return api.get<StoredUser>('/auth/me');
+  },
   async login(
     email: string,
     password: string,

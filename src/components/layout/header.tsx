@@ -22,7 +22,21 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
   const [user, setUser] = useState<StoredUser | null>(null);
 
   useEffect(() => {
-    setUser(tokenStore.getUser());
+    const u = tokenStore.getUser();
+    setUser(u);
+    // S216: 認証は有効なのに user が欠落（ヘッダーが「ゲスト」）の時だけ /auth/me で復元。
+    // 通常時（user あり）は追加リクエストを出さない。
+    if (!u && tokenStore.isAuthenticated()) {
+      auth.me()
+        .then((fresh) => { tokenStore.setUser(fresh); setUser(fresh); })
+        .catch(() => { /* 本物の認証切れは api 側で /login にリダイレクトされる */ });
+    }
+    // 別タブでのログイン/ログアウト/成り代わりに追従。
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'gachaops_user') setUser(tokenStore.getUser());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const onLogout = async () => {

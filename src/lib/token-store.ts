@@ -44,6 +44,12 @@ export const tokenStore = {
       return null;
     }
   },
+  // S216: 認証は有効なのに user が欠落した状態(ヘッダーが「ゲスト」表示)を
+  // /auth/me の結果で復元するためのセッター。
+  setUser(user: StoredUser): void {
+    if (!isClient()) return;
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
   getDevice(): string | null {
     if (!isClient()) return null;
     return localStorage.getItem(DEVICE_KEY);
