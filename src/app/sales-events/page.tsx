@@ -63,6 +63,15 @@ const KINDS: { value: string; label: string }[] = [
 
 const EMPTY_BUCKET: SummaryBucket = { cash_yen: 0, qr_yen: 0, total_yen: 0, medal_count: 0 };
 
+function fmtBreakdown(bd?: Record<string, number> | null): string | null {
+  if (!bd) return null;
+  const parts = Object.entries(bd)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => Number(b[0]) - Number(a[0]))
+    .map(([yen, n]) => `${yen}円×${n}枚`);
+  return parts.length ? parts.join(' / ') : null;
+}
+
 function KindBadge({ kind }: { kind: SalesEvent['kind'] }) {
   if (kind === 'qr') return <Badge variant="ok">QR決済</Badge>;
   if (kind === 'cash') return <Badge variant="warn">現金</Badge>;
@@ -604,7 +613,26 @@ export default function SalesEventsPage() {
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {e.kind === 'token'
                     ? <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-400" />{e.token_count} 枚</span>
-                    : <span>{fmtYen(e.amount_yen ?? 0)}</span>}
+                    : (
+                      <div className="flex flex-col items-end leading-tight gap-0.5">
+                        <span>{fmtYen(e.amount_yen ?? 0)}</span>
+                        {e.kind === 'cash' && fmtBreakdown(e.coin_breakdown) && (
+                          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
+                            {fmtBreakdown(e.coin_breakdown)}
+                          </span>
+                        )}
+                        {e.kind === 'cash' && (e.over_yen || e.is_pending) && (
+                          <span className="inline-flex gap-1 font-normal">
+                            {e.over_yen ? (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/15 text-orange-500">過剰 +{fmtYen(e.over_yen)}</span>
+                            ) : null}
+                            {e.is_pending ? (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-600">未成立</span>
+                            ) : null}
+                          </span>
+                        )}
+                      </div>
+                    )}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {fmtDate(e.occurred_at)}
