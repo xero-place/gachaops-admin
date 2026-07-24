@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Loader2, Search, Coins, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Search, Coins, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import type { SalesEvent } from '@/types/domain';
 
@@ -44,6 +44,8 @@ interface DeviceCashRow {
   cash_total: number;
   drawn_total: number;
   credit_balance: number;
+  qr_total?: number;      // S224: キャッシュレス(QR)売上
+  total_sales?: number;   // S224: 累計売上(現金+キャッシュレス)
 }
 interface ListResp {
   items: SalesEvent[];
@@ -121,7 +123,7 @@ function SalesCard({
             <span className="tabular-nums text-amber-400 font-medium">{fmtYen(cashYen)}</span>
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground">QR売上分</span>
+            <span className="text-muted-foreground">キャッシュレス決済</span>
             <span className="tabular-nums text-emerald-400 font-medium">{fmtYen(qrYen)}</span>
           </div>
         </div>
@@ -160,6 +162,7 @@ export default function SalesEventsPage() {
   const [groups, setGroups] = useState<GroupLite[]>([]);
   const [summary, setSummary] = useState<SummaryResp>({ today: EMPTY_BUCKET, cumulative: EMPTY_BUCKET });
   const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
+  const [summaryOpen, setSummaryOpen] = useState(true);  // S224: サマリー折りたたみ
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -433,34 +436,49 @@ export default function SalesEventsPage() {
           レポート出力（PDF）
         </button>
       </div>
-      {/* 本日 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <SalesCard
-          label="売上" badge="本日" badgeClass={badgeToday}
-          totalYen={summary.today.total_yen}
-          cashYen={summary.today.cash_yen}
-          qrYen={summary.today.qr_yen}
-          accentClass="text-primary"
-        />
-        <MedalCard
-          label="メダル投入数" badge="本日" badgeClass={badgeToday}
-          count={summary.today.medal_count}
-        />
+      {/* S224: サマリー折りたたみトグル */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-muted-foreground">売上サマリー</span>
+        <button
+          type="button"
+          onClick={() => setSummaryOpen((o) => !o)}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1 hover:bg-accent"
+        >
+          {summaryOpen ? <><ChevronUp className="h-4 w-4" />閉じる</> : <><ChevronDown className="h-4 w-4" />開く</>}
+        </button>
       </div>
-      {/* 累計 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-        <SalesCard
-          label="総売上" badge="累計" badgeClass={badgeCumulative}
-          totalYen={summary.cumulative.total_yen}
-          cashYen={summary.cumulative.cash_yen}
-          qrYen={summary.cumulative.qr_yen}
-          accentClass="text-sky-400"
-        />
-        <MedalCard
-          label="メダル投入総数" badge="累計" badgeClass={badgeCumulative}
-          count={summary.cumulative.medal_count}
-        />
-      </div>
+      {summaryOpen && (
+        <>
+          {/* 本日 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <SalesCard
+              label="売上" badge="本日" badgeClass={badgeToday}
+              totalYen={summary.today.total_yen}
+              cashYen={summary.today.cash_yen}
+              qrYen={summary.today.qr_yen}
+              accentClass="text-primary"
+            />
+            <MedalCard
+              label="メダル投入数" badge="本日" badgeClass={badgeToday}
+              count={summary.today.medal_count}
+            />
+          </div>
+          {/* 累計 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+            <SalesCard
+              label="総売上" badge="累計" badgeClass={badgeCumulative}
+              totalYen={summary.cumulative.total_yen}
+              cashYen={summary.cumulative.cash_yen}
+              qrYen={summary.cumulative.qr_yen}
+              accentClass="text-sky-400"
+            />
+            <MedalCard
+              label="メダル投入総数" badge="累計" badgeClass={badgeCumulative}
+              count={summary.cumulative.medal_count}
+            />
+          </div>
+        </>
+      )}
 
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
@@ -550,8 +568,8 @@ export default function SalesEventsPage() {
           <CardContent className="p-3">
             <div className="flex items-center gap-2 mb-2">
               <Coins className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium">端末別 現金内訳</span>
-              <span className="text-[11px] text-muted-foreground">¥100投入の多い順。残クレジット＝機械内に残った端数（次の投入まで抽選にならない分）。</span>
+              <span className="text-sm font-medium">端末別 売上内訳</span>
+              <span className="text-[11px] text-muted-foreground">累計売上（現金＋キャッシュレス）の多い順。残クレジット＝機械内に残った端数（次の投入まで抽選にならない分）。</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -560,8 +578,9 @@ export default function SalesEventsPage() {
                     <th className="text-left font-normal py-1.5 pr-3">端末</th>
                     <th className="text-right font-normal py-1.5 px-3">¥100 (枚 / 円)</th>
                     <th className="text-right font-normal py-1.5 px-3">¥500 (枚 / 円)</th>
-                    <th className="text-right font-normal py-1.5 px-3">その他</th>
-                    <th className="text-right font-normal py-1.5 pl-3">現金合計</th>
+                    <th className="text-right font-normal py-1.5 px-3">現金合計</th>
+                    <th className="text-right font-normal py-1.5 px-3">キャッシュレス</th>
+                    <th className="text-right font-normal py-1.5 pl-3">累計売上</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -578,8 +597,9 @@ export default function SalesEventsPage() {
                           ? <>{r.yen500_count}枚 <span className="text-muted-foreground">/ {fmtYen(r.yen500_sum)}</span></>
                           : <span className="text-muted-foreground">—</span>}
                       </td>
-                      <td className="text-right tabular-nums py-1.5 px-3 text-muted-foreground">{r.other_sum > 0 ? fmtYen(r.other_sum) : '—'}</td>
-                      <td className="text-right tabular-nums py-1.5 pl-3 font-medium">{fmtYen(r.cash_total)}</td>
+                      <td className="text-right tabular-nums py-1.5 px-3 text-amber-500">{r.cash_total > 0 ? fmtYen(r.cash_total) : '—'}</td>
+                      <td className="text-right tabular-nums py-1.5 px-3 text-emerald-500">{(r.qr_total ?? 0) > 0 ? fmtYen(r.qr_total ?? 0) : '—'}</td>
+                      <td className="text-right tabular-nums py-1.5 pl-3 font-semibold">{fmtYen(r.total_sales ?? (r.cash_total + (r.qr_total ?? 0)))}</td>
                     </tr>
                   ))}
                 </tbody>
