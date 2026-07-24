@@ -536,4 +536,5 @@ export interface SalesEvent {
   coin_breakdown?: Record<string, number> | null;  // S215: 現金1プレイの硬貨内訳
   over_yen?: number | null;   // S222: 過剰投入で破棄された額
   is_pending?: boolean;       // S222: 抽選未成立(クレジット残)
+  is_over?: boolean;          // S224: このコインが過剰投入で破棄された
 }

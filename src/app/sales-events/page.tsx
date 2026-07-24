@@ -621,10 +621,11 @@ export default function SalesEventsPage() {
                             {fmtBreakdown(e.coin_breakdown)}
                           </span>
                         )}
-                        {e.kind === 'cash' && (e.over_yen || e.is_pending) && (
+                        {/* S224: 1コイン=1行。過剰(破棄)/未成立(残クレジット)をバッジ表示 */}
+                        {e.kind === 'cash' && (e.is_over || e.is_pending) && (
                           <span className="inline-flex gap-1 font-normal">
-                            {e.over_yen ? (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/15 text-orange-500">過剰 +{fmtYen(e.over_yen)}</span>
+                            {e.is_over ? (
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/15 text-orange-500">過剰</span>
                             ) : null}
                             {e.is_pending ? (
                               <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-600">未成立</span>
