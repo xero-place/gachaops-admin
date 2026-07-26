@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Loader2, Search, Coins, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Search, Coins, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import type { SalesEvent } from '@/types/domain';
 
@@ -52,6 +52,8 @@ interface ListResp {
   total: number;
   offset: number;
   limit: number;
+  undispensed_count?: number;   // ★P1: 未排出(課金済み・排出なし)の総件数(ページング非依存)
+  undispensed_yen?: number;     // ★P1: 未排出の総額
 }
 
 const PAGE_SIZE = 200;
@@ -65,18 +67,12 @@ const KINDS: { value: string; label: string }[] = [
 
 const EMPTY_BUCKET: SummaryBucket = { cash_yen: 0, qr_yen: 0, total_yen: 0, medal_count: 0 };
 
-function fmtBreakdown(bd?: Record<string, number> | null): string | null {
-  if (!bd) return null;
-  const parts = Object.entries(bd)
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => Number(b[0]) - Number(a[0]))
-    .map(([yen, n]) => `${yen}円×${n}枚`);
-  return parts.length ? parts.join(' / ') : null;
-}
-
-function KindBadge({ kind }: { kind: SalesEvent['kind'] }) {
-  if (kind === 'qr') return <Badge variant="ok">QR決済</Badge>;
-  if (kind === 'cash') return <Badge variant="warn">現金</Badge>;
+function KindBadge({ e }: { e: SalesEvent }) {
+  if (e.is_undispensed) {
+    return <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-500/15 text-red-600 dark:text-red-400">未排出</span>;
+  }
+  if (e.kind === 'qr') return <Badge variant="ok">QR決済</Badge>;
+  if (e.kind === 'cash') return <Badge variant="warn">現金</Badge>;
   return <Badge variant="muted">トークンメダル</Badge>;
 }
 
@@ -164,6 +160,7 @@ export default function SalesEventsPage() {
   const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
   const [summaryOpen, setSummaryOpen] = useState(true);  // S224: サマリー折りたたみ
   const [byDeviceOpen, setByDeviceOpen] = useState(true);  // S225: 端末別内訳の折りたたみ
+  const [undispensed, setUndispensed] = useState<{ count: number; yen: number }>({ count: 0, yen: 0 });  // ★P1: 未排出アラート
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -282,9 +279,11 @@ export default function SalesEventsPage() {
         if (Array.isArray(resp)) {
           setEvents(resp);
           setTotal(resp.length);
+          setUndispensed({ count: 0, yen: 0 });
         } else {
           setEvents(resp.items ?? []);
           setTotal(resp.total ?? (resp.items?.length ?? 0));
+          setUndispensed({ count: resp.undispensed_count ?? 0, yen: resp.undispensed_yen ?? 0 });
         }
       } catch (e) {
         console.error('[sales-events] list fetch failed:', e);
@@ -432,6 +431,19 @@ export default function SalesEventsPage() {
 
   return (
     <AppShell title="売上管理" breadcrumb={['ホーム', '売上管理']}>
+      {undispensed.count > 0 && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
+          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+          <div className="text-sm leading-relaxed">
+            <span className="font-medium text-red-600 dark:text-red-400">
+              未排出（課金済み・排出なし）が {undispensed.count.toLocaleString()} 件（{fmtYen(undispensed.yen)}）あります。
+            </span>
+            <span className="ml-1 text-xs text-muted-foreground">
+              返金・排出対応が必要です。下の一覧の赤い行をご確認ください。
+            </span>
+          </div>
+        </div>
+      )}
       <div className="flex justify-end mb-3">
         <button onClick={() => void generateReport()} className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
           レポート出力（PDF）
@@ -629,42 +641,30 @@ export default function SalesEventsPage() {
               <TableHead>顧客</TableHead>
               <TableHead>端末</TableHead>
               <TableHead className="text-right">金額 / 枚数</TableHead>
+              <TableHead>状態</TableHead>
               <TableHead>日時</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visible.map((e) => (
-              <TableRow key={e.event_id}>
-                <TableCell><KindBadge kind={e.kind} /></TableCell>
+              <TableRow key={e.event_id} className={e.is_undispensed ? 'bg-red-500/5' : undefined}>
+                <TableCell><KindBadge e={e} /></TableCell>
                 <TableCell className="font-mono text-[11px] text-muted-foreground">
-                  {e.kind === 'qr' && e.payment_id ? e.payment_id : '-'}
+                  {e.payment_id ? e.payment_id : '-'}
                 </TableCell>
                 <TableCell className="text-xs">{e.customer_name}</TableCell>
                 <TableCell className="text-xs">{e.device_name}</TableCell>
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {e.kind === 'token'
                     ? <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-400" />{e.token_count} 枚</span>
-                    : (
-                      <div className="flex flex-col items-end leading-tight gap-0.5">
-                        <span>{fmtYen(e.amount_yen ?? 0)}</span>
-                        {e.kind === 'cash' && fmtBreakdown(e.coin_breakdown) && (
-                          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">
-                            {fmtBreakdown(e.coin_breakdown)}
-                          </span>
-                        )}
-                        {/* S224: 1コイン=1行。過剰(破棄)/未成立(残クレジット)をバッジ表示 */}
-                        {e.kind === 'cash' && (e.is_over || e.is_pending) && (
-                          <span className="inline-flex gap-1 font-normal">
-                            {e.is_over ? (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/15 text-orange-500">過剰</span>
-                            ) : null}
-                            {e.is_pending ? (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-600">未成立</span>
-                            ) : null}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    : <span className={e.is_undispensed ? 'text-red-600 dark:text-red-400' : undefined}>{fmtYen(e.amount_yen ?? 0)}</span>}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {e.is_undispensed
+                    ? <span className="text-red-600 dark:text-red-400 font-medium">未排出</span>
+                    : e.kind === 'token'
+                      ? <span className="text-muted-foreground">—</span>
+                      : <span className="text-muted-foreground">排出済み</span>}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {fmtDate(e.occurred_at)}
@@ -673,7 +673,7 @@ export default function SalesEventsPage() {
             ))}
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-12">
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-12">
                   該当する売上イベントがありません
                 </TableCell>
               </TableRow>
