@@ -199,7 +199,7 @@ export default function OrdersPage() {
               <TableHead className="text-right">金額</TableHead>
               <TableHead>決済</TableHead>
               <TableHead>状態</TableHead>
-              <TableHead>支払日時</TableHead>
+              <TableHead>日時</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -230,7 +230,9 @@ export default function OrdersPage() {
                 </TableCell>
                 <TableCell><OrderStatusBadge status={o.status} /></TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {fmtDate(o.paid_at)}
+                  {o.paid_at
+                    ? fmtDate(o.paid_at)
+                    : <span>{fmtDate(o.created_at)}<span className="ml-1 text-[10px] opacity-60">(作成)</span></span>}
                 </TableCell>
                 <TableCell className="text-right">
                   {o.status === 'paid' && (
