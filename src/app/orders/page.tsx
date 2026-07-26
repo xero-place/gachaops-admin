@@ -89,7 +89,7 @@ export default function OrdersPage() {
           return false;
       }
       return true;
-    });
+    }).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   }, [orders, search, statusFilter, providerFilter]);
 
   const totals = useMemo(() => {
@@ -196,7 +196,6 @@ export default function OrdersPage() {
             <TableRow>
               <TableHead>注文ID</TableHead>
               <TableHead>店舗 / 端末</TableHead>
-              <TableHead>商品</TableHead>
               <TableHead className="text-right">金額</TableHead>
               <TableHead>決済</TableHead>
               <TableHead>状態</TableHead>
@@ -205,14 +204,13 @@ export default function OrdersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.slice(0, 50).map((o) => (
+            {filtered.slice(0, 200).map((o) => (
               <TableRow key={o.id}>
                 <TableCell className="font-mono text-[11px]">{o.id}</TableCell>
                 <TableCell>
                   <div className="text-xs">{o.store_name}</div>
                   <div className="text-[10.5px] text-muted-foreground">{o.device_name}</div>
                 </TableCell>
-                <TableCell className="text-xs">{o.product_name}</TableCell>
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {fmtYen(o.amount_yen)}
                 </TableCell>
@@ -235,7 +233,7 @@ export default function OrdersPage() {
                   {fmtDate(o.paid_at)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {o.status === 'paid' && o.payment_provider === 'paypay' && (
+                  {o.status === 'paid' && (
                     <Button
                       variant="ghost"
                       size="sm"
