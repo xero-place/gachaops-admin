@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { tokenStore, type StoredUser } from '@/lib/token-store';
 import { auth } from '@/lib/api';
+import { MobileNav } from '@/components/layout/mobile-nav';
 
 export function Header({ title, breadcrumb }: { title: string; breadcrumb?: string[] }) {
   const router = useRouter();
@@ -48,8 +49,9 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
   const initial = displayName.slice(0, 1);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card/70 backdrop-blur px-6">
-      <div className="flex flex-col">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card/70 backdrop-blur px-4 lg:px-6">
+      <MobileNav />
+      <div className="flex flex-col min-w-0">
         <h1 className="text-base font-semibold leading-tight">{title}</h1>
         {breadcrumb && breadcrumb.length > 0 && (
           <div className="text-[11px] text-muted-foreground">

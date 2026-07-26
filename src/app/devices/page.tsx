@@ -261,7 +261,7 @@ export default function DevicesPage() {
         </div>
       )}
       {/* Stat strip */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <StatCell label="全端末" value={counts.all} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
         <StatCell label="オンライン" value={counts.online} accent="ok" active={statusFilter === 'online'} onClick={() => setStatusFilter('online')} />
         <StatCell label="オフライン" value={counts.offline} accent="destructive" active={statusFilter === 'offline'} onClick={() => setStatusFilter('offline')} />
@@ -500,7 +500,7 @@ export default function DevicesPage() {
 
       {/* Floating selection bar */}
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 rounded-lg border bg-card shadow-2xl px-4 py-3 flex items-center gap-3 backdrop-blur">
+        <div className="fixed bottom-3 left-3 right-3 z-40 rounded-lg border bg-card shadow-2xl px-3 py-2.5 flex flex-wrap items-center justify-center gap-2 backdrop-blur sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:flex-nowrap sm:px-4 sm:py-3 sm:gap-3">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearSelection}>
             <X className="h-3.5 w-3.5" />
           </Button>
