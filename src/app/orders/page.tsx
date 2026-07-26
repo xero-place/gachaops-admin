@@ -71,6 +71,8 @@ export default function OrdersPage() {
   }, []);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -100,9 +102,22 @@ export default function OrdersPage() {
     };
   }, [filtered]);
 
-  const submitRefund = () => {
-    setRefundTarget(null);
-    setRefundReason('');
+  const submitRefund = async () => {
+    if (!refundTarget || refunding) return;
+    setRefunding(true);
+    setRefundError(null);
+    try {
+      const updated = await api.post<Order>(`/orders/${refundTarget.id}/refund`, {
+        reason: refundReason || null,
+      });
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setRefundTarget(null);
+      setRefundReason('');
+    } catch (e) {
+      setRefundError((e as Error)?.message || '返金に失敗しました');
+    } finally {
+      setRefunding(false);
+    }
   };
 
   // ★orders-lock: 注文ページ(返金含む)は運営(lv1_super)のみ操作可。顧客がURL直打ちで
@@ -249,14 +264,14 @@ export default function OrdersPage() {
         )}
       </Card>
 
-      <Dialog open={refundTarget !== null} onOpenChange={(o) => !o && setRefundTarget(null)}>
+      <Dialog open={refundTarget !== null} onOpenChange={(o) => { if (!o) { setRefundTarget(null); setRefundError(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-4 w-4" />手動返金
             </DialogTitle>
             <DialogDescription>
-              PayPay へ返金リクエストを送信します。一度実行すると取り消せません。
+              決済PSP（Stripe / PayPal 等）へ返金（全額）を送信します。運営のみ・一度実行すると取り消せません。
             </DialogDescription>
           </DialogHeader>
           {refundTarget && (
@@ -265,7 +280,7 @@ export default function OrdersPage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">注文ID</span><span className="font-mono">{refundTarget.id}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">商品</span><span>{refundTarget.product_name}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">金額</span><span className="tabular-nums font-medium">{fmtYen(refundTarget.amount_yen)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">PayPay payment_id</span><span className="font-mono text-[10px]">{refundTarget.paypay_payment_id}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">決済ID</span><span className="font-mono text-[10px]">{refundTarget.paypay_payment_id}</span></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reason">返金理由 (任意・監査ログに記録)</Label>
@@ -278,9 +293,12 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
+          {refundError && (
+            <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{refundError}</div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRefundTarget(null)}>キャンセル</Button>
-            <Button variant="destructive" onClick={submitRefund}>返金する</Button>
+            <Button variant="outline" onClick={() => setRefundTarget(null)} disabled={refunding}>キャンセル</Button>
+            <Button variant="destructive" onClick={submitRefund} disabled={refunding}>{refunding ? '返金中…' : '返金する'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
