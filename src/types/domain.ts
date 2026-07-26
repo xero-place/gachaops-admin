@@ -315,6 +315,7 @@ export interface Order {
   device_id: string;
   device_name: string;
   store_name: string;
+  group_names?: string[];   // ★storegroup: 所属グループ名(複数可)
   product_id: string;
   product_name: string;
   amount_yen: number;

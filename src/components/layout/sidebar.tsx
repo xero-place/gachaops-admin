@@ -53,7 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/devices/map', label: '端末マップ', icon: MapPinned },
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
       // 注文ページ(返金含む)は運営(lv1_super)のみ表示。顧客アカウントには非表示。
-      { href: '/orders', label: '注文', icon: Receipt, superOnly: true },
+      { href: '/orders', label: '注文(QR)', icon: Receipt, superOnly: true },
       { href: '/sales-events', label: '売上管理', icon: Coins },
       // 在庫(/inventories)は系統B(空箱・engine.py非参照)のため非表示。実在庫は端末詳細の在庫タブ(系統A)。
     ],

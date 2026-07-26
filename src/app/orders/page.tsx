@@ -40,11 +40,25 @@ import type { Order, OrderStatus } from '@/types/domain';
 const STATUSES: { value: OrderStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'すべての状態' },
   { value: 'paid', label: '支払済' },
-  { value: 'pending', label: '処理中' },
+  { value: 'pending', label: '未決済' },
   { value: 'failed', label: '失敗' },
   { value: 'refunded', label: '返金済' },
   { value: 'cancelled', label: 'キャンセル' },
 ];
+
+// ★storegroup: 決済PSPの種別を日本語ラベル化。unset=QR表示のみで客が未選択(=未決済)。
+//   ApplePay/GooglePay は Stripe 経路のため、現時点ではまとめて「クレカ/Apple Pay等」。
+function providerLabel(p: string): string {
+  switch ((p || '').toLowerCase()) {
+    case 'paypay': return 'PayPay';
+    case 'veritrans': return 'PayPay(DGFT)';
+    case 'paypal': return 'PayPal';
+    case 'stripe': return 'クレカ/Apple Pay等';
+    case 'square': return 'Square';
+    case 'unset': return '未確定(選択待ち)';
+    default: return 'QR決済';
+  }
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -73,10 +87,17 @@ export default function OrdersPage() {
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
+  // ★qr-placeholder: QR表示だけの空注文(未決済/選択待ち)を既定で隠す
+  const [hidePlaceholders, setHidePlaceholders] = useState(true);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      // ★qr-placeholder: payment_provider="unset" かつ pending は「QRを表示しただけ/客が未選択」の
+      //   空注文(WS再接続毎に自動生成される)。実取引ではないため既定で非表示。状態で『未決済』を
+      //   選ぶか下のチェックを外すと表示できる。
+      if (hidePlaceholders && statusFilter === 'all'
+          && o.status === 'pending' && o.payment_provider === 'unset') return false;
       if (providerFilter !== 'all' && o.payment_provider !== providerFilter) return false;
       if (search) {
         const s = search.toLowerCase();
@@ -90,7 +111,7 @@ export default function OrdersPage() {
       }
       return true;
     }).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-  }, [orders, search, statusFilter, providerFilter]);
+  }, [orders, search, statusFilter, providerFilter, hidePlaceholders]);
 
   const totals = useMemo(() => {
     const paid = filtered.filter((o) => o.status === 'paid');
@@ -126,7 +147,7 @@ export default function OrdersPage() {
   const _isSuper = tokenStore.getUser()?.role === 'lv1_super';
   if (!_isSuper) {
     return (
-      <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
+      <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
           このページは運営専用です。
         </div>
@@ -136,7 +157,7 @@ export default function OrdersPage() {
 
   if (loading) {
     return (
-      <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
+      <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -145,7 +166,7 @@ export default function OrdersPage() {
   }
 
   return (
-    <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
+    <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <KpiCell label="表示中" value={totals.count.toString()} />
         <KpiCell label="支払済" value={totals.paidCount.toString()} accent="ok" />
@@ -184,7 +205,16 @@ export default function OrdersPage() {
               <SelectItem value="cash">現金</SelectItem>
             </SelectContent>
           </Select>
-          <div className="ml-auto text-xs text-muted-foreground">
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hidePlaceholders}
+              onChange={(e) => setHidePlaceholders(e.target.checked)}
+              className="h-3.5 w-3.5 accent-primary"
+            />
+            QR表示のみの未決済を隠す
+          </label>
+          <div className="text-xs text-muted-foreground">
             {filtered.length} / {orders.length} 件
           </div>
         </CardContent>
@@ -195,7 +225,7 @@ export default function OrdersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>注文ID</TableHead>
-              <TableHead>店舗 / 端末</TableHead>
+              <TableHead>店舗 / グループ / 端末</TableHead>
               <TableHead className="text-right">金額</TableHead>
               <TableHead>決済</TableHead>
               <TableHead>状態</TableHead>
@@ -209,23 +239,22 @@ export default function OrdersPage() {
                 <TableCell className="font-mono text-[11px]">{o.id}</TableCell>
                 <TableCell>
                   <div className="text-xs">{o.store_name}</div>
+                  {o.group_names && o.group_names.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground">
+                      {o.group_names.join(' / ')}
+                    </div>
+                  )}
                   <div className="text-[10.5px] text-muted-foreground">{o.device_name}</div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {fmtYen(o.amount_yen)}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {o.payment_provider === 'paypay' ? (
-                    <div>
-                      <div>PayPay</div>
-                      {o.paypay_payment_id && (
-                        <div className="font-mono text-[10px] text-muted-foreground">
-                          {o.paypay_payment_id}
-                        </div>
-                      )}
+                  <div>{providerLabel(o.payment_provider)}</div>
+                  {o.paypay_payment_id && (
+                    <div className="font-mono text-[10px] text-muted-foreground">
+                      {o.paypay_payment_id}
                     </div>
-                  ) : (
-                    'QR決済'
                   )}
                 </TableCell>
                 <TableCell><OrderStatusBadge status={o.status} /></TableCell>

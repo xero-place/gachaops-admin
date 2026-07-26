@@ -66,7 +66,7 @@ export function TaskStatusBadge({ status }: { status: TaskStatus }) {
 }
 
 const ORDER_LABELS: Record<OrderStatus, string> = {
-  pending: '処理中',
+  pending: '未決済',
   paid: '支払済',
   failed: '失敗',
   cancelled: 'キャンセル',
