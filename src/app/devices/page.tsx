@@ -88,7 +88,7 @@ export default function DevicesPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
+  const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +98,7 @@ export default function DevicesPage() {
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
-          api.get<{ device_id: string; remaining_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
+          api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
@@ -108,8 +108,8 @@ export default function DevicesPage() {
         setStores(sArr);
         setPlanSchedules(pArr);
         const mArr = Array.isArray(machR) ? machR : [];
-        const mMap: Record<string, { remaining_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
-        for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
+        const mMap: Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
+        for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
         setStockMap(mMap);
       } catch (e) {
         if (cancelled) return;
@@ -430,14 +430,14 @@ export default function DevicesPage() {
                   {(() => {
                     const st = stockMap[d.id];
                     if (!st) return <span className="text-muted-foreground">—</span>;
-                    const pct = st.low_stock_threshold > 0
-                      ? Math.min(100, Math.round((st.remaining_balls / Math.max(st.low_stock_threshold * 2, st.remaining_balls)) * 100))
-                      : 100;
+                    // ★stock-total: 分母を「設定した総数(total_balls)」にする(旧: アラートしきい値)
+                    const _denom = st.total_balls > 0 ? st.total_balls : Math.max(st.remaining_balls, 1);
+                    const pct = Math.min(100, Math.round((st.remaining_balls / _denom) * 100));
                     return (
                       <div className="flex flex-col gap-0.5 min-w-[64px]">
                         <div className="flex items-center gap-1.5">
                           <span className={st.is_low ? 'text-destructive font-semibold' : ''}>{st.remaining_balls}</span>
-                          <span className="text-muted-foreground">/ {st.low_stock_threshold}</span>
+                          <span className="text-muted-foreground">/ {st.total_balls}</span>
                           {st.is_low && (
                             <span className="px-1 py-0.5 rounded text-[9px] bg-destructive/10 text-destructive font-medium">補充</span>
                           )}

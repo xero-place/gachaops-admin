@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
+import { tokenStore } from '@/lib/token-store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,20 @@ export default function OrdersPage() {
     setRefundTarget(null);
     setRefundReason('');
   };
+
+  // ★orders-lock: 注文ページ(返金含む)は運営(lv1_super)のみ操作可。顧客がURL直打ちで
+  //   到達しても操作させない。サイドバー非表示に加えたクライアント側ガード(+backendでも
+  //   返金API実装時に lv1_super ゲートを付けること)。
+  const _isSuper = tokenStore.getUser()?.role === 'lv1_super';
+  if (!_isSuper) {
+    return (
+      <AppShell title="注文" breadcrumb={['ホーム', '注文']}>
+        <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+          このページは運営専用です。
+        </div>
+      </AppShell>
+    );
+  }
 
   if (loading) {
     return (

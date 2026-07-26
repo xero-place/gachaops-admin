@@ -163,6 +163,7 @@ export default function SalesEventsPage() {
   const [summary, setSummary] = useState<SummaryResp>({ today: EMPTY_BUCKET, cumulative: EMPTY_BUCKET });
   const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
   const [summaryOpen, setSummaryOpen] = useState(true);  // S224: サマリー折りたたみ
+  const [byDeviceOpen, setByDeviceOpen] = useState(true);  // S225: 端末別内訳の折りたたみ
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -570,7 +571,16 @@ export default function SalesEventsPage() {
               <Coins className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium">端末別 売上内訳</span>
               <span className="text-[11px] text-muted-foreground">累計売上（現金＋キャッシュレス）の多い順。残クレジット＝機械内に残った端数（次の投入まで抽選にならない分）。</span>
+              <button
+                type="button"
+                onClick={() => setByDeviceOpen((o) => !o)}
+                aria-label={byDeviceOpen ? 'テーブルを閉じる' : 'テーブルを開く'}
+                className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1 hover:bg-accent"
+              >
+                {byDeviceOpen ? <><ChevronUp className="h-4 w-4" />閉じる</> : <><ChevronDown className="h-4 w-4" />開く</>}
+              </button>
             </div>
+            {byDeviceOpen && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -605,6 +615,7 @@ export default function SalesEventsPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </CardContent>
         </Card>
       )}
