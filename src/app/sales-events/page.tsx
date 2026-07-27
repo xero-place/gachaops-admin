@@ -304,6 +304,7 @@ export default function SalesEventsPage() {
     return events.filter((e) =>
       e.device_name.toLowerCase().includes(s) ||
       e.customer_name.toLowerCase().includes(s) ||
+      (e.group_names ?? []).some((g) => g.toLowerCase().includes(s)) ||
       (e.payment_id ?? '').toLowerCase().includes(s)
     );
   }, [events, search]);
@@ -638,7 +639,7 @@ export default function SalesEventsPage() {
             <TableRow>
               <TableHead>決済種別</TableHead>
               <TableHead>決済ID</TableHead>
-              <TableHead>顧客</TableHead>
+              <TableHead>顧客 / グループ</TableHead>
               <TableHead>端末</TableHead>
               <TableHead className="text-right">金額 / 枚数</TableHead>
               <TableHead>状態</TableHead>
@@ -652,7 +653,14 @@ export default function SalesEventsPage() {
                 <TableCell className="font-mono text-[11px] text-muted-foreground">
                   {e.payment_id ? e.payment_id : '-'}
                 </TableCell>
-                <TableCell className="text-xs">{e.customer_name}</TableCell>
+                <TableCell className="text-xs">
+                  {e.customer_name}
+                  {e.group_names && e.group_names.length > 0 && (
+                    <span className="block text-[10px] text-muted-foreground">
+                      {e.group_names.join(' / ')}
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-xs">{e.device_name}</TableCell>
                 <TableCell className="text-right tabular-nums text-sm font-medium">
                   {e.kind === 'token'

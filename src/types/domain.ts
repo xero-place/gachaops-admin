@@ -534,4 +534,5 @@ export interface SalesEvent {
   token_count: number | null;
   occurred_at: string;
   is_undispensed?: boolean;   // ★P1: 未排出(課金済み・排出なし)。QR(キャッシュレス)のみ
+  group_names?: string[];     // storegroup: 端末が所属するグループ名(複数可)
 }
