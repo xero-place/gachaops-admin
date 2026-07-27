@@ -66,12 +66,21 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [providerFilter, setProviderFilter] = useState<string>('all');
+  // ★qr-placeholder: QR表示だけの空注文(未決済/選択待ち)を既定で隠す
+  const [hidePlaceholders, setHidePlaceholders] = useState(true);
 
+  // ★orderswindow: 取得をサーバ側フィルタ駆動にする。空注文を除外すると取得ウィンドウ(limit)が
+  //   実注文だけで埋まり、古い「支払済」が枠外に押し出されて消える問題を根絶する。
+  //   状態/空注文チェックを変えたら取り直す。limit も 200→500 に引き上げ。
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
-        const res = await api.get<{items?: Order[]} | Order[]>('/orders?limit=200');
+        const qs = new URLSearchParams({ limit: '500' });
+        if (statusFilter !== 'all') qs.set('status', statusFilter);
+        if (hidePlaceholders) qs.set('include_placeholders', 'false');
+        const res = await api.get<{items?: Order[]} | Order[]>(`/orders?${qs.toString()}`);
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res.items ?? []);
         setOrders(arr);
@@ -82,13 +91,11 @@ export default function OrdersPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [statusFilter, hidePlaceholders]);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
-  // ★qr-placeholder: QR表示だけの空注文(未決済/選択待ち)を既定で隠す
-  const [hidePlaceholders, setHidePlaceholders] = useState(true);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
