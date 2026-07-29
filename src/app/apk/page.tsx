@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { api, ApiError } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 import { Loader2 } from 'lucide-react';
 import { fmtBytes, fmtDate, fmtRelative } from '@/lib/format';
 import {
@@ -40,6 +41,10 @@ const CHANNEL_VARIANT: Record<string, 'ok' | 'warn' | 'muted'> = {
 };
 
 export default function ApkPage() {
+  // S225: OTA配信は運営(lv1_super)専用。顧客アカウントは直リンクでも閲覧不可。
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => { setRole(tokenStore.getUser()?.role ?? null); }, []);
+  const isSuper = role === 'lv1_super';
   const [apkReleases, setApkReleases] = useState<ApkRelease[]>([]);
   const [loading, setLoading] = useState(true);
   const [distributeTarget, setDistributeTarget] = useState<ApkRelease | null>(null);
@@ -170,6 +175,16 @@ export default function ApkPage() {
       <AppShell title="APK 配布" breadcrumb={['ホーム', 'APK']}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (role !== null && !isSuper) {
+    return (
+      <AppShell title="APK リリース" breadcrumb={['ホーム', 'APK']}>
+        <div className="py-20 text-center text-sm text-muted-foreground">
+          このページは運営（lv1_super）専用です。端末のアップデート配信は運営側で行います。
         </div>
       </AppShell>
     );

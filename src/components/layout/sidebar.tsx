@@ -71,7 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: '顧客', icon: Briefcase, superOnly: true },
       { href: '/stores', label: '店舗', icon: Building2 },
-      { href: '/apk', label: 'アップデート', icon: Smartphone },
+      { href: '/apk', label: 'アップデート', icon: Smartphone, superOnly: true },  // S225: OTA配信は運営(lv1_super)のみ。顧客アカウントには非表示。
     ],
   },
   {
