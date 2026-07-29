@@ -264,6 +264,9 @@ export default function ApkPage() {
                                     <span className="font-mono text-[9px] text-amber-500/80 shrink-0">{t.customer_id}</span>
                                   )}
                                   <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${st.cls}`}>{st.label}</span>
+                                  {t.status === 'failed' && t.error_message && (
+                                    <span className="shrink-0 font-mono text-[9px] text-red-400/90 truncate max-w-[160px]" title={t.error_message}>{t.error_message}</span>
+                                  )}
                                 </div>
                               );
                             })}

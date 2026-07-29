@@ -352,6 +352,7 @@ export interface ApkDeliveryTarget {
   customer_id?: string | null;
   status: string;
   distributed_at?: string | null;
+  error_message?: string | null;
 }
 
 // ===== Audit logs =====
