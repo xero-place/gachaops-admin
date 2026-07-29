@@ -260,9 +260,7 @@ export default function ApkPage() {
                               return (
                                 <div key={t.device_id} className="flex items-center gap-1.5 px-2 py-1.5">
                                   <span className="font-medium truncate">{t.device_name ?? t.device_id}</span>
-                                  {t.customer_id && (
-                                    <span className="font-mono text-[9px] text-amber-500/80 shrink-0">{t.customer_id}</span>
-                                  )}
+                                  {/* S230: customer_id(cust_demo等)は不要なので非表示 */}
                                   <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${st.cls}`}>{st.label}</span>
                                   {t.status === 'failed' && t.error_message && (
                                     <span className="shrink-0 font-mono text-[9px] text-red-400/90 truncate max-w-[160px]" title={t.error_message}>{t.error_message}</span>
