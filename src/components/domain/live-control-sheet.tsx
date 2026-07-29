@@ -253,12 +253,10 @@ export function LiveControlSheet({
             </div>
 
             <Tabs value={mode} onValueChange={(v) => setMode(v as 'immediate' | 'expiring')}>
-              <TabsList className="grid grid-cols-2 w-full">
+              {/* ★S228: 期限指定は非表示（時限切替は「配信計画」メニューで行う運用）。即時切替のみ。 */}
+              <TabsList className="grid grid-cols-1 w-full">
                 <TabsTrigger value="immediate" className="gap-1.5">
                   <Zap className="h-3.5 w-3.5" />即時切替
-                </TabsTrigger>
-                <TabsTrigger value="expiring" className="gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />期限指定
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="immediate" className="mt-3">
