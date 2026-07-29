@@ -12,13 +12,17 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
 import { tokenStore } from '@/lib/token-store';
-import { Loader2, Search, Coins, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Loader2, Search, Coins, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, Trash2 } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import type { SalesEvent } from '@/types/domain';
 
 interface CustomerLite { id: string; name: string }
-interface DeviceLite { id: string; name: string }
+interface DeviceLite { id: string; name: string; customer_id?: string }
 interface StoreLite { id: string; name: string }
 interface GroupLite { id: string; name: string }
 
@@ -174,6 +178,37 @@ export default function SalesEventsPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
   const isSuper = tokenStore.getUser()?.role === 'lv1_super';  // 顧客ロールでは顧客プルダウン非表示
+
+  // ── 売上リセット（運営 lv1_super 専用・破壊的）──
+  type ResetResult = { deleted_draws: number; deleted_orders: number; deleted_coin_events: number; machines_reset: number };
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetCustomer, setResetCustomer] = useState('');
+  const [resetDevice, setResetDevice] = useState('all');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<ResetResult | null>(null);
+
+  const resetCustomerName = customers.find((c) => c.id === resetCustomer)?.name ?? '';
+  const resetConfirmOk = !!resetCustomer && (resetConfirm === resetCustomerName || resetConfirm === 'RESET');
+
+  const doReset = async () => {
+    if (!resetConfirmOk) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const res = await api.post<ResetResult>('/sales/reset', {
+        customer_id: resetCustomer,
+        device_id: resetDevice === 'all' ? null : resetDevice,
+        confirm: resetConfirm,
+      });
+      setResetResult(res);
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResetting(false);
+    }
+  };
 
   // フィルタ → クエリ文字列（summary と list で共通）
   const buildParams = useCallback((includePaging: boolean): string => {
@@ -570,6 +605,23 @@ export default function SalesEventsPage() {
               >クリア</button>
             )}
           </div>
+          {isSuper && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setResetCustomer(customerFilter !== 'all' ? customerFilter : '');
+                setResetDevice('all');
+                setResetConfirm('');
+                setResetError(null);
+                setResetResult(null);
+                setResetOpen(true);
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> 売上リセット
+            </Button>
+          )}
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             {refreshing && <Loader2 className="h-3 w-3 animate-spin" />}
             全 {total.toLocaleString()} 件
@@ -713,6 +765,74 @@ export default function SalesEventsPage() {
           </div>
         </div>
       </Card>
+
+      {isSuper && (
+        <Dialog open={resetOpen} onOpenChange={(o) => { if (!resetting) setResetOpen(o); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-destructive">売上リセット（運営専用）</DialogTitle>
+              <DialogDescription>
+                選択した対象の売上データ（抽選履歴・注文・投入コイン）を完全に削除し、マシンの回転数・クレジット残を0にします。在庫（残ボール数）は戻しません。この操作は元に戻せません。
+              </DialogDescription>
+            </DialogHeader>
+            {resetResult ? (
+              <div className="space-y-2 py-2 text-sm">
+                <p className="text-ok font-medium">リセットが完了しました。</p>
+                <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">削除した抽選</span><span>{resetResult.deleted_draws.toLocaleString()} 件</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">削除した注文</span><span>{resetResult.deleted_orders.toLocaleString()} 件</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">削除した投入コイン</span><span>{resetResult.deleted_coin_events.toLocaleString()} 件</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">初期化したマシン</span><span>{resetResult.machines_reset.toLocaleString()} 台</span></div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium">顧客<span className="text-destructive"> *</span></label>
+                  <Select value={resetCustomer} onValueChange={(v) => { setResetCustomer(v); setResetDevice('all'); setResetConfirm(''); }}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="顧客を選択" /></SelectTrigger>
+                    <SelectContent>
+                      {customers.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium">マシン（任意・未選択で顧客全体）</label>
+                  <Select value={resetDevice} onValueChange={setResetDevice} disabled={!resetCustomer}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="顧客全体（全マシン）" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">顧客全体（全マシン）</SelectItem>
+                      {devices.filter((d) => !d.customer_id || d.customer_id === resetCustomer).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium">
+                    確認のため <span className="font-mono text-destructive">{resetCustomer ? resetCustomerName : 'RESET'}</span> と入力
+                  </label>
+                  <Input value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder="確認テキスト" className="h-9" />
+                </div>
+                {resetError && <p className="text-xs text-destructive">{resetError}</p>}
+              </div>
+            )}
+            <DialogFooter>
+              {resetResult ? (
+                <Button onClick={() => { setResetOpen(false); window.location.reload(); }}>閉じる</Button>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setResetOpen(false)} disabled={resetting}>キャンセル</Button>
+                  <Button variant="destructive" disabled={resetting || !resetConfirmOk} onClick={doReset}>
+                    {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                    リセット実行
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppShell>
   );
 }

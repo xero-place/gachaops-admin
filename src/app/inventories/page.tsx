@@ -24,7 +24,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Boxes, Package, AlertTriangle } from 'lucide-react';
+import { Search, Boxes, Package, AlertTriangle, ChevronRight, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
@@ -32,7 +32,7 @@ type Store = {
   id: string;
   name: string;
 };
-import { fmtRelative } from '@/lib/format';
+import { fmtRelative, fmtDate, fmtYen } from '@/lib/format';
 import {
   Select,
   SelectContent,
@@ -51,6 +51,60 @@ export default function InventoriesPage() {
   const [lowOnly, setLowOnly] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState<Inventory | null>(null);
   const [replenishCount, setReplenishCount] = useState<number>(0);
+
+  // 在庫変動履歴（販売＋補充を時系列・折りたたみ）
+  type Movement = {
+    ts: string; device_id: string; device_name: string;
+    kind: string; delta: number; payment_method: string | null;
+    amount: number | null; note: string | null;
+  };
+  const [showHistory, setShowHistory] = useState(false);
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [movLoading, setMovLoading] = useState(false);
+  const [movLoaded, setMovLoaded] = useState(false);
+  const [movSortKey, setMovSortKey] = useState<'ts' | 'payment_method' | 'amount'>('ts');
+  const [movSortDir, setMovSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const loadMovements = async () => {
+    if (movLoaded || movLoading) return;
+    setMovLoading(true);
+    try {
+      const res = await api.get<{ items?: Movement[] } | Movement[]>('/inventories/movements?limit=500');
+      const arr = Array.isArray(res) ? res : (res.items ?? []);
+      setMovements(arr);
+      setMovLoaded(true);
+    } catch (e) {
+      console.error('[inventories] movements fetch failed:', e);
+    } finally {
+      setMovLoading(false);
+    }
+  };
+
+  const toggleHistory = () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next) loadMovements();
+  };
+
+  const setSort = (key: 'ts' | 'payment_method' | 'amount') => {
+    if (movSortKey === key) setMovSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setMovSortKey(key); setMovSortDir('desc'); }
+  };
+
+  const sortedMovements = useMemo(() => {
+    const arr = [...movements];
+    const dir = movSortDir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      let av: number | string; let bv: number | string;
+      if (movSortKey === 'amount') { av = a.amount ?? -1; bv = b.amount ?? -1; }
+      else if (movSortKey === 'payment_method') { av = a.payment_method ?? ''; bv = b.payment_method ?? ''; }
+      else { av = a.ts; bv = b.ts; }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+    return arr;
+  }, [movements, movSortKey, movSortDir]);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +266,76 @@ export default function InventoriesPage() {
         </Table>
       </Card>
 
+      {/* 在庫変動履歴（折りたたみ・日付/決済手段/金額でソート可） */}
+      <Card className="mt-4">
+        <button
+          onClick={toggleHistory}
+          className="w-full flex items-center gap-2 p-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+        >
+          {showHistory ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          在庫変動履歴（販売・補充）
+          <span className="text-xs text-muted-foreground font-normal">
+            {movLoaded ? `${movements.length} 件` : 'クリックで表示'}
+          </span>
+        </button>
+        {showHistory && (
+          <div className="border-t">
+            {movLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortHead label="日時" active={movSortKey === 'ts'} dir={movSortDir} onClick={() => setSort('ts')} />
+                    <TableHead>端末</TableHead>
+                    <TableHead>種別</TableHead>
+                    <TableHead className="text-right">変動</TableHead>
+                    <SortHead label="決済手段" active={movSortKey === 'payment_method'} dir={movSortDir} onClick={() => setSort('payment_method')} />
+                    <SortHead label="金額" active={movSortKey === 'amount'} dir={movSortDir} onClick={() => setSort('amount')} className="text-right" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedMovements.slice(0, 500).map((m, idx) => (
+                    <TableRow key={`${m.device_id}-${m.ts}-${idx}`}>
+                      <TableCell className="text-xs whitespace-nowrap">{fmtDate(m.ts)}</TableCell>
+                      <TableCell className="text-sm">{m.device_name}</TableCell>
+                      <TableCell>
+                        {m.kind === 'sale'
+                          ? <Badge variant="ok">販売</Badge>
+                          : m.kind === 'replenish'
+                          ? <Badge variant="muted">補充</Badge>
+                          : <Badge variant="warn">調整</Badge>}
+                      </TableCell>
+                      <TableCell className={`text-right text-xs tabular-nums font-medium ${m.delta < 0 ? 'text-destructive' : 'text-ok'}`}>
+                        {m.delta > 0 ? `+${m.delta}` : m.delta}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {m.payment_method === 'cash' ? '現金'
+                          : m.payment_method === 'qr' ? 'QR決済'
+                          : m.payment_method === 'token' ? 'トークン'
+                          : m.payment_method ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">
+                        {m.amount != null ? fmtYen(m.amount) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {movLoaded && sortedMovements.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-10">
+                        変動履歴がありません
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        )}
+      </Card>
+
       <Dialog open={replenishTarget !== null} onOpenChange={(o) => !o && setReplenishTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -256,6 +380,18 @@ export default function InventoriesPage() {
         </DialogContent>
       </Dialog>
     </AppShell>
+  );
+}
+
+function SortHead({ label, active, dir, onClick, className }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void; className?: string }) {
+  return (
+    <TableHead className={className}>
+      <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}
+        <ArrowUpDown className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
+        {active && <span className="text-[10px]">{dir === 'asc' ? '▲' : '▼'}</span>}
+      </button>
+    </TableHead>
   );
 }
 
