@@ -239,7 +239,8 @@ export default function ApkPage() {
                     const done = targets.filter((t) => t.status === 'completed').length;
                     const stMap: Record<string, { label: string; cls: string }> = {
                       completed: { label: '完了', cls: 'bg-emerald-500/15 text-emerald-500' },
-                      pending: { label: '待機', cls: 'bg-amber-500/15 text-amber-500' },
+                      installing: { label: '更新中', cls: 'bg-blue-500/15 text-blue-500' },
+                      pending: { label: '配信中', cls: 'bg-amber-500/15 text-amber-500' },
                       failed: { label: '失敗', cls: 'bg-red-500/15 text-red-500' },
                     };
                     return (
