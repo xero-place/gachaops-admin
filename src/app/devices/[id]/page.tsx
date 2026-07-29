@@ -26,7 +26,7 @@ import {
 import { DeviceStatusBadge, PlayModeBadge, TaskStatusBadge } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
-import { fmtDate, fmtRelative } from '@/lib/format';
+import { fmtDate, fmtRelative, fmtYen } from '@/lib/format';
 import { PowerScheduleEditor } from './PowerScheduleEditor';
 import { api, ApiError } from '@/lib/api';
 import type { GachaMachine, GachaPool, GachaEffectPack } from '@/types/domain';
@@ -47,6 +47,9 @@ import {
   Clock,
   Loader2,
   Sparkles,
+  ChevronDown,
+  ChevronRight,
+  ArrowUpDown,
 } from 'lucide-react';
 
 import type { TaskStatus as _TS } from '@/types/domain';
@@ -469,6 +472,38 @@ export default function DeviceDetailPage() {
   const [stockThreshold, setStockThreshold] = useState('');
   const [stockSaving, setStockSaving] = useState(false);
   const [stockMsg, setStockMsg] = useState<string | null>(null);
+
+  // 在庫変動履歴（この端末・折りたたみ／日付・決済手段・金額でソート可）
+  type StockMove = { ts: string; kind: string; delta: number; payment_method: string | null; amount: number | null; note: string | null };
+  const [stockHistOpen, setStockHistOpen] = useState(false);
+  const [stockHist, setStockHist] = useState<StockMove[]>([]);
+  const [stockHistLoading, setStockHistLoading] = useState(false);
+  const [stockHistLoaded, setStockHistLoaded] = useState(false);
+  const [stockHistSort, setStockHistSort] = useState<'ts' | 'payment_method' | 'amount'>('ts');
+  const [stockHistDir, setStockHistDir] = useState<'asc' | 'desc'>('desc');
+  const loadStockHist = async () => {
+    if (stockHistLoaded || stockHistLoading) return;
+    setStockHistLoading(true);
+    try {
+      const res = await api.get<StockMove[]>(`/inventories/movements?device_id=${params.id}&limit=500`);
+      setStockHist(Array.isArray(res) ? res : []);
+      setStockHistLoaded(true);
+    } catch (e) { console.error('[stock-history] fetch failed', e); }
+    finally { setStockHistLoading(false); }
+  };
+  const toggleStockHist = () => { const n = !stockHistOpen; setStockHistOpen(n); if (n) loadStockHist(); };
+  const sortStockHist = (k: 'ts' | 'payment_method' | 'amount') => {
+    if (stockHistSort === k) setStockHistDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setStockHistSort(k); setStockHistDir('desc'); }
+  };
+  const sortedStockHist = [...stockHist].sort((a, b) => {
+    const dir = stockHistDir === 'asc' ? 1 : -1;
+    let av: number | string; let bv: number | string;
+    if (stockHistSort === 'amount') { av = a.amount ?? -1; bv = b.amount ?? -1; }
+    else if (stockHistSort === 'payment_method') { av = a.payment_method ?? ''; bv = b.payment_method ?? ''; }
+    else { av = a.ts; bv = b.ts; }
+    return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+  });
   // ── S124 フェーズ2: 演出・価格（専用プール設定）──
   const [effectPacks, setEffectPacks] = useState<GachaEffectPack[]>([]);
   const [curPool, setCurPool] = useState<GachaPool | null>(null);
@@ -543,6 +578,11 @@ export default function DeviceDetailPage() {
       const t = parseInt(stockTotal, 10);
       const r = override?.remaining ?? parseInt(stockRemaining, 10);
       const th = parseInt(stockThreshold, 10);
+      if ((!Number.isNaN(t) && t > 100) || (!Number.isNaN(r) && r > 100)) {
+        setStockMsg('在庫数は100個までしか設定できません。');
+        setStockSaving(false);
+        return;
+      }
       if (!Number.isNaN(t)) body.total_balls = t;
       if (!Number.isNaN(r)) body.remaining_balls = r;
       if (!Number.isNaN(th)) body.low_stock_threshold = th;
@@ -1314,13 +1354,13 @@ export default function DeviceDetailPage() {
                         <div className="grid gap-3 sm:grid-cols-3">
                           <div className="space-y-1">
                             <label htmlFor="st-total" className="text-xs text-muted-foreground">満タン時の個数</label>
-                            <input id="st-total" type="number" inputMode="numeric"
+                            <input id="st-total" type="number" inputMode="numeric" min={0} max={100}
                               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                               value={stockTotal} onChange={(e) => setStockTotal(e.target.value)} />
                           </div>
                           <div className="space-y-1">
                             <label htmlFor="st-remain" className="text-xs text-muted-foreground">現在の個数</label>
-                            <input id="st-remain" type="number" inputMode="numeric"
+                            <input id="st-remain" type="number" inputMode="numeric" min={0} max={100}
                               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                               value={stockRemaining} onChange={(e) => setStockRemaining(e.target.value)} />
                           </div>
@@ -1353,6 +1393,58 @@ export default function DeviceDetailPage() {
                           <p className="text-xs text-muted-foreground">
                             最終補充: {fmtDate(machine.last_refilled_at)}
                           </p>
+                        )}
+                      </div>
+
+                      {/* 在庫変動履歴（この端末・折りたたみ） */}
+                      <div className="border-t pt-4">
+                        <button
+                          onClick={toggleStockHist}
+                          className="flex items-center gap-2 text-sm font-medium hover:opacity-80"
+                        >
+                          {stockHistOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          在庫変動履歴（販売・補充）
+                          <span className="text-xs text-muted-foreground font-normal">
+                            {stockHistLoaded ? `${stockHist.length} 件` : 'クリックで表示'}
+                          </span>
+                        </button>
+                        {stockHistOpen && (
+                          <div className="mt-3 overflow-x-auto">
+                            {stockHistLoading ? (
+                              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                            ) : sortedStockHist.length === 0 ? (
+                              <p className="text-xs text-muted-foreground py-4">変動履歴がありません</p>
+                            ) : (
+                              <table className="w-full text-xs">
+                                <thead className="text-muted-foreground border-b">
+                                  <tr>
+                                    <th className="text-left py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('ts')}>
+                                      日時 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'ts' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
+                                    <th className="text-left py-1.5">種別</th>
+                                    <th className="text-right py-1.5">変動</th>
+                                    <th className="text-left py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('payment_method')}>
+                                      決済手段 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'payment_method' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
+                                    <th className="text-right py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('amount')}>
+                                      金額 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'amount' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sortedStockHist.slice(0, 500).map((m, i) => (
+                                    <tr key={`${m.ts}-${i}`} className="border-b border-muted/40">
+                                      <td className="py-1.5 whitespace-nowrap">{fmtDate(m.ts)}</td>
+                                      <td className="py-1.5">{m.kind === 'sale' ? '販売' : m.kind === 'replenish' ? '補充' : '調整'}</td>
+                                      <td className={`py-1.5 text-right tabular-nums ${m.delta < 0 ? 'text-destructive' : 'text-emerald-600'}`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</td>
+                                      <td className="py-1.5">{m.payment_method === 'cash' ? '現金' : m.payment_method === 'qr' ? 'QR決済' : m.payment_method === 'token' ? 'トークン' : (m.payment_method ?? '—')}</td>
+                                      <td className="py-1.5 text-right tabular-nums">{m.amount != null ? fmtYen(m.amount) : '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
                         )}
                       </div>
                     </>
