@@ -46,7 +46,6 @@ import {
   Undo2,
   Clock,
   Loader2,
-  Sparkles,
   ChevronDown,
   ChevronRight,
   ArrowUpDown,

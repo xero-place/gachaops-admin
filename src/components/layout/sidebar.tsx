@@ -21,7 +21,6 @@ import {
   Briefcase,
   Settings,
   Zap,
-  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { tokenStore } from '@/lib/token-store';
