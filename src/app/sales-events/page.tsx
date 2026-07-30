@@ -163,7 +163,7 @@ export default function SalesEventsPage() {
   const [summary, setSummary] = useState<SummaryResp>({ today: EMPTY_BUCKET, cumulative: EMPTY_BUCKET });
   const [byDevice, setByDevice] = useState<DeviceCashRow[]>([]);  // S213: 端末別現金内訳
   const [summaryOpen, setSummaryOpen] = useState(true);  // S224: サマリー折りたたみ
-  const [byDeviceOpen, setByDeviceOpen] = useState(true);  // S225: 端末別内訳の折りたたみ
+  const [byDeviceOpen, setByDeviceOpen] = useState(false);  // S225/S229: 端末別内訳は既定で折りたたみ
   const [undispensed, setUndispensed] = useState<{ count: number; yen: number }>({ count: 0, yen: 0 });  // ★P1: 未排出アラート
 
   const [loading, setLoading] = useState(true);
@@ -344,6 +344,17 @@ export default function SalesEventsPage() {
     );
   }, [events, search]);
 
+  // S229: 検索ボックスは端末別 売上内訳も同じ語で絞り込む（端末名 / 端末ID / 顧客名）。
+  const visibleByDevice = useMemo(() => {
+    if (!search) return byDevice;
+    const s = search.toLowerCase();
+    return byDevice.filter((r) =>
+      (r.device_name ?? '').toLowerCase().includes(s) ||
+      (r.device_id ?? '').toLowerCase().includes(s) ||
+      (r.customer_name ?? '').toLowerCase().includes(s)
+    );
+  }, [byDevice, search]);
+
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
@@ -515,14 +526,18 @@ export default function SalesEventsPage() {
           {/* 累計 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             <SalesCard
-              label="総売上" badge="累計" badgeClass={badgeCumulative}
+              label="期間売上"
+              badge={(dateFrom || dateTo) ? `${dateFrom || '最初'} 〜 ${dateTo || '今'}` : '全期間'}
+              badgeClass={badgeCumulative}
               totalYen={summary.cumulative.total_yen}
               cashYen={summary.cumulative.cash_yen}
               qrYen={summary.cumulative.qr_yen}
               accentClass="text-sky-400"
             />
             <MedalCard
-              label="メダル投入総数" badge="累計" badgeClass={badgeCumulative}
+              label="メダル投入総数"
+              badge={(dateFrom || dateTo) ? `${dateFrom || '最初'} 〜 ${dateTo || '今'}` : '全期間'}
+              badgeClass={badgeCumulative}
               count={summary.cumulative.medal_count}
             />
           </div>
@@ -635,6 +650,9 @@ export default function SalesEventsPage() {
             <div className="flex items-center gap-2 mb-2">
               <Coins className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium">端末別 売上内訳</span>
+              {search && (
+                <span className="text-[11px] text-sky-500">「{search}」で絞り込み中（{visibleByDevice.length}件）</span>
+              )}
               <span className="text-[11px] text-muted-foreground">累計売上（現金＋キャッシュレス）の多い順。残クレジット＝機械内に残った端数（次の投入まで抽選にならない分）。</span>
               <button
                 type="button"
@@ -659,7 +677,10 @@ export default function SalesEventsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {byDevice.map((r) => (
+                  {visibleByDevice.length === 0 && (
+                    <tr><td colSpan={6} className="py-3 text-center text-muted-foreground">「{search}」に一致する端末はありません</td></tr>
+                  )}
+                  {visibleByDevice.map((r) => (
                     <tr key={r.device_id} className="border-b last:border-0">
                       <td className="py-1.5 pr-3">{r.device_name || r.device_id}</td>
                       <td className="text-right tabular-nums py-1.5 px-3">
