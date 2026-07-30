@@ -375,15 +375,9 @@ function EditGroupDialog({
         } catch { /* 一時的な失敗は無視して継続 */ }
         if (!latest) continue;
         if (latest.status === 'ready') {
-          // ready到達 → 自動割当まで自動実行
-          try {
-            const assigned = await api.post<VideoWall>(`/videowalls/${wallId}/auto-assign`, {});
-            setVw(assigned);
-            setVwErr('分割と自動割当が完了しました。「実機に反映」を押してください。');
-          } catch {
-            setVw(latest);
-            setVwErr('分割は完了しましたが自動割当に失敗しました。手動で割り当ててください。');
-          }
+          // ★S227: 自動割当は行わない。既存の割り当て(R0C0=140 等)を保持したまま完了。
+          setVw(latest);
+          setVwErr('分割が完了しました。割り当てを確認し、「実機に反映」を押してください。');
           break;
         }
         if (latest.status === 'failed') {
@@ -399,11 +393,7 @@ function EditGroupDialog({
       setVwBusy(false); setVwSplitSec(0);
     }
   };
-  const vwAutoAssign = async () => {
-    if (!vw) return; setVwBusy(true); setVwErr(null);
-    try { const r = await api.post<VideoWall>(`/videowalls/${vw.id}/auto-assign`, {}); setVw(r); }
-    catch { setVwErr('自動割当に失敗しました'); } finally { setVwBusy(false); }
-  };
+  // ★S227: 自動割当は廃止（手動割り当てを尊重するためボタン・自動実行とも撤去）。
   const vwAssignTile = async (tileId: string, deviceId: string) => {
     if (!vw) return;
     try { const r = await api.patch<VideoWall>(`/videowalls/${vw.id}/tiles/${tileId}`, { device_id: deviceId || null }); setVw(r); }
@@ -600,7 +590,7 @@ function EditGroupDialog({
                   <Button size="sm" variant="outline" onClick={vwSplit} disabled={vwBusy || !vw}>
                     {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />分割中… {vwSplitSec}秒</>) : '分割実行'}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={vwAutoAssign} disabled={vwBusy || !vw}>自動割当</Button>
+                  {/* ★S227: 自動割当ボタンは非表示（手動割り当てのみ） */}
                   <Button size="sm" variant="outline" onClick={() => setVwPreview(true)} disabled={!vw}>
                     <Play className="h-3 w-3 mr-1" />プレビュー
                   </Button>

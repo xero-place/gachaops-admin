@@ -533,7 +533,7 @@ function AddSceneModal({
               <Input id="scene-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="scene-duration">表示時間 (秒)</Label>
+              <Label htmlFor="scene-duration">表示時間 (秒)（最大3600秒＝60分まで設定可能）</Label>
               <Input
                 id="scene-duration"
                 type="number"
@@ -549,8 +549,8 @@ function AddSceneModal({
                 {isVideo
                   ? 'ファイル実長で再生されます (編集不可)'
                   : selectedAsset
-                    ? '画像の表示秒数を指定してください'
-                    : '動画はファイル全体、画像は指定秒数表示します'}
+                    ? '画像の表示秒数を指定してください（1〜3600秒＝最大60分）'
+                    : '動画はファイル全体、画像は指定秒数表示します（画像は最大3600秒＝60分）'}
               </div>
             </div>
           </div>

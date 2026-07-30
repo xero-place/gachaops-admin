@@ -60,6 +60,11 @@ function providerLabel(p: string): string {
   }
 }
 
+// ★refundgate: バックエンドが「自動返金」を実装済みの provider のみ。
+//   これ以外(veritrans=PayPay(DGFT)/paypay/square 等)は押しても必ずエラーになるため、
+//   ボタンを出さず「PSPで手動返金」を案内する(効かないボタンの排除)。backend の許可集合と一致させること。
+const AUTO_REFUNDABLE_PROVIDERS = new Set(['paypal', 'stripe']);
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -272,14 +277,23 @@ export default function OrdersPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   {o.status === 'paid' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 text-xs"
-                      onClick={() => setRefundTarget(o)}
-                    >
-                      <RotateCcw className="h-3 w-3" />返金
-                    </Button>
+                    AUTO_REFUNDABLE_PROVIDERS.has((o.payment_provider || '').toLowerCase()) ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        onClick={() => setRefundTarget(o)}
+                      >
+                        <RotateCcw className="h-3 w-3" />返金
+                      </Button>
+                    ) : (
+                      <span
+                        className="text-[10px] text-muted-foreground"
+                        title="この決済は自動返金に未対応です。PSP（決済代行）の管理画面から手動で返金してください。注文は課金済みのまま保持されます。"
+                      >
+                        PSPで手動返金
+                      </span>
+                    )
                   )}
                 </TableCell>
               </TableRow>
