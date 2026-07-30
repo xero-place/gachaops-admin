@@ -1,22 +1,23 @@
 'use client';
 
 /**
- * DrawOrderMappingEditor — 排出順 1〜100 番の演出マッピング編集 共通部品 (Session 126)
+ * DrawOrderMappingEditor — 排出順 1〜100 番の演出マッピング編集 共通部品
  *
- * draw-effects ページと端末詳細「演出」タブの両方から使う。pool_id を props で受け、
- * 既存の pool 基準 API (draw-order-effects / default-effect) をそのまま叩く。
- * engine.py は触らない。pool 選択・端末選択は呼び出し側の責務（この部品は持たない）。
+ * S226 改修:
+ *   - 「デフォルト演出(L1)」カードと「演出再生」トグルUIを撤去し、
+ *     操作を「一括設定」ダイアログに集約（分かりやすさ優先）。
+ *   - 一括設定は3モード:
+ *       単一   … 選んだ1演出を範囲へ割当。
+ *       ランダム … 選んだ複数演出を範囲の各スロットへランダム割当（設定時にシャッフル。
+ *                  端末側の変更＝APK更新は不要。周期内は固定順の擬似ランダム）。
+ *       OFF    … 端末の effect_enabled=false（当選演出を流さない。番組・売上は継続）。
+ *   - 1つ1つの個別編集・排出順カウンタのリセットは従来どおり。
  *
  * props:
- *   - poolId: 対象プール ID（端末の専用プール）。空文字なら何も表示しない。
- *   - deviceId: 排出順カウンタ(draw_count)のリセット用。省略時はリセットUIを出さない。
- *       ★S197: engine.py:98 の `next_order = machine.draw_count + 1` が排出順を決める。
- *       カウンタが進んでいると 1番目に設定した演出が出ない（実例: 106 が draw_count=52
- *       のため、1..4 にマッピングしても 53番目の演出しか出なかった）。イベント前に
- *       0 に戻せるようにする。在庫(remaining_balls)には触れない。
+ *   - poolId: 対象プールID（端末の専用プール）。空文字なら何も表示しない。
+ *   - deviceId: 排出順カウンタのリセット／演出ON・OFF に使用。省略時は該当UIを出さない。
  *   - packs: 演出パック一覧（親が /gacha/effect-packs で取得して渡す）。
- *   - defaultEffectPackId: L1 デフォルト演出の現在値（pool.default_effect_pack_id）。
- *   - onDefaultEffectChange: L1 を保存したとき新しい pool を親へ通知（任意）。
+ *   - defaultEffectPackId / onDefaultEffectChange: 後方互換のため受け取るが未使用（L1撤去）。
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -57,6 +58,8 @@ import {
   Save,
   CheckCircle2,
   RotateCcw,
+  Shuffle,
+  PowerOff,
 } from 'lucide-react';
 
 const MAX_DRAW_ORDER = 100;
@@ -78,26 +81,48 @@ const TIER_LABEL: Record<number, string> = {
   5: 'レインボー',
 };
 
+type BulkMode = 'single' | 'random' | 'off';
+
 interface Props {
   poolId: string;
   packs: GachaEffectPack[];
+  /** 後方互換のため受け取るが未使用（L1撤去）。 */
   defaultEffectPackId?: string | null;
+  /** 後方互換のため受け取るが未使用（L1撤去）。 */
   onDefaultEffectChange?: (pool: GachaPool) => void;
-  /** ★S197: 排出順カウンタのリセット用。省略時はリセットUIを表示しない。 */
+  /** 排出順カウンタのリセット／演出ON・OFF に使用。省略時は該当UIを出さない。 */
   deviceId?: string;
 }
 
-export function DrawOrderMappingEditor({
-  poolId,
-  packs,
-  defaultEffectPackId,
-  onDefaultEffectChange,
-  deviceId,
-}: Props) {
+export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
   // ★S197: 排出順カウンタ (gacha_machines.draw_count)
   const [drawCount, setDrawCount] = useState<number | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  const [effects, setEffects] = useState<GachaDrawOrderEffect[]>([]);
+  const [, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // 編集ダイアログ
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editDrawOrder, setEditDrawOrder] = useState<number | null>(null);
+  const [editEffectPackId, setEditEffectPackId] = useState<string>('');
+  const [editPrizeName, setEditPrizeName] = useState<string>('');
+  const [editPrizeValue, setEditPrizeValue] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  // 一括設定ダイアログ
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState<BulkMode>('single');
+  const [bulkStart, setBulkStart] = useState<string>('1');
+  const [bulkEnd, setBulkEnd] = useState<string>('100');
+  const [bulkEffectPackId, setBulkEffectPackId] = useState<string>('');
+  const [bulkPackIds, setBulkPackIds] = useState<string[]>([]);
+  const [bulkReplaceAll, setBulkReplaceAll] = useState(true);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const loadDrawCount = useCallback(async () => {
     if (!deviceId) return;
@@ -135,31 +160,6 @@ export function DrawOrderMappingEditor({
       setResetting(false);
     }
   }, [deviceId]);
-  const [effects, setEffects] = useState<GachaDrawOrderEffect[]>([]);
-  const [, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  // 編集ダイアログ
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editDrawOrder, setEditDrawOrder] = useState<number | null>(null);
-  const [editEffectPackId, setEditEffectPackId] = useState<string>('');
-  const [editPrizeName, setEditPrizeName] = useState<string>('');
-  const [editPrizeValue, setEditPrizeValue] = useState<string>('');
-  const [editNotes, setEditNotes] = useState<string>('');
-  const [editSaving, setEditSaving] = useState(false);
-
-  // 一括設定ダイアログ
-  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [bulkStart, setBulkStart] = useState<string>('1');
-  const [bulkEnd, setBulkEnd] = useState<string>('100');
-  const [bulkEffectPackId, setBulkEffectPackId] = useState<string>('');
-  const [bulkReplaceAll, setBulkReplaceAll] = useState(false);
-  const [bulkSaving, setBulkSaving] = useState(false);
-
-  // L1 デフォルト演出
-  const [defaultEffectSaving, setDefaultEffectSaving] = useState(false);
-  const [pendingDefaultEffectId, setPendingDefaultEffectId] = useState<string>('');
 
   // ─── マッピング一覧取得 ───
   const reloadEffects = useCallback(async () => {
@@ -183,16 +183,14 @@ export function DrawOrderMappingEditor({
     void reloadEffects();
   }, [reloadEffects]);
 
-  // props の L1 現在値を pending に反映
-  useEffect(() => {
-    setPendingDefaultEffectId(defaultEffectPackId ?? '');
-  }, [defaultEffectPackId, poolId]);
-
   const effectsByOrder = useMemo(() => {
     const map = new Map<number, GachaDrawOrderEffect>();
     effects.forEach((e) => map.set(e.draw_order, e));
     return map;
   }, [effects]);
+
+  // mp4 演出のみ（html5 はここでは扱わない・既存踏襲）
+  const mp4Packs = useMemo(() => packs.filter((p) => p.effect_type !== 'html5'), [packs]);
 
   const openEditDialog = (drawOrder: number, existing: GachaDrawOrderEffect | undefined) => {
     setEditDrawOrder(drawOrder);
@@ -255,61 +253,116 @@ export function DrawOrderMappingEditor({
     }
   };
 
+  // 端末の演出ON/OFF（撤去した「演出再生」トグルの代替）。best-effort。
+  const setDeviceEffectEnabled = useCallback(
+    async (enabled: boolean): Promise<boolean> => {
+      if (!deviceId) return false;
+      try {
+        await api.patch(`/devices/${deviceId}/effect_enabled`, { effect_enabled: enabled });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [deviceId],
+  );
+
+  const toggleBulkPack = (id: string) => {
+    setBulkPackIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const openBulkDialog = () => {
+    setBulkMode('single');
+    setBulkStart('1');
+    setBulkEnd('100');
+    setBulkEffectPackId('');
+    setBulkPackIds([]);
+    setBulkReplaceAll(true);
+    setError(null);
+    setBulkDialogOpen(true);
+  };
+
   const handleBulkSave = async () => {
     if (!poolId) return;
+    setError(null);
+
+    // ── OFF: 端末の当選演出を止める（マッピングは保持）──
+    if (bulkMode === 'off') {
+      if (!deviceId) {
+        setError('演出OFFは端末詳細の演出タブからのみ設定できます');
+        return;
+      }
+      setBulkSaving(true);
+      try {
+        const ok = await setDeviceEffectEnabled(false);
+        if (!ok) throw new Error('effect_enabled の更新に失敗しました');
+        setSuccessMsg('演出をOFFにしました（当選演出を流しません。番組・売上は継続します）');
+        setBulkDialogOpen(false);
+        setTimeout(() => setSuccessMsg(null), 4000);
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
+        setError(`演出OFF失敗: ${msg}`);
+      } finally {
+        setBulkSaving(false);
+      }
+      return;
+    }
+
+    // ── 単一 / ランダム: 範囲へ割当 ──
     const start = parseInt(bulkStart, 10);
     const end = parseInt(bulkEnd, 10);
     if (isNaN(start) || isNaN(end) || start < 1 || end > MAX_DRAW_ORDER || start > end) {
       setError(`不正な範囲指定: ${start}〜${end} (1〜${MAX_DRAW_ORDER} の昇順で指定してください)`);
       return;
     }
-    if (!bulkEffectPackId) {
-      setError('演出パックを選択してください');
-      return;
+
+    let chosen: string[];
+    if (bulkMode === 'single') {
+      if (!bulkEffectPackId) {
+        setError('演出を選択してください');
+        return;
+      }
+      chosen = [bulkEffectPackId];
+    } else {
+      if (bulkPackIds.length < 1) {
+        setError('ランダムに流す演出を1つ以上選択してください');
+        return;
+      }
+      chosen = bulkPackIds;
     }
+
     setBulkSaving(true);
-    setError(null);
     try {
       const items: GachaDrawOrderEffectBulkItem[] = [];
       for (let i = start; i <= end; i++) {
-        items.push({ draw_order: i, effect_pack_id: bulkEffectPackId });
+        const packId =
+          bulkMode === 'random'
+            ? chosen[Math.floor(Math.random() * chosen.length)]
+            : chosen[0];
+        items.push({ draw_order: i, effect_pack_id: packId });
       }
       const res = await api.put<GachaDrawOrderEffectBulkResult>(
         `/gacha/pools/${poolId}/draw-order-effects/bulk`,
         { items, replace_all: bulkReplaceAll },
       );
+      // 演出が確実に流れるよう ON にする（撤去した「演出再生」トグルの代替）。
+      const turnedOn = await setDeviceEffectEnabled(true);
+      const onNote = deviceId ? (turnedOn ? ' / 演出ON' : ' / ※演出ONの反映は失敗（権限等）') : '';
       setSuccessMsg(
-        `一括設定完了: ${res.inserted} 件追加 / ${res.updated} 件更新 / ${res.deleted} 件削除 (合計 ${res.total_after} 件)`,
+        `${bulkMode === 'random' ? '複数演出をランダム割当' : '演出を一括設定'}: ` +
+          `${res.inserted} 追加 / ${res.updated} 更新 / ${res.deleted} 削除 (合計 ${res.total_after} 件)` +
+          onNote,
       );
       setBulkDialogOpen(false);
       await reloadEffects();
-      setTimeout(() => setSuccessMsg(null), 5000);
+      setTimeout(() => setSuccessMsg(null), 6000);
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
       setError(`一括設定失敗: ${msg}`);
     } finally {
       setBulkSaving(false);
-    }
-  };
-
-  const handleDefaultEffectSave = async () => {
-    if (!poolId) return;
-    setDefaultEffectSaving(true);
-    setError(null);
-    try {
-      const updated = await api.put<GachaPool>(`/gacha/pools/${poolId}/default-effect`, {
-        default_effect_pack_id: pendingDefaultEffectId || null,
-      });
-      onDefaultEffectChange?.(updated);
-      setSuccessMsg(
-        `デフォルト演出を${updated.default_effect_pack_id ? '更新' : '未設定に'}しました`,
-      );
-      setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`デフォルト演出更新失敗: ${msg}`);
-    } finally {
-      setDefaultEffectSaving(false);
     }
   };
 
@@ -332,80 +385,33 @@ export function DrawOrderMappingEditor({
     return { total, tierCount };
   }, [effects, packById]);
 
+  const rangeCount = Math.max(0, (parseInt(bulkEnd, 10) || 0) - (parseInt(bulkStart, 10) || 0) + 1) || 0;
+
   if (!poolId) return null;
 
   return (
     <div className="space-y-6">
-      {/* ─── L1 デフォルト演出設定 ─── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">デフォルト演出 (L1)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
-            マッピングが未設定の排出順に適用される演出です。null (未設定) の場合は内部フォールバック (gep_builtin_normal) が使われます。
-          </p>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 max-w-md">
-              <Select
-                value={pendingDefaultEffectId || '__none__'}
-                onValueChange={(v) => setPendingDefaultEffectId(v === '__none__' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="デフォルト演出を選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">(未設定 = フォールバック)</SelectItem>
-                  {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={handleDefaultEffectSave}
-              disabled={
-                defaultEffectSaving ||
-                pendingDefaultEffectId === (defaultEffectPackId ?? '')
-              }
-            >
-              {defaultEffectSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              <span className="ml-2">保存</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ─── 排出順マッピング Table ─── */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-sm">排出順 → 演出マッピング (1〜{MAX_DRAW_ORDER} 番)</CardTitle>
+              <CardTitle className="text-sm">この端末の演出</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                「一括設定」で演出のまとめ設定（1種類 / 複数ランダム / OFF）ができます。
+                下の表で 1 番ずつ個別に設定することもできます。
+              </p>
               {/* ★S197: 次に出る排出順を明示。ここがズレていると設定通りの演出が出ない。 */}
               {deviceId && drawCount !== null && (
                 <p className="text-xs text-muted-foreground mt-1">
                   現在 {drawCount} 回排出済み → 次は{' '}
-                  <span className="font-medium text-foreground">
-                    {drawCount + 1} 番
-                  </span>{' '}
-                  の演出が出ます
+                  <span className="font-medium text-foreground">{drawCount + 1} 番</span> の演出が出ます
                 </p>
               )}
             </div>
             <div className="flex items-center gap-2">
               {deviceId && drawCount !== null && (
-                <Button
-                  onClick={() => setResetDialogOpen(true)}
-                  variant="outline"
-                  disabled={resetting}
-                >
+                <Button onClick={() => setResetDialogOpen(true)} variant="outline" disabled={resetting}>
                   {resetting ? (
                     <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                   ) : (
@@ -414,8 +420,8 @@ export function DrawOrderMappingEditor({
                   カウンタをリセット
                 </Button>
               )}
-              <Button onClick={() => setBulkDialogOpen(true)} variant="outline">
-                <Plus className="h-4 w-4 mr-1" />
+              <Button onClick={openBulkDialog}>
+                <Shuffle className="h-4 w-4 mr-1" />
                 一括設定
               </Button>
             </div>
@@ -534,7 +540,7 @@ export function DrawOrderMappingEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
+                  {mp4Packs.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
@@ -616,76 +622,160 @@ export function DrawOrderMappingEditor({
         </DialogContent>
       </Dialog>
 
-      {/* ─── 一括設定ダイアログ ─── */}
+      {/* ─── 一括設定ダイアログ（単一 / 複数ランダム / OFF）─── */}
       <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>一括設定</DialogTitle>
+            <DialogTitle>演出の一括設定</DialogTitle>
             <DialogDescription>
-              範囲指定で複数の排出順に同じ演出パックを割り当てます。
+              演出のまとめ設定を行います。個別の1番ずつ設定は表側の「編集」から行えます。
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>開始 (1〜{MAX_DRAW_ORDER})</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={MAX_DRAW_ORDER}
-                  value={bulkStart}
-                  onChange={(e) => setBulkStart(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>終了 (1〜{MAX_DRAW_ORDER})</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={MAX_DRAW_ORDER}
-                  value={bulkEnd}
-                  onChange={(e) => setBulkEnd(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label>適用する演出パック</Label>
-              <Select value={bulkEffectPackId} onValueChange={setBulkEffectPackId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="演出パックを選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={bulkReplaceAll}
-                onChange={(e) => setBulkReplaceAll(e.target.checked)}
-              />
-              <span>
-                <strong>replace_all</strong>: チェックすると、このプールの全マッピングを削除してから再投入
-              </span>
-            </label>
-            <div className="text-xs text-muted-foreground">
-              プレビュー: {bulkStart}〜{bulkEnd} の{' '}
-              {Math.max(0, parseInt(bulkEnd, 10) - parseInt(bulkStart, 10) + 1) || 0} 件に適用
-              {bulkReplaceAll && ' (★ 既存全削除付き)'}
-            </div>
+
+          {/* モード選択 */}
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkMode('single')}
+              className={`rounded-md border p-2 text-xs text-center ${
+                bulkMode === 'single' ? 'border-primary bg-primary/10 font-medium' : 'border-muted'
+              }`}
+            >
+              <Save className="h-4 w-4 mx-auto mb-1" />
+              1種類を割当
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkMode('random')}
+              className={`rounded-md border p-2 text-xs text-center ${
+                bulkMode === 'random' ? 'border-primary bg-primary/10 font-medium' : 'border-muted'
+              }`}
+            >
+              <Shuffle className="h-4 w-4 mx-auto mb-1" />
+              複数からランダム
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkMode('off')}
+              className={`rounded-md border p-2 text-xs text-center ${
+                bulkMode === 'off' ? 'border-primary bg-primary/10 font-medium' : 'border-muted'
+              }`}
+            >
+              <PowerOff className="h-4 w-4 mx-auto mb-1" />
+              演出OFF
+            </button>
           </div>
+
+          {bulkMode === 'off' ? (
+            <div className="space-y-2 text-sm">
+              <p>この端末の当選演出を <strong>OFF</strong> にします（演出を流しません）。</p>
+              <p className="text-muted-foreground">
+                番組の再生・売上の記録は継続します。マッピング設定は保持され、あとで「1種類 / 複数からランダム」で
+                いつでも再開できます。
+              </p>
+              {!deviceId && (
+                <p className="text-red-600">※ この画面では OFF は使えません（端末詳細の演出タブから設定してください）。</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>開始 (1〜{MAX_DRAW_ORDER})</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={MAX_DRAW_ORDER}
+                    value={bulkStart}
+                    onChange={(e) => setBulkStart(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>終了 (1〜{MAX_DRAW_ORDER})</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={MAX_DRAW_ORDER}
+                    value={bulkEnd}
+                    onChange={(e) => setBulkEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {bulkMode === 'single' ? (
+                <div>
+                  <Label>適用する演出</Label>
+                  <Select value={bulkEffectPackId} onValueChange={setBulkEffectPackId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="演出を選択..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mp4Packs.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label>ランダムに流す演出（複数選択）</Label>
+                  <div className="mt-1 border rounded-md max-h-52 overflow-y-auto divide-y">
+                    {mp4Packs.map((p) => (
+                      <label
+                        key={p.id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkPackIds.includes(p.id)}
+                          onChange={() => toggleBulkPack(p.id)}
+                        />
+                        <Badge variant="outline" className={TIER_COLOR[p.tier]}>
+                          {p.name}
+                        </Badge>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    選択中 {bulkPackIds.length} 件 → {bulkStart}〜{bulkEnd} の各番号へランダムに割り当てます。
+                  </p>
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={bulkReplaceAll}
+                  onChange={(e) => setBulkReplaceAll(e.target.checked)}
+                />
+                <span>この範囲以外の既存設定も消して総入れ替えする（全置換）</span>
+              </label>
+              <div className="text-xs text-muted-foreground">
+                プレビュー: {bulkStart}〜{bulkEnd} の {rangeCount} 件に適用
+                {bulkMode === 'random' ? '（ランダム割当）' : ''}
+                {bulkReplaceAll && ' ／ ★範囲外の既存設定も削除'}
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSaving}>
               キャンセル
             </Button>
-            <Button onClick={handleBulkSave} disabled={bulkSaving || !bulkEffectPackId}>
+            <Button
+              onClick={handleBulkSave}
+              disabled={
+                bulkSaving ||
+                (bulkMode === 'single' && !bulkEffectPackId) ||
+                (bulkMode === 'random' && bulkPackIds.length < 1) ||
+                (bulkMode === 'off' && !deviceId)
+              }
+              variant={bulkMode === 'off' ? 'destructive' : 'default'}
+            >
               {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span className="ml-2">適用</span>
+              <span className="ml-2">{bulkMode === 'off' ? 'OFFにする' : '適用'}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

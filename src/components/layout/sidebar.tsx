@@ -46,7 +46,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/', label: 'ダッシュボード', icon: LayoutDashboard },
       { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
       // ガチャ演出(/gacha/draw-effects)は端末詳細の「演出」タブに一本化したため非表示。ページは温存。
-      { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
+      // S226: 演出パック管理は演出タブ(端末詳細)へ集約。ナビからは非表示(運営含む)。ページ・機能は温存。
+      // { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
       // デフォルト演出(/gacha/account-default)はL2フォールバック(cust_demo向け)で運営が日常的に触らないため非表示。ページは温存。
       // 抽選プール(/gacha/pools)は1端末1専用プール化により表から不要。端末詳細(価格/演出タブ)に集約。ページ・engine.pyは温存。
       { href: '/devices', label: '端末', icon: Monitor },

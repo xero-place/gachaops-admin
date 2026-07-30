@@ -295,7 +295,6 @@ export default function DeviceDetailPage() {
   const [savingLocale, setSavingLocale] = useState(false);
   const [savingPulseUnit, setSavingPulseUnit] = useState(false);
   const [pulseUnitInput, setPulseUnitInput] = useState<string>('');
-  const [savingEffect, setSavingEffect] = useState(false);
 
   const handleQrToggle = async (next: boolean) => {
     setSavingQr(true);
@@ -342,18 +341,6 @@ export default function DeviceDetailPage() {
     }
   };
 
-  const handleEffectChange = async (val: string) => {
-    const effect_enabled = val === 'on' ? true : val === 'off' ? false : null;
-    setSavingEffect(true);
-    try {
-      await api.patch(`/devices/${params.id}/effect_enabled`, { effect_enabled });
-      setBaseDetail((prev) => (prev ? { ...prev, effect_enabled } : prev));
-    } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
-    } finally {
-      setSavingEffect(false);
-    }
-  };
 
   const [capturing, setCapturing] = useState(false);
   const [liveShot, setLiveShot] = useState<string | null>(null);
@@ -1247,32 +1234,6 @@ export default function DeviceDetailPage() {
                   <CardTitle className="text-sm">この端末の演出</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-4">
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">演出再生</div>
-                        <div className="text-xs text-muted-foreground">現金投入時の当選演出。OFFでも番組は継続し売上は記録されます</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {savingEffect && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                      <Select
-                        value={detail.effect_enabled === true ? 'on' : detail.effect_enabled === false ? 'off' : 'default'}
-                        onValueChange={handleEffectChange}
-                        disabled={savingEffect}
-                      >
-                        <SelectTrigger className="h-9 w-44 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="on">演出する</SelectItem>
-                          <SelectItem value="off">演出しない</SelectItem>
-                          <SelectItem value="default">グループ既定に従う</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
                       この端末はまだ設定ができません（什器が未登録です）。
