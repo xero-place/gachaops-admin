@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { DeviceStatusBadge, PlayModeBadge, TaskStatusBadge } from '@/components/domain/status-badges';
+import { DeviceStatusBadge, TaskStatusBadge } from '@/components/domain/status-badges';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
 import { fmtDate, fmtRelative, fmtYen } from '@/lib/format';
@@ -43,8 +43,6 @@ import {
   Cpu,
   PlayCircle,
   Zap,
-  Undo2,
-  Clock,
   Loader2,
   ChevronDown,
   ChevronRight,
@@ -117,7 +115,6 @@ export default function DeviceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [fetchFailed, setFetchFailed] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
-  const restorePlan = useLiveStore((s) => s.restorePlan);
   const [tab, setTab] = useState('overview');
   // Tier 1-I: Force-refresh state
   // リモート設定: 音量・輝度の送信中フラグ
@@ -662,8 +659,6 @@ export default function DeviceDetailPage() {
   // Augment with defaults required by Device type
   const detailBase = { ...baseDetail, store_name: baseDetail.store_name ?? '', current_program_name: baseDetail.current_program_name ?? null, current_program_size_bytes: baseDetail.current_program_size_bytes ?? null, storage_used_percent: baseDetail.storage_used_percent ?? null, app_version: baseDetail.app_version ?? null, android_version: baseDetail.android_version ?? null, ip_address: baseDetail.ip_address ?? null, group_ids: baseDetail.group_ids ?? [] };
   const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
-  const override = overrides[detail.id];
-  const isManual = detail.play_mode === 'manual';
 
   return (
     <AppShell title={detail.name} breadcrumb={['ホーム', '端末', detail.id]}>
@@ -672,7 +667,6 @@ export default function DeviceDetailPage() {
           <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.common.back}</Link>
         </Button>
         <DeviceStatusBadge status={detail.status} />
-        <PlayModeBadge mode={detail.play_mode} />
         <div className="ml-auto flex gap-2">
           <Button
             variant="default"
@@ -683,22 +677,6 @@ export default function DeviceDetailPage() {
           >
             <Zap className="h-3.5 w-3.5" />映像を切替
           </Button>
-          {isManual && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() =>
-                restorePlan({
-                  device_ids: [detail.id],
-                  scope_label: detail.name,
-                  applied_by: 'admin@gachaops.example',
-                })
-              }
-            >
-              <Undo2 className="h-3.5 w-3.5" />計画配信に戻す
-            </Button>
-          )}
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || capturing} onClick={handleScreenshot}>
             <Camera className="h-3.5 w-3.5" />{capturing ? '取得中…' : 'スクリーンショット'}
           </Button>
@@ -726,40 +704,29 @@ export default function DeviceDetailPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm">現在の再生</CardTitle>
-                    {isManual && (
-                      <Badge variant="warn" className="gap-1">
-                        <Zap className="h-3 w-3" />手動切替中
-                      </Badge>
-                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
                   {detail.current_program_name ? (
                     <div className="flex items-center gap-3">
-                      <PlayCircle className="h-10 w-10 text-primary" />
+                      {(() => {
+                        const shot = detail.recent_screenshots?.[0];
+                        const thumb = shot?.thumbnail_url || shot?.url;
+                        return thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumb} alt="再生中のサムネイル" className="h-16 w-28 rounded object-cover border border-border/50 shrink-0 bg-black" />
+                        ) : (
+                          <PlayCircle className="h-10 w-10 text-primary shrink-0" />
+                        );
+                      })()}
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{detail.current_program_id}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           コンテンツ容量: <span className="tabular-nums">{formatBytes(detail.current_program_size_bytes)}</span>
                         </div>
                         {playbackStates[detail.id] && (
                           <div className="mt-3 pt-3 border-t">
                             <PlaybackStatus playback={playbackStates[detail.id]} />
-                          </div>
-                        )}
-                        {override && (
-                          <div className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <Zap className="h-3 w-3 text-warn" />
-                              {fmtRelative(override.applied_at)}に手動切替 ({override.applied_by})
-                            </div>
-                            {override.expires_at && (
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3 text-warn" />
-                                {fmtRelative(override.expires_at)}に計画配信へ自動復帰
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>

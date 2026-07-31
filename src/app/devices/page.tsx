@@ -383,7 +383,6 @@ export default function DevicesPage() {
                 <TableCell>
                   <Link href={`/devices/${d.id}`} className="hover:underline">
                     <div className="text-sm">{d.name}</div>
-                    <div className="text-[10.5px] font-mono text-muted-foreground">{d.serial}</div>
                     {isSuperAdmin && d.customer_name && (
                       <div className="text-[10.5px] text-amber-500/90">{d.customer_name}</div>
                     )}
