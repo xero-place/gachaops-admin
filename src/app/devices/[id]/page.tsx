@@ -709,16 +709,7 @@ export default function DeviceDetailPage() {
                 <CardContent>
                   {detail.current_program_name ? (
                     <div className="flex items-center gap-3">
-                      {(() => {
-                        const shot = detail.recent_screenshots?.[0];
-                        const thumb = shot?.thumbnail_url || shot?.url;
-                        return thumb ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb} alt="再生中のサムネイル" className="h-16 w-28 rounded object-cover border border-border/50 shrink-0 bg-black" />
-                        ) : (
-                          <PlayCircle className="h-10 w-10 text-primary shrink-0" />
-                        );
-                      })()}
+                      <CurrentThumb deviceId={detail.id} />
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -1418,6 +1409,22 @@ export default function DeviceDetailPage() {
 }
 
 
+
+/** 現在の再生サムネ: 端末の最新スクリーンショット(確定URL)を表示。無ければ(404時)再生アイコンにフォールバック。 */
+function CurrentThumb({ deviceId }: { deviceId: string }) {
+  const [err, setErr] = useState(false);
+  const [ts] = useState(() => Date.now());
+  if (err) return <PlayCircle className="h-10 w-10 text-primary shrink-0" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://api.xero-place.com/videos/screenshots/${deviceId}.png?t=${ts}`}
+      alt="再生中のサムネイル"
+      onError={() => setErr(true)}
+      className="h-16 w-28 rounded object-cover border border-border/50 shrink-0 bg-black"
+    />
+  );
+}
 
 function formatBytes(bytes?: number | null): string {
   if (bytes == null || bytes <= 0) return '—';
