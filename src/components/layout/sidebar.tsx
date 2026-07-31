@@ -20,7 +20,6 @@ import {
   Building2,
   Briefcase,
   Settings,
-  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { tokenStore } from '@/lib/token-store';
@@ -43,7 +42,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'コア',
     items: [
       { href: '/', label: 'ダッシュボード', icon: LayoutDashboard },
-      { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
+      // S233: ライブ操作は端末タブ(マシンごと)に一本化のため非表示。ページ(/live-control)は温存。
+      // { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
       // ガチャ演出(/gacha/draw-effects)は端末詳細の「演出」タブに一本化したため非表示。ページは温存。
       // S226: 演出パック管理は演出タブ(端末詳細)へ集約。ナビからは非表示(運営含む)。ページ・機能は温存。
       // { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
