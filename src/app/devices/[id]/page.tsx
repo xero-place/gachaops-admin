@@ -71,6 +71,7 @@ type DeviceDetail = {
   current_program_id: string | null;
   current_program_name?: string | null;
   current_program_size_bytes?: number | null;
+  current_program_thumbnail_url?: string | null;  // S231: 現在の番組の先頭素材サムネ
   storage_used_percent?: number | null;
   app_version?: string | null;
   android_version?: string | null;
@@ -709,7 +710,7 @@ export default function DeviceDetailPage() {
                 <CardContent>
                   {detail.current_program_name ? (
                     <div className="flex items-center gap-3">
-                      <CurrentThumb deviceId={detail.id} />
+                      <CurrentThumb src={detail.current_program_thumbnail_url} />
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -1410,15 +1411,14 @@ export default function DeviceDetailPage() {
 
 
 
-/** 現在の再生サムネ: 端末の最新スクリーンショット(確定URL)を表示。無ければ(404時)再生アイコンにフォールバック。 */
-function CurrentThumb({ deviceId }: { deviceId: string }) {
+/** 現在の再生サムネ: 現在の番組の先頭素材サムネ(動画の先頭フレーム)。無ければ(USB等/取得失敗)再生アイコン。 */
+function CurrentThumb({ src }: { src?: string | null }) {
   const [err, setErr] = useState(false);
-  const [ts] = useState(() => Date.now());
-  if (err) return <PlayCircle className="h-10 w-10 text-primary shrink-0" />;
+  if (!src || err) return <PlayCircle className="h-10 w-10 text-primary shrink-0" />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://api.xero-place.com/videos/screenshots/${deviceId}.png?t=${ts}`}
+      src={src}
       alt="再生中のサムネイル"
       onError={() => setErr(true)}
       className="h-16 w-28 rounded object-cover border border-border/50 shrink-0 bg-black"
