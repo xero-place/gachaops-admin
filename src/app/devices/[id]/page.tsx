@@ -44,6 +44,7 @@ import {
   PlayCircle,
   Zap,
   Loader2,
+  X,
   ChevronDown,
   ChevronRight,
   ArrowUpDown,
@@ -72,6 +73,7 @@ type DeviceDetail = {
   current_program_name?: string | null;
   current_program_size_bytes?: number | null;
   current_program_thumbnail_url?: string | null;  // S231: 現在の番組の先頭素材サムネ
+  current_program_video_url?: string | null;  // S232: 先頭素材の再生URL
   storage_used_percent?: number | null;
   app_version?: string | null;
   android_version?: string | null;
@@ -646,6 +648,7 @@ export default function DeviceDetailPage() {
   };
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);  // S232: 現在の再生の映像モーダル
 
   if (loading) {
     return (
@@ -710,7 +713,21 @@ export default function DeviceDetailPage() {
                 <CardContent>
                   {detail.current_program_name ? (
                     <div className="flex items-center gap-3">
-                      <CurrentThumb src={detail.current_program_thumbnail_url} />
+                      {detail.current_program_video_url ? (
+                        <button
+                          type="button"
+                          onClick={() => setVideoOpen(true)}
+                          title="クリックで映像を再生"
+                          className="relative shrink-0 rounded overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <CurrentThumb src={detail.current_program_thumbnail_url} />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/35 transition-colors">
+                            <PlayCircle className="h-8 w-8 text-white/95 drop-shadow" />
+                          </span>
+                        </button>
+                      ) : (
+                        <CurrentThumb src={detail.current_program_thumbnail_url} />
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -1399,6 +1416,31 @@ export default function DeviceDetailPage() {
 
         </div>
       </div>
+
+      {videoOpen && detail.current_program_video_url && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setVideoOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setVideoOpen(false)}
+            aria-label="閉じる"
+            className="absolute top-4 right-4 text-white/90 hover:text-white"
+          >
+            <X className="h-7 w-7" />
+          </button>
+          <video
+            src={detail.current_program_video_url}
+            controls
+            autoPlay
+            playsInline
+            className="object-contain rounded bg-black"
+            style={{ maxWidth: '95vw', maxHeight: '85vh' }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       <LiveControlSheet
         open={sheetOpen}
