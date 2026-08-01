@@ -48,6 +48,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowUpDown,
+  Coins,
 } from 'lucide-react';
 
 import type { TaskStatus as _TS } from '@/types/domain';
@@ -119,6 +120,29 @@ export default function DeviceDetailPage() {
   const [fetchFailed, setFetchFailed] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
   const [tab, setTab] = useState('overview');
+
+  // S231: この端末の売上・回転数（本日/累計）。売上タブで表示。既存API(summary/by-device)を device_id で絞込。
+  type SalesBucket = { cash_yen: number; qr_yen: number; total_yen: number; medal_count: number };
+  type SalesRow = { yen100_count: number; yen100_sum: number; yen500_count: number; yen500_sum: number; cash_total: number; qr_total: number; total_sales: number; credit_balance: number };
+  const [salesSummary, setSalesSummary] = useState<{ today: SalesBucket; cumulative: SalesBucket } | null>(null);
+  const [salesRow, setSalesRow] = useState<SalesRow | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const loadSales = useCallback(async () => {
+    setSalesLoading(true);
+    try {
+      const [sum, rows] = await Promise.all([
+        api.get<{ today: SalesBucket; cumulative: SalesBucket }>(`/sales-events/summary?device_id=${params.id}`),
+        api.get<SalesRow[]>(`/sales-events/by-device?device_id=${params.id}`).catch(() => [] as SalesRow[]),
+      ]);
+      setSalesSummary(sum);
+      setSalesRow(Array.isArray(rows) && rows.length > 0 ? rows[0] : null);
+    } catch (e) {
+      console.error('[device] sales fetch failed:', e);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [params.id]);
+  useEffect(() => { void loadSales(); }, [loadSales]);
   // Tier 1-I: Force-refresh state
   // リモート設定: 音量・輝度の送信中フラグ
   const [savingVolume, setSavingVolume] = useState(false);
@@ -701,6 +725,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="schedules">{t.device.tabs.powerSchedule}</TabsTrigger>
               <TabsTrigger value="history">{t.device.tabs.apkHistory}</TabsTrigger>
                 <TabsTrigger value="stock">{t.device.tabs.inventory}</TabsTrigger>
+              <TabsTrigger value="sales">売上</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -1382,6 +1407,78 @@ export default function DeviceDetailPage() {
                             )}
                           </div>
                         )}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="sales">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm inline-flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-amber-500" />この端末の売上・回転数
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {salesLoading && !salesSummary ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6"><Loader2 className="h-4 w-4 animate-spin" />読み込み中…</div>
+                  ) : !salesSummary ? (
+                    <div className="text-sm text-muted-foreground py-6">売上データがありません。</div>
+                  ) : (
+                    <>
+                      {/* 本日 */}
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">本日</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="rounded-lg border p-3">
+                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />回転数（メダル投入）</div>
+                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.today.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">回</span></div>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <div className="text-[11px] text-muted-foreground mb-1">売上</div>
+                            <div className="text-2xl font-bold tabular-nums">{fmtYen(salesSummary.today.total_yen)}</div>
+                            <div className="mt-1 space-y-0.5 text-[11px]">
+                              <div className="flex justify-between"><span className="text-muted-foreground">現金</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.today.cash_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">キャッシュレス</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.today.qr_yen)}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 累計 */}
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">累計（全期間）</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="rounded-lg border p-3">
+                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />累計回転数（メダル）</div>
+                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.cumulative.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">回</span></div>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <div className="text-[11px] text-muted-foreground mb-1">累計売上</div>
+                            <div className="text-2xl font-bold tabular-nums text-sky-500">{fmtYen(salesSummary.cumulative.total_yen)}</div>
+                            <div className="mt-1 space-y-0.5 text-[11px]">
+                              <div className="flex justify-between"><span className="text-muted-foreground">現金</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.cumulative.cash_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">キャッシュレス</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.cumulative.qr_yen)}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 現金投入内訳 */}
+                      {salesRow && (
+                        <div className="rounded-lg border p-3">
+                          <div className="text-[11px] text-muted-foreground mb-2">現金投入の内訳（累計）</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                            <div><div className="text-[11px] text-muted-foreground">¥100 投入</div><div className="tabular-nums font-medium">{salesRow.yen100_count.toLocaleString()}枚 <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen100_sum)}</span></div></div>
+                            <div><div className="text-[11px] text-muted-foreground">¥500 投入</div><div className="tabular-nums font-medium">{salesRow.yen500_count.toLocaleString()}枚 <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen500_sum)}</span></div></div>
+                            <div><div className="text-[11px] text-muted-foreground">現金合計</div><div className="tabular-nums font-medium text-amber-500">{fmtYen(salesRow.cash_total)}</div></div>
+                            <div><div className="text-[11px] text-muted-foreground">残クレジット</div><div className="tabular-nums font-medium">{fmtYen(salesRow.credit_balance)}</div></div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-muted-foreground">※ 回転数＝メダル投入数（1枚＝1回転）。現金／QR機は売上額をご覧ください。集計は上限なしの正確値です。</p>
+                        <button onClick={() => void loadSales()} className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1 hover:bg-accent border"><RefreshCcw className="h-3.5 w-3.5" />更新</button>
                       </div>
                     </>
                   )}

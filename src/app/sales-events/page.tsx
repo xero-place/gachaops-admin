@@ -179,6 +179,28 @@ export default function SalesEventsPage() {
   const [page, setPage] = useState(0);
   const isSuper = tokenStore.getUser()?.role === 'lv1_super';  // 顧客ロールでは顧客プルダウン非表示
 
+  // S230: 検索ボックスにマシン番号/端末名を入れたら、それをサーバー側の端末フィルタに解決する。
+  // これで「一覧・上部の4カード・端末別内訳」がすべて同じ端末で集計され、件数の食い違いが消える。
+  const searchedDevice = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return null;
+    const exact = devices.find((d) => (d.name ?? '').toLowerCase() === s);
+    if (exact) return exact;
+    const hits = devices.filter(
+      (d) => (d.name ?? '').toLowerCase().includes(s) || (d.id ?? '').toLowerCase().includes(s),
+    );
+    return hits.length === 1 ? hits[0] : null;  // 一意に決まる時だけ端末スコープにする
+  }, [search, devices]);
+  // ドロップダウンが優先。未指定なら検索で解決した端末を使う。
+  const effectiveDeviceId = deviceFilter !== 'all' ? deviceFilter : (searchedDevice?.id ?? null);
+  const deviceScoped = !!effectiveDeviceId;
+  const scopedDeviceName =
+    deviceFilter !== 'all'
+      ? (devices.find((d) => d.id === deviceFilter)?.name ?? deviceFilter)
+      : (searchedDevice?.name ?? '');
+  // 検索が端末に解決しなかった語（顧客名・決済ID等）だけ、クライアント側で現ページを絞り込む。
+  const clientFilterActive = !!search && !searchedDevice;
+
   // ── 売上リセット（運営 lv1_super 専用・破壊的）──
   type ResetResult = { deleted_draws: number; deleted_orders: number; deleted_coin_events: number; machines_reset: number };
   const [resetOpen, setResetOpen] = useState(false);
@@ -215,7 +237,7 @@ export default function SalesEventsPage() {
     const p = new URLSearchParams();
     if (kindFilter !== 'all') p.set('payment_method', kindFilter);
     if (customerFilter !== 'all') p.set('customer_id', customerFilter);
-    if (deviceFilter !== 'all') p.set('device_id', deviceFilter);
+    if (effectiveDeviceId) p.set('device_id', effectiveDeviceId);
     if (storeFilter !== 'all') p.set('store_id', storeFilter);
     if (groupFilter !== 'all') p.set('group_id', groupFilter);
     const fromUtc = jstDateToUtcStart(dateFrom);
@@ -227,7 +249,7 @@ export default function SalesEventsPage() {
       p.set('offset', String(page * PAGE_SIZE));
     }
     return p.toString();
-  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo, page]);
+  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo, page]);
 
   // 初回：顧客・端末リスト
   useEffect(() => {
@@ -257,7 +279,7 @@ export default function SalesEventsPage() {
     const p = new URLSearchParams();
     if (kindFilter !== 'all') p.set('payment_method', kindFilter);
     if (customerFilter !== 'all') p.set('customer_id', customerFilter);
-    if (deviceFilter !== 'all') p.set('device_id', deviceFilter);
+    if (effectiveDeviceId) p.set('device_id', effectiveDeviceId);
     if (storeFilter !== 'all') p.set('store_id', storeFilter);
     if (groupFilter !== 'all') p.set('group_id', groupFilter);
     const fromUtc = jstDateToUtcStart(dateFrom);
@@ -265,7 +287,7 @@ export default function SalesEventsPage() {
     if (fromUtc) p.set('date_from', fromUtc);
     if (toUtc) p.set('date_to', toUtc);
     return p.toString();
-  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo]);
+  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -330,11 +352,11 @@ export default function SalesEventsPage() {
   }, [buildParams]);
 
   // フィルタを変えたら1ページ目へ戻す
-  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, dateFrom, dateTo]);
+  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo]);
 
-  // 検索はクライアント側（現ページ内の絞り込み）
+  // 検索が端末に解決した場合はサーバー側で既に絞り込み済み。それ以外の語だけクライアント絞り込み。
   const visible = useMemo(() => {
-    if (!search) return events;
+    if (!clientFilterActive) return events;
     const s = search.toLowerCase();
     return events.filter((e) =>
       e.device_name.toLowerCase().includes(s) ||
@@ -342,18 +364,18 @@ export default function SalesEventsPage() {
       (e.group_names ?? []).some((g) => g.toLowerCase().includes(s)) ||
       (e.payment_id ?? '').toLowerCase().includes(s)
     );
-  }, [events, search]);
+  }, [events, search, clientFilterActive]);
 
   // S229: 検索ボックスは端末別 売上内訳も同じ語で絞り込む（端末名 / 端末ID / 顧客名）。
   const visibleByDevice = useMemo(() => {
-    if (!search) return byDevice;
+    if (!clientFilterActive) return byDevice;
     const s = search.toLowerCase();
     return byDevice.filter((r) =>
       (r.device_name ?? '').toLowerCase().includes(s) ||
       (r.device_id ?? '').toLowerCase().includes(s) ||
       (r.customer_name ?? '').toLowerCase().includes(s)
     );
-  }, [byDevice, search]);
+  }, [byDevice, search, clientFilterActive]);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
@@ -498,7 +520,14 @@ export default function SalesEventsPage() {
       </div>
       {/* S224: サマリー折りたたみトグル */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-muted-foreground">売上サマリー</span>
+        <span className="text-sm font-medium text-muted-foreground inline-flex items-center gap-2 flex-wrap">
+          売上サマリー
+          {deviceScoped && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 px-2 py-0.5 text-[11px] font-medium">
+              ▶ 端末「{scopedDeviceName}」で集計中（下の4項目はこの端末の数値です）
+            </span>
+          )}
+        </span>
         <button
           type="button"
           onClick={() => setSummaryOpen((o) => !o)}
@@ -549,7 +578,7 @@ export default function SalesEventsPage() {
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="端末名 / 顧客名 / 決済ID ..."
+              placeholder="マシン番号を入力→上の集計も連動 / 顧客名 / 決済ID"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -639,7 +668,9 @@ export default function SalesEventsPage() {
           )}
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             {refreshing && <Loader2 className="h-3 w-3 animate-spin" />}
-            全 {total.toLocaleString()} 件
+            {deviceScoped
+              ? <>端末「{scopedDeviceName}」 明細 {total.toLocaleString()} 件</>
+              : <>明細 {total.toLocaleString()} 件</>}
           </div>
         </CardContent>
       </Card>
@@ -764,8 +795,9 @@ export default function SalesEventsPage() {
         {/* ページネーション */}
         <div className="border-t p-3 flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            {total === 0 ? '0 件' : `${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()} / ${total.toLocaleString()} 件`}
-            {search && `（うち検索一致 ${visible.length} 件）`}
+            {total === 0 ? '0 件' : `明細 ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()} / ${total.toLocaleString()} 件`}
+            {clientFilterActive && `（うち一致 ${visible.length} 件）`}
+            {deviceScoped && <span className="ml-2 text-sky-600 dark:text-sky-400">回転数は上の「メダル投入数」カードが正確値です</span>}
           </span>
           <div className="flex items-center gap-2">
             <button
