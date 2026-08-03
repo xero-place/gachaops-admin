@@ -64,6 +64,23 @@ import {
 
 const MAX_DRAW_ORDER = 100;
 
+const BADGE_RAINBOW =
+  'bg-gradient-to-r from-pink-100 via-yellow-100 to-cyan-100 text-purple-800 border-purple-300';
+
+// 複数の演出動画を混在させたとき、種類ごとに一目で分かるよう自動割当する配色。
+const BADGE_PALETTE = [
+  'bg-rose-100 text-rose-700 border-rose-300',
+  'bg-sky-100 text-sky-700 border-sky-300',
+  'bg-amber-100 text-amber-800 border-amber-300',
+  'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'bg-violet-100 text-violet-700 border-violet-300',
+  'bg-cyan-100 text-cyan-700 border-cyan-300',
+  'bg-orange-100 text-orange-800 border-orange-300',
+  'bg-lime-100 text-lime-700 border-lime-300',
+  'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-300',
+  'bg-teal-100 text-teal-700 border-teal-300',
+];
+
 type BulkMode = 'single' | 'random' | 'off';
 
 interface Props {
@@ -368,6 +385,18 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
     return { total, tierCount };
   }, [effects, packById]);
 
+  // 演出バッジ配色: 動画1種のみ→全て虹色 / 複数→種類ごとに自動で別色（一目で分かるUI）。
+  const packColor = useMemo(() => {
+    const ids = Array.from(new Set(effects.map((e) => e.effect_pack_id))).sort();
+    const m = new Map<string, string>();
+    if (ids.length <= 1) {
+      ids.forEach((id) => m.set(id, BADGE_RAINBOW));
+    } else {
+      ids.forEach((id, i) => m.set(id, BADGE_PALETTE[i % BADGE_PALETTE.length]));
+    }
+    return m;
+  }, [effects]);
+
   const rangeCount = Math.max(0, (parseInt(bulkEnd, 10) || 0) - (parseInt(bulkStart, 10) || 0) + 1) || 0;
 
   if (!poolId) return null;
@@ -441,8 +470,6 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                 <tr>
                   <th className="px-3 py-2 text-left w-16">排出順</th>
                   <th className="px-3 py-2 text-left">演出</th>
-                  <th className="px-3 py-2 text-left">景品名</th>
-                  <th className="px-3 py-2 text-left w-32">メモ</th>
                   <th className="px-3 py-2 text-right w-24">操作</th>
                 </tr>
               </thead>
@@ -459,16 +486,12 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                       <td className="px-3 py-1.5 font-mono">{order}</td>
                       <td className="px-3 py-1.5">
                         {pack ? (
-                          <Badge variant="outline">
+                          <Badge variant="outline" className={packColor.get(pack.id)}>
                             {pack.name}
                           </Badge>
                         ) : (
                           <span className="text-xs italic">(未設定)</span>
                         )}
-                      </td>
-                      <td className="px-3 py-1.5">{effect?.prize_name ?? '-'}</td>
-                      <td className="px-3 py-1.5 text-xs truncate max-w-[150px]" title={effect?.notes ?? ''}>
-                        {effect?.notes ?? '-'}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <Button
@@ -524,28 +547,12 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               </Select>
             </div>
             <div>
-              <Label>景品名 (任意)</Label>
-              <Input
-                value={editPrizeName}
-                onChange={(e) => setEditPrizeName(e.target.value)}
-                placeholder="例: 1 等"
-              />
-            </div>
-            <div>
               <Label>賞金額 (任意、円)</Label>
               <Input
                 type="number"
                 value={editPrizeValue}
                 onChange={(e) => setEditPrizeValue(e.target.value)}
                 placeholder="例: 5000"
-              />
-            </div>
-            <div>
-              <Label>メモ (任意)</Label>
-              <Input
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="例: 春のキャンペーン"
               />
             </div>
           </div>
