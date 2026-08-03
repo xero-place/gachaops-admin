@@ -138,7 +138,7 @@ export default function TaskDetailPage() {
               </div>
               <span className="text-sm font-mono text-muted-foreground tabular-nums">{task.succeeded + task.failed}/{task.total} ({progress}%)</span>
             </div>
-            <div className="grid grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div><div className="text-muted-foreground">成功</div><div className="text-base font-semibold text-ok">{task.succeeded}</div></div>
               <div><div className="text-muted-foreground">失敗</div><div className="text-base font-semibold text-destructive">{task.failed}</div></div>
               <div><div className="text-muted-foreground">配信中</div><div className="text-base font-semibold text-primary">{task.in_progress}</div></div>

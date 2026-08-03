@@ -17,7 +17,7 @@ export function AppShell({ title, breadcrumb, children }: ShellProps) {
         <div className="flex-1 flex flex-col min-w-0">
           <Header title={title} breadcrumb={breadcrumb} />
           <ImpersonationBanner />
-          <main className="flex-1 p-4 lg:p-6">{children}</main>
+          <main className="flex-1 p-4 lg:p-6 min-w-0 overflow-x-clip">{children}</main>
         </div>
       </div>
     </AuthGate>

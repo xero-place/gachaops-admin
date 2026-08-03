@@ -738,6 +738,44 @@ export default function SalesEventsPage() {
       )}
 
       <Card>
+        <div className="md:hidden divide-y divide-border">
+          {visible.map((e) => (
+            <div key={e.event_id} className={`p-3 space-y-1.5 ${e.is_undispensed ? 'bg-red-500/5' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="mb-1"><KindBadge e={e} /></div>
+                  <div className="text-xs">{e.customer_name}</div>
+                  {e.group_names && e.group_names.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground truncate">{e.group_names.join(' / ')}</div>
+                  )}
+                  <div className="text-[10.5px] text-muted-foreground">{e.device_name}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="tabular-nums text-sm font-medium">
+                    {e.kind === 'token'
+                      ? <span className="inline-flex items-center gap-1"><Coins className="h-3 w-3 text-amber-400" />{e.token_count} 枚</span>
+                      : <span className={e.is_undispensed ? 'text-red-600 dark:text-red-400' : undefined}>{fmtYen(e.amount_yen ?? 0)}</span>}
+                  </div>
+                  <div className="mt-1 text-xs">
+                    {e.is_undispensed
+                      ? <span className="text-red-600 dark:text-red-400 font-medium">未排出</span>
+                      : e.kind === 'token'
+                        ? <span className="text-muted-foreground">—</span>
+                        : <span className="text-muted-foreground">排出済み</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="font-mono truncate">{e.payment_id ? e.payment_id : '-'}</span>
+                <span className="shrink-0">{fmtDate(e.occurred_at)}</span>
+              </div>
+            </div>
+          ))}
+          {visible.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground py-12">該当する売上イベントがありません</div>
+          )}
+        </div>
+        <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -792,6 +830,7 @@ export default function SalesEventsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
         {/* ページネーション */}
         <div className="border-t p-3 flex items-center justify-between text-xs text-muted-foreground">
           <span>

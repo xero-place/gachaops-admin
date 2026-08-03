@@ -690,12 +690,12 @@ export default function DeviceDetailPage() {
 
   return (
     <AppShell title={detail.name} breadcrumb={['ホーム', '端末', detail.id]}>
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.common.back}</Link>
         </Button>
         <DeviceStatusBadge status={detail.status} />
-        <div className="ml-auto flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:ml-auto">
           <Button
             variant="default"
             size="sm"
@@ -798,7 +798,7 @@ export default function DeviceDetailPage() {
                         <Sun className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">表示モード（屋外視認性）</span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {([
                           { key: 'normal', label: '通常' },
                           { key: 'grayscale', label: '白黒' },
@@ -811,7 +811,7 @@ export default function DeviceDetailPage() {
                             key={m.key}
                             onClick={() => void sendDisplayMode(m.key)}
                             disabled={savingDisplayMode}
-                            className={`flex-1 h-9 px-2 rounded-md text-xs font-medium border transition-colors disabled:opacity-60 ${
+                            className={`h-auto min-h-9 px-2 py-1.5 leading-tight rounded-md text-xs font-medium border transition-colors disabled:opacity-60 ${
                               displayMode === m.key
                                 ? 'bg-primary text-primary-foreground border-primary'
                                 : 'bg-card border-border hover:bg-accent'

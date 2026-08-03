@@ -233,6 +233,45 @@ export default function OrdersPage() {
       </Card>
 
       <Card>
+        <div className="md:hidden divide-y divide-border">
+          {filtered.slice(0, 200).map((o) => (
+            <div key={o.id} className="p-3 space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs">{o.store_name}</div>
+                  {o.group_names && o.group_names.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground truncate">{o.group_names.join(' / ')}</div>
+                  )}
+                  <div className="text-[10.5px] text-muted-foreground">{o.device_name}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="tabular-nums text-sm font-medium">{fmtYen(o.amount_yen)}</div>
+                  <div className="mt-1"><OrderStatusBadge status={o.status} /></div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="truncate">{providerLabel(o.payment_provider)}{o.paypay_payment_id ? ` · ${o.paypay_payment_id}` : ''}</span>
+                <span className="shrink-0">{o.paid_at ? fmtDate(o.paid_at) : <span>{fmtDate(o.created_at)} <span className="opacity-60">(作成)</span></span>}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[10px] text-muted-foreground truncate">{o.id}</span>
+                {o.status === 'paid' && (
+                  AUTO_REFUNDABLE_PROVIDERS.has((o.payment_provider || '').toLowerCase()) ? (
+                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs shrink-0" onClick={() => setRefundTarget(o)}>
+                      <RotateCcw className="h-3 w-3" />返金
+                    </Button>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground shrink-0">PSPで手動返金</span>
+                  )
+                )}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground py-12">該当する注文がありません</div>
+          )}
+        </div>
+        <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -307,6 +346,7 @@ export default function OrdersPage() {
             )}
           </TableBody>
         </Table>
+        </div>
         {filtered.length > 50 && (
           <div className="border-t p-3 text-xs text-muted-foreground text-center">
             最初の 50 件を表示中。実 API では cursor で続きを取得します

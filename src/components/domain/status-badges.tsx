@@ -17,7 +17,7 @@ const DEVICE_LABELS: Record<DeviceStatus, string> = {
 export function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
   if (status === 'online') {
     return (
-      <Badge variant="ok" className="gap-1.5">
+      <Badge variant="ok" className="gap-1.5 whitespace-nowrap">
         <span className="live-dot" />
         {DEVICE_LABELS.online}
       </Badge>
