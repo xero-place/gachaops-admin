@@ -64,23 +64,6 @@ import {
 
 const MAX_DRAW_ORDER = 100;
 
-/** tier (1-5) → 色テーマ */
-const TIER_COLOR: Record<number, string> = {
-  1: 'bg-slate-100 text-slate-700 border-slate-300',
-  2: 'bg-amber-100 text-amber-800 border-amber-300',
-  3: 'bg-zinc-200 text-zinc-700 border-zinc-400',
-  4: 'bg-yellow-100 text-yellow-800 border-yellow-400',
-  5: 'bg-gradient-to-r from-pink-100 via-yellow-100 to-cyan-100 text-purple-800 border-purple-300',
-};
-
-const TIER_LABEL: Record<number, string> = {
-  1: 'ノーマル',
-  2: 'ブロンズ',
-  3: 'シルバー',
-  4: 'ゴールド',
-  5: 'レインボー',
-};
-
 type BulkMode = 'single' | 'random' | 'off';
 
 interface Props {
@@ -428,19 +411,11 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
           </div>
         </CardHeader>
         <CardContent>
-          {/* tier 別集計 */}
           {stats.total > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               <Badge variant="outline">
                 設定済み {stats.total} / {MAX_DRAW_ORDER}
               </Badge>
-              {[1, 2, 3, 4, 5].map((t) =>
-                stats.tierCount[t] > 0 ? (
-                  <Badge key={t} variant="outline" className={TIER_COLOR[t]}>
-                    {TIER_LABEL[t]}: {stats.tierCount[t]}
-                  </Badge>
-                ) : null,
-              )}
             </div>
           )}
 
@@ -484,7 +459,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                       <td className="px-3 py-1.5 font-mono">{order}</td>
                       <td className="px-3 py-1.5">
                         {pack ? (
-                          <Badge variant="outline" className={TIER_COLOR[pack.tier]}>
+                          <Badge variant="outline">
                             {pack.name}
                           </Badge>
                         ) : (
@@ -732,7 +707,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                           checked={bulkPackIds.includes(p.id)}
                           onChange={() => toggleBulkPack(p.id)}
                         />
-                        <Badge variant="outline" className={TIER_COLOR[p.tier]}>
+                        <Badge variant="outline">
                           {p.name}
                         </Badge>
                       </label>

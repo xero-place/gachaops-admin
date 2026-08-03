@@ -574,7 +574,7 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const eps = await api.get<GachaEffectPack[]>('/gacha/effect-packs');
+        const eps = await api.post<GachaEffectPack[]>('/gacha/program-effect-packs/ensure', {});
         setEffectPacks(eps.filter((e) => e.is_active));
       } catch { /* 演出パック取得失敗は無視 */ }
     })();
