@@ -464,11 +464,11 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
             </div>
           )}
 
-          <div className="border rounded-md max-h-[600px] overflow-y-auto">
+          <div className="border rounded-md max-h-[600px] overflow-y-auto max-w-2xl">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 text-left w-16">排出順</th>
+                  <th className="px-3 py-2 text-left w-20 whitespace-nowrap">排出順</th>
                   <th className="px-3 py-2 text-left">演出</th>
                   <th className="px-3 py-2 text-right w-24">操作</th>
                 </tr>

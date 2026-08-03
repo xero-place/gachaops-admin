@@ -1229,11 +1229,8 @@ export default function DeviceDetailPage() {
             </TabsContent>
 
             <TabsContent value="effects">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">この端末の演出</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <Card className="border-0 shadow-none bg-transparent">
+                <CardContent className="p-0 space-y-4">
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
                       この端末はまだ設定ができません（什器が未登録です）。
