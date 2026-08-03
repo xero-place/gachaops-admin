@@ -485,6 +485,35 @@ export default function SalesEventsPage() {
     w.document.close();
   }, [summary, customerFilter, customers, dateFrom, dateTo]);
 
+  type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean };
+  type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; outstanding_carry_yen: number };
+
+  const generatePayoutStatement = useCallback(async () => {
+    let ledgers: _Ledger[] = [];
+    try {
+      const q = customerFilter !== 'all' ? `?customer_id=${encodeURIComponent(customerFilter)}` : '';
+      ledgers = await api.get<_Ledger[]>(`/sales-events/payout-ledger${q}`);
+    } catch {
+      window.alert('振込台帳の取得に失敗しました。時間をおいて再度お試しください。');
+      return;
+    }
+    if (!ledgers || ledgers.length === 0) { window.alert('対象の売上データがありません。'); return; }
+    const issued = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const yen = (n: number) => '¥' + (n ?? 0).toLocaleString('ja-JP');
+    const ymL = (v: string) => v ? `${v.slice(0, 4)}年${v.slice(5, 7)}月` : '—';
+    const sections = ledgers.map((L) => {
+      const rows = (L.rows || []).map((r) => {
+        const state = r.is_provisional ? '当月（暫定）' : (r.is_transfer ? '振込' : '繰越');
+        return `<tr><td>${ymL(r.month)}</td><td class="num">${(r.order_count ?? 0).toLocaleString('ja-JP')}</td><td class="num">${yen(r.gross_yen)}</td><td class="num">${yen(r.after_fee_yen)}</td><td class="num">${yen(r.carried_in_yen)}</td><td class="num">${yen(r.running_total_yen)}</td><td>${state}</td><td class="num">${r.is_transfer ? yen(r.transfer_fee_yen) : '—'}</td><td class="num strong">${r.is_transfer ? yen(r.transfer_yen) : '—'}</td><td>${r.pay_date || '—'}</td></tr>`;
+      }).join('');
+      return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${L.customer_name || L.customer_id} 御中<br>発行日時：${issued}</div></div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table><div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div></div>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>振込明細書</title><style>* { font-family: "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", sans-serif; box-sizing: border-box; } body { margin:0; padding:28px 32px; color:#1a1a1a; font-size:12px; } .stmt{page-break-after:always;} .stmt:last-of-type{page-break-after:auto;} .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c0392b;padding-bottom:12px;margin-bottom:14px;} .head .title{font-size:20px;font-weight:700;} .head .sub{font-size:12px;color:#333;margin-top:6px;line-height:1.7;} .head .corp{text-align:right;font-size:11px;color:#444;line-height:1.6;} .note{font-size:10.5px;color:#555;line-height:1.7;margin-bottom:12px;} table{width:100%;border-collapse:collapse;margin-bottom:10px;} th,td{border:1px solid #ddd;padding:5px 8px;text-align:left;} th{background:#f5f5f5;font-weight:600;font-size:10.5px;} td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;} td.strong{font-weight:700;} .sum{display:flex;gap:28px;justify-content:flex-end;font-size:12px;margin-top:6px;} .foot{margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;} @media print{body{padding:0;} @page{margin:12mm;size:A4 landscape;}}</style></head><body>${sections}<div class="foot">本明細は株式会社ゼロプレイスにより自動生成されました。金額はシステムの確定値に基づきます（当月分は暫定）。</div><script>window.onload=function(){setTimeout(function(){window.print();},300);};</script></body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { window.alert('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
+    w.document.write(html); w.document.close();
+  }, [customerFilter]);
+
   if (loading) {
     return (
       <AppShell title="売上管理" breadcrumb={['ホーム', '売上管理']}>
@@ -513,7 +542,10 @@ export default function SalesEventsPage() {
           </div>
         </div>
       )}
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3">
+        <button onClick={() => void generatePayoutStatement()} className="h-9 px-4 rounded-md text-sm font-medium border border-primary text-primary hover:bg-primary/10 transition-colors">
+          振込明細書（PDF）
+        </button>
         <button onClick={() => void generateReport()} className="h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
           レポート出力（PDF）
         </button>
