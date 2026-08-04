@@ -129,3 +129,12 @@
     @apply absolute inset-0 rounded-full bg-ok animate-pulse-soft;
   }
 }
+
+/* iOS/Safari: フォーカス時の自動ズーム防止。フォームコントロールをモバイルで16px以上に固定（ピンチズームは維持） */
+@media screen and (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
