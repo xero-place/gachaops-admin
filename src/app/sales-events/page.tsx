@@ -50,6 +50,7 @@ interface DeviceCashRow {
   credit_balance: number;
   qr_total?: number;      // S224: キャッシュレス(QR)売上
   total_sales?: number;   // S224: 累計売上(現金+キャッシュレス)
+  medal_count?: number;   // 端末別 メダル(token)投入数
 }
 interface ListResp {
   items: SalesEvent[];
@@ -383,25 +384,55 @@ export default function SalesEventsPage() {
 
   const generateReport = useCallback(async () => {
     let daily: Array<{ date: string; qr_revenue_yen: number; cash_revenue_yen: number; revenue_yen: number; medal_count: number }> = [];
+    let days = 365;
+    if (dateFrom && dateTo) {
+      const d1 = new Date(dateFrom).getTime();
+      const d2 = new Date(dateTo).getTime();
+      if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) days = Math.min(365, Math.max(1, Math.round((d2 - d1) / 86400000) + 1));
+    }
     try {
       const sp = new URLSearchParams();
       if (customerFilter !== 'all') sp.set('customer_id', customerFilter);
-      sp.set('days', '30');
-      const qs = sp.toString() ? `?${sp.toString()}` : '';
-      const r = await api.get<typeof daily>(`/stats/sales${qs}`);
+      sp.set('days', String(days));
+      const r = await api.get<typeof daily>(`/stats/sales?${sp.toString()}`);
       daily = Array.isArray(r) ? r : [];
     } catch (e) {
       console.error('[report] stats/sales failed:', e);
     }
 
-    const custName = customerFilter === 'all'
-      ? '全顧客'
-      : (customers.find((c) => c.id === customerFilter)?.name ?? customerFilter);
-    const periodLabel = (dateFrom || dateTo)
-      ? `${dateFrom || '—'} 〜 ${dateTo || '—'}`
-      : '全期間';
+    const esc = (s: string) => (s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+    const custName = customerFilter === 'all' ? '全顧客' : (customers.find((c) => c.id === customerFilter)?.name ?? customerFilter);
+    const groupName = groupFilter === 'all' ? '' : (groups.find((g) => g.id === groupFilter)?.name ?? groupFilter);
+    const storeName = storeFilter === 'all' ? '' : (stores.find((s) => s.id === storeFilter)?.name ?? storeFilter);
+    const machineName = effectiveDeviceId ? (devices.find((d) => d.id === effectiveDeviceId)?.name ?? effectiveDeviceId) : '';
+    const kindLabel = kindFilter === 'all' ? '' : (kindFilter === 'qr' ? 'QR決済' : kindFilter === 'cash' ? '現金' : kindFilter === 'token' ? 'メダル' : kindFilter);
+    const periodLabel = (dateFrom || dateTo) ? `${dateFrom || '—'} 〜 ${dateTo || '—'}` : '全期間';
     const issued = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     const yen = (n: number) => '¥' + (n ?? 0).toLocaleString('ja-JP');
+
+    const condParts: string[] = [`対象顧客：${esc(custName)}`];
+    if (groupName) condParts.push(`グループ：${esc(groupName)}`);
+    if (storeName) condParts.push(`店舗：${esc(storeName)}`);
+    if (machineName) condParts.push(`マシン：${esc(machineName)}`);
+    if (kindLabel) condParts.push(`決済種別：${kindLabel}`);
+    condParts.push(`対象期間：${periodLabel}`);
+    condParts.push(`発行日時：${issued}`);
+    const condHtml = condParts.join('<br>');
+
+    const mrows = byDevice.map((r) => `
+      <tr>
+        <td>${esc(r.device_name || r.device_id)}</td>
+        <td class="num">${yen(r.cash_total)}</td>
+        <td class="num">${yen(r.qr_total ?? 0)}</td>
+        <td class="num strong">${yen(r.total_sales ?? (r.cash_total + (r.qr_total ?? 0)))}</td>
+        <td class="num">${(r.medal_count ?? 0).toLocaleString('ja-JP')}</td>
+      </tr>`).join('');
+    const mtot = byDevice.reduce((a, r) => ({
+      cash: a.cash + (r.cash_total || 0),
+      qr: a.qr + (r.qr_total || 0),
+      total: a.total + (r.total_sales ?? ((r.cash_total || 0) + (r.qr_total || 0))),
+      medal: a.medal + (r.medal_count || 0),
+    }), { cash: 0, qr: 0, total: 0, medal: 0 });
 
     const dailyRows = daily.map((d) => `
       <tr>
@@ -411,7 +442,6 @@ export default function SalesEventsPage() {
         <td class="num strong">${yen(d.revenue_yen)}</td>
         <td class="num">${(d.medal_count ?? 0).toLocaleString('ja-JP')}</td>
       </tr>`).join('');
-
     const dailyTotal = daily.reduce((a, d) => ({
       qr: a.qr + (d.qr_revenue_yen || 0),
       cash: a.cash + (d.cash_revenue_yen || 0),
@@ -436,6 +466,7 @@ export default function SalesEventsPage() {
   td.strong { font-weight: 700; }
   tr.total td { background: #fafafa; font-weight: 700; border-top: 2px solid #c0392b; }
   .sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cap { font-size: 10px; color: #888; margin: 2px 0 10px; }
   .foot { margin-top: 28px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
   @media print { body { padding: 0; } @page { margin: 16mm; } }
 </style></head>
@@ -443,7 +474,7 @@ export default function SalesEventsPage() {
   <div class="head">
     <div>
       <div class="title">売上レポート</div>
-      <div class="sub">対象顧客：${custName}<br>対象期間：${periodLabel}<br>発行日時：${issued}</div>
+      <div class="sub">${condHtml}</div>
     </div>
     <div class="corp">株式会社ゼロプレイス<br>売上集計</div>
   </div>
@@ -466,7 +497,17 @@ export default function SalesEventsPage() {
     </table>
   </div>
 
-  <h2>日別推移（直近30日）</h2>
+  <h2>マシン別 売上内訳</h2>
+  <table>
+    <thead><tr><th>マシン</th><th class="num">現金売上</th><th class="num">QR売上</th><th class="num">合計</th><th class="num">メダル数</th></tr></thead>
+    <tbody>
+      ${mrows || '<tr><td colspan="5" style="text-align:center;color:#999;">対象マシンのデータがありません</td></tr>'}
+      <tr class="total"><td>合計（${byDevice.length}台）</td><td class="num">${yen(mtot.cash)}</td><td class="num">${yen(mtot.qr)}</td><td class="num">${yen(mtot.total)}</td><td class="num">${mtot.medal.toLocaleString('ja-JP')}</td></tr>
+    </tbody>
+  </table>
+
+  <h2>日別推移</h2>
+  <div class="cap">日別推移は顧客・期間ベースの集計です（グループ／店舗／マシンの絞り込みは上のサマリー・マシン別内訳に反映されます）。</div>
   <table>
     <thead><tr><th>日付</th><th class="num">QR売上</th><th class="num">現金売上</th><th class="num">合計</th><th class="num">メダル数</th></tr></thead>
     <tbody>
@@ -483,7 +524,7 @@ export default function SalesEventsPage() {
     if (!w) { window.alert('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
     w.document.write(html);
     w.document.close();
-  }, [summary, customerFilter, customers, dateFrom, dateTo]);
+  }, [summary, customerFilter, customers, dateFrom, dateTo, byDevice, deviceFilter, groupFilter, storeFilter, groups, stores, devices, effectiveDeviceId, kindFilter]);
 
   type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean };
   type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; outstanding_carry_yen: number };
