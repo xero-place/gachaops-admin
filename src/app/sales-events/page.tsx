@@ -527,33 +527,59 @@ export default function SalesEventsPage() {
   }, [summary, customerFilter, customers, dateFrom, dateTo, byDevice, deviceFilter, groupFilter, storeFilter, groups, stores, devices, effectiveDeviceId, kindFilter]);
 
   type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean };
-  type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; outstanding_carry_yen: number };
+  type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; outstanding_carry_yen: number; machines?: { device_id: string; device_name: string; qr_yen: number }[] };
 
   const generatePayoutStatement = useCallback(async () => {
     let ledgers: _Ledger[] = [];
     try {
-      const q = customerFilter !== 'all' ? `?customer_id=${encodeURIComponent(customerFilter)}` : '';
-      ledgers = await api.get<_Ledger[]>(`/sales-events/payout-ledger${q}`);
+      const sp = new URLSearchParams();
+      if (customerFilter !== 'all') sp.set('customer_id', customerFilter);
+      if (groupFilter !== 'all') sp.set('group_id', groupFilter);
+      if (storeFilter !== 'all') sp.set('store_id', storeFilter);
+      if (effectiveDeviceId) sp.set('device_id', effectiveDeviceId);
+      const fromUtc = jstDateToUtcStart(dateFrom);
+      const toUtc = jstDateToUtcEnd(dateTo);
+      if (fromUtc) sp.set('date_from', fromUtc);
+      if (toUtc) sp.set('date_to', toUtc);
+      const qs = sp.toString() ? `?${sp.toString()}` : '';
+      ledgers = await api.get<_Ledger[]>(`/sales-events/payout-ledger${qs}`);
     } catch {
       window.alert('振込台帳の取得に失敗しました。時間をおいて再度お試しください。');
       return;
     }
     if (!ledgers || ledgers.length === 0) { window.alert('対象の売上データがありません。'); return; }
+    const esc = (s: string) => (s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
     const issued = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     const yen = (n: number) => '¥' + (n ?? 0).toLocaleString('ja-JP');
     const ymL = (v: string) => v ? `${v.slice(0, 4)}年${v.slice(5, 7)}月` : '—';
+    const groupName = groupFilter === 'all' ? '' : (groups.find((g) => g.id === groupFilter)?.name ?? groupFilter);
+    const storeName = storeFilter === 'all' ? '' : (stores.find((s) => s.id === storeFilter)?.name ?? storeFilter);
+    const machineName = effectiveDeviceId ? (devices.find((d) => d.id === effectiveDeviceId)?.name ?? effectiveDeviceId) : '';
+    const periodLabel = (dateFrom || dateTo) ? `${dateFrom || '—'} 〜 ${dateTo || '—'}` : '全期間';
+    const condParts: string[] = [];
+    if (groupName) condParts.push(`グループ：${esc(groupName)}`);
+    if (storeName) condParts.push(`店舗：${esc(storeName)}`);
+    if (machineName) condParts.push(`マシン：${esc(machineName)}`);
+    condParts.push(`対象期間：${periodLabel}`);
+    const condLine = condParts.length ? `<div class="cond">絞り込み: ${condParts.join(' ／ ')}</div>` : '';
     const sections = ledgers.map((L) => {
       const rows = (L.rows || []).map((r) => {
         const state = r.is_provisional ? '当月（暫定）' : (r.is_transfer ? '振込' : '繰越');
         return `<tr><td>${ymL(r.month)}</td><td class="num">${(r.order_count ?? 0).toLocaleString('ja-JP')}</td><td class="num">${yen(r.gross_yen)}</td><td class="num">${yen(r.after_fee_yen)}</td><td class="num">${yen(r.carried_in_yen)}</td><td class="num">${yen(r.running_total_yen)}</td><td>${state}</td><td class="num">${r.is_transfer ? yen(r.transfer_fee_yen) : '—'}</td><td class="num strong">${r.is_transfer ? yen(r.transfer_yen) : '—'}</td><td>${r.pay_date || '—'}</td></tr>`;
       }).join('');
-      return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${L.customer_name || L.customer_id} 御中<br>発行日時：${issued}</div></div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table><div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div></div>`;
+      const machines = L.machines || [];
+      const mrows = machines.map((m) => `<tr><td>${esc(m.device_name || m.device_id)}</td><td class="num strong">${yen(m.qr_yen)}</td></tr>`).join('');
+      const mtotal = machines.reduce((a, m) => a + (m.qr_yen || 0), 0);
+      const machineTable = machines.length
+        ? `<div class="mtitle">マシン別 QR売上内訳</div><table class="mtbl"><thead><tr><th>マシン</th><th class="num">QR売上</th></tr></thead><tbody>${mrows}<tr class="mtot"><td>合計（${machines.length}台）</td><td class="num strong">${yen(mtotal)}</td></tr></tbody></table>`
+        : '';
+      return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${esc(L.customer_name || L.customer_id)} 御中<br>発行日時：${issued}</div>${condLine}</div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table><div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div>${machineTable}</div>`;
     }).join('');
-    const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>振込明細書</title><style>* { font-family: "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", sans-serif; box-sizing: border-box; } body { margin:0; padding:28px 32px; color:#1a1a1a; font-size:12px; } .stmt{page-break-after:always;} .stmt:last-of-type{page-break-after:auto;} .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c0392b;padding-bottom:12px;margin-bottom:14px;} .head .title{font-size:20px;font-weight:700;} .head .sub{font-size:12px;color:#333;margin-top:6px;line-height:1.7;} .head .corp{text-align:right;font-size:11px;color:#444;line-height:1.6;} .note{font-size:10.5px;color:#555;line-height:1.7;margin-bottom:12px;} table{width:100%;border-collapse:collapse;margin-bottom:10px;} th,td{border:1px solid #ddd;padding:5px 8px;text-align:left;} th{background:#f5f5f5;font-weight:600;font-size:10.5px;} td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;} td.strong{font-weight:700;} .sum{display:flex;gap:28px;justify-content:flex-end;font-size:12px;margin-top:6px;} .foot{margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;} @media print{body{padding:0;} @page{margin:12mm;size:A4 landscape;}}</style></head><body>${sections}<div class="foot">本明細は株式会社ゼロプレイスにより自動生成されました。金額はシステムの確定値に基づきます（当月分は暫定）。</div><script>window.onload=function(){setTimeout(function(){window.print();},300);};</script></body></html>`;
+    const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>振込明細書</title><style>* { font-family: "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", sans-serif; box-sizing: border-box; } body { margin:0; padding:28px 32px; color:#1a1a1a; font-size:12px; } .stmt{page-break-after:always;} .stmt:last-of-type{page-break-after:auto;} .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #c0392b;padding-bottom:12px;margin-bottom:14px;} .head .title{font-size:20px;font-weight:700;} .head .sub{font-size:12px;color:#333;margin-top:6px;line-height:1.7;} .head .cond{font-size:11px;color:#c0392b;margin-top:4px;} .head .corp{text-align:right;font-size:11px;color:#444;line-height:1.6;} .note{font-size:10.5px;color:#555;line-height:1.7;margin-bottom:12px;} table{width:100%;border-collapse:collapse;margin-bottom:10px;} th,td{border:1px solid #ddd;padding:5px 8px;text-align:left;} th{background:#f5f5f5;font-weight:600;font-size:10.5px;} td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;} td.strong{font-weight:700;} .sum{display:flex;gap:28px;justify-content:flex-end;font-size:12px;margin-top:6px;} .mtitle{font-size:12px;font-weight:700;margin:14px 0 6px;padding-left:8px;border-left:4px solid #c0392b;} .mtbl{width:60%;} tr.mtot td{background:#fafafa;font-weight:700;border-top:2px solid #c0392b;} .foot{margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;} @media print{body{padding:0;} @page{margin:12mm;size:A4 landscape;}}</style></head><body>${sections}<div class="foot">本明細は株式会社ゼロプレイスにより自動生成されました。金額はシステムの確定値に基づきます（当月分は暫定）。</div><script>window.onload=function(){setTimeout(function(){window.print();},300);};</script></body></html>`;
     const w = window.open('', '_blank');
     if (!w) { window.alert('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
     w.document.write(html); w.document.close();
-  }, [customerFilter]);
+  }, [customerFilter, groupFilter, storeFilter, effectiveDeviceId, dateFrom, dateTo, groups, stores, devices]);
 
   if (loading) {
     return (
