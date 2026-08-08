@@ -557,15 +557,29 @@ export default function SalesEventsPage() {
     const machineName = effectiveDeviceId ? (devices.find((d) => d.id === effectiveDeviceId)?.name ?? effectiveDeviceId) : '';
     const periodLabel = (dateFrom || dateTo) ? `${dateFrom || '—'} 〜 ${dateTo || '—'}` : '全期間';
     const condParts: string[] = [];
-    if (groupName) condParts.push(`グループ：${esc(groupName)}`);
+    void groupName; // グループは振込明細に記載しない（顧客/店舗/マシンのみ）
     if (storeName) condParts.push(`店舗：${esc(storeName)}`);
     if (machineName) condParts.push(`マシン：${esc(machineName)}`);
     condParts.push(`対象期間：${periodLabel}`);
     const condLine = condParts.length ? `<div class="cond">絞り込み: ${condParts.join(' ／ ')}</div>` : '';
+    const _nextMonthEnd = (ym: string) => {
+      if (!ym || ym.length < 7) return '';
+      const y = +ym.slice(0, 4), m = +ym.slice(5, 7);
+      const py = m === 12 ? y + 1 : y, pm = m === 12 ? 1 : m + 1;
+      const last = new Date(py, pm, 0).getDate();
+      return `${py}-${String(pm).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+    };
+    // 振込済み合計/繰越残高は「顧客スコープ」時のみ表示（グループ/店舗/マシン絞込や顧客未指定では過去別顧客ぶん累積を出さない）
+    const isCustomerScope = (!isSuper || customerFilter !== 'all') && groupFilter === 'all' && storeFilter === 'all' && !effectiveDeviceId;
     const sections = ledgers.map((L) => {
       const rows = (L.rows || []).map((r) => {
         const state = r.is_provisional ? '当月（暫定）' : (r.is_transfer ? '振込' : '繰越');
-        return `<tr><td>${ymL(r.month)}</td><td class="num">${(r.order_count ?? 0).toLocaleString('ja-JP')}</td><td class="num">${yen(r.gross_yen)}</td><td class="num">${yen(r.after_fee_yen)}</td><td class="num">${yen(r.carried_in_yen)}</td><td class="num">${yen(r.running_total_yen)}</td><td>${state}</td><td class="num">${r.is_transfer ? yen(r.transfer_fee_yen) : '—'}</td><td class="num strong">${r.is_transfer ? yen(r.transfer_yen) : '—'}</td><td>${r.pay_date || '—'}</td></tr>`;
+        // 当月（暫定）でも累計が振込下限(¥10,000)以上なら翌月末の振込予定を表示
+        const willPay = r.is_transfer || (r.is_provisional && (r.running_total_yen ?? 0) >= 10000);
+        const feeCell = willPay ? yen(r.is_transfer ? r.transfer_fee_yen : 200) : '—';
+        const amtCell = willPay ? yen(r.is_transfer ? r.transfer_yen : ((r.running_total_yen ?? 0) - 200)) : '—';
+        const dateCell = r.pay_date || (willPay ? _nextMonthEnd(r.month) : '—');
+        return `<tr><td>${ymL(r.month)}</td><td class="num">${(r.order_count ?? 0).toLocaleString('ja-JP')}</td><td class="num">${yen(r.gross_yen)}</td><td class="num">${yen(r.after_fee_yen)}</td><td class="num">${yen(r.carried_in_yen)}</td><td class="num">${yen(r.running_total_yen)}</td><td>${state}</td><td class="num">${feeCell}</td><td class="num strong">${amtCell}</td><td>${dateCell}</td></tr>`;
       }).join('');
       const machines = L.machines || [];
       const mrows = machines.map((m) => `<tr><td>${esc(m.device_name || m.device_id)}</td><td class="num strong">${yen(m.qr_yen)}</td></tr>`).join('');
@@ -576,7 +590,10 @@ export default function SalesEventsPage() {
       const nameHtml = isSuper
         ? `<span class="rcpt" contenteditable="true" spellcheck="false">${esc(L.customer_name || L.customer_id)}</span> 御中`
         : `${esc(L.customer_name || L.customer_id)} 御中`;
-      return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${nameHtml}<br>発行日時：${issued}</div>${condLine}</div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table><div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div>${machineTable}</div>`;
+      const sumHtml = isCustomerScope
+        ? `<div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div>`
+        : '';
+      return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${nameHtml}<br>発行日時：${issued}</div>${condLine}</div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table>${sumHtml}${machineTable}</div>`;
     }).join('');
     const toolbar = isSuper ? `<div class="toolbar no-print"><span>会社名（御中の前）をクリックすると編集できます。修正後に右のボタンで印刷／PDF保存してください。</span><button onclick="window.print()">印刷 / PDF保存</button></div>` : '';
     const autoPrint = isSuper ? '' : '<script>window.onload=function(){setTimeout(function(){window.print();},300);};</script>';
