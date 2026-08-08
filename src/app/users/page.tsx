@@ -22,6 +22,7 @@ type User = {
   customer_id?: string;
   email: string;
   name: string;
+  customer_name?: string;
   role: UserRole;
   two_factor_enabled: boolean;
   last_login_at?: string | null;
@@ -116,10 +117,10 @@ export default function UsersPage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary/40 flex items-center justify-center text-xs font-bold text-primary-foreground">
-                      {u.name.charAt(0)}
+                      {(u.customer_name || u.name).charAt(0)}
                     </div>
                     <div>
-                      <div className="text-sm font-medium">{u.name}</div>
+                      <div className="text-sm font-medium">{u.customer_name || u.name}</div>
                       <div className="text-[10.5px] font-mono text-muted-foreground">{u.id}</div>
                     </div>
                   </div>

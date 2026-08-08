@@ -25,9 +25,8 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
   useEffect(() => {
     const u = tokenStore.getUser();
     setUser(u);
-    // S216: 認証は有効なのに user が欠落（ヘッダーが「ゲスト」）の時だけ /auth/me で復元。
-    // 通常時（user あり）は追加リクエストを出さない。
-    if (!u && tokenStore.isAuthenticated()) {
+    // S216: user欠落時、または顧客名未取得の既存セッション時のみ /auth/me で復元。
+    if (tokenStore.isAuthenticated() && (!u || (!!u.customer_id && !u.customer_name))) {
       auth.me()
         .then((fresh) => { tokenStore.setUser(fresh); setUser(fresh); })
         .catch(() => { /* 本物の認証切れは api 側で /login にリダイレクトされる */ });
@@ -45,7 +44,7 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
     router.replace('/login');
   };
 
-  const displayName = user?.name || (false ? '運営 太郎' : 'ゲスト');
+  const displayName = user?.customer_name || user?.name || (false ? '運営 太郎' : 'ゲスト');
   const initial = displayName.slice(0, 1);
 
   return (

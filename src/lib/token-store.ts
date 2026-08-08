@@ -17,6 +17,7 @@ export interface StoredUser {
   customer_id: string;
   email: string;
   name: string;
+  customer_name?: string;
   role: string;
   two_factor_enabled: boolean;
 }
