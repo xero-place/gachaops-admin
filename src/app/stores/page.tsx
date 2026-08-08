@@ -51,6 +51,8 @@ export default function StoresPage() {
   const [fAddr, setFAddr] = useState('');
   const [fPostal, setFPostal] = useState('');
   const [fPhone, setFPhone] = useState('');
+  const [fLoginEmail, setFLoginEmail] = useState('');
+  const [fLoginPassword, setFLoginPassword] = useState('');
   const [fCustomerId, setFCustomerId] = useState('');
   const [customers, setCustomers] = useState<{id:string; name:string}[]>([]);
   const [saving, setSaving] = useState(false);
@@ -101,9 +103,14 @@ export default function StoresPage() {
         phone: fPhone.trim() || null,
       };
       if (isSuperAdmin && fCustomerId) body.customer_id = fCustomerId;
+      if (fLoginEmail.trim()) {
+        if (fLoginPassword.length < 8) { setAddError('店舗ログインの初期パスワードは8文字以上にしてください'); setSaving(false); return; }
+        body.login_email = fLoginEmail.trim();
+        body.login_password = fLoginPassword;
+      }
       await api.post('/stores', body);
       setAddOpen(false);
-      setFName(''); setFPref(''); setFAddr(''); setFPostal(''); setFPhone(''); setFCustomerId('');
+      setFName(''); setFPref(''); setFAddr(''); setFPostal(''); setFPhone(''); setFCustomerId(''); setFLoginEmail(''); setFLoginPassword('');
       await loadStores();
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
@@ -180,6 +187,20 @@ export default function StoresPage() {
                 <input type="text" value={fPhone} onChange={(e) => setFPhone(e.target.value)}
                   placeholder="0185-23-2111" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
               </div>
+            </div>
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <div className="text-xs font-medium">店舗ログイン（任意）— この店舗のマシン・売上のみ操作/閲覧できるアカウント</div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">ログイン用メール</label>
+                <input type="email" value={fLoginEmail} onChange={(e) => setFLoginEmail(e.target.value)}
+                  placeholder="oga-store@example.jp" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">初期パスワード（8文字以上）</label>
+                <input type="password" value={fLoginPassword} onChange={(e) => setFLoginPassword(e.target.value)}
+                  placeholder="8文字以上" className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+              </div>
+              <div className="text-[10.5px] text-muted-foreground">空欄なら店舗アカウントは作成しません。2段階認証コードは大元アドレスに届きます。</div>
             </div>
             {addError && (
               <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
