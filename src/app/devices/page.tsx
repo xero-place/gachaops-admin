@@ -74,7 +74,7 @@ export default function DevicesPage() {
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
           api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
-          api.get<{ items?: { version_code: number }[] } | { version_code: number }[]>('/apk/releases?limit=100').catch(() => []),
+          api.get<{ items?: { version_code: number; uploaded_at: string }[] } | { version_code: number; uploaded_at: string }[]>('/apk/releases?limit=100').catch(() => []),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
@@ -88,8 +88,10 @@ export default function DevicesPage() {
         for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
         setStockMap(mMap);
         const apkArr = Array.isArray(apkR) ? apkR : (apkR.items ?? []);
-        const maxVc = apkArr.reduce((mx, r) => Math.max(mx, r.version_code || 0), 0);
-        setLatestApkCode(maxVc > 0 ? maxVc : null);
+        // 「最新」= APKページと同じ定義（最新アップロード日時のリリース）。max(version_code)だと
+        // 過去にvc358より大きい番号のテスト版があると全機が要更新になるため、uploaded_at基準にする。
+        const latestRel = [...apkArr].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())[0];
+        setLatestApkCode(latestRel ? latestRel.version_code : null);
       } catch (e) {
         if (cancelled) return;
         setLoadError(e instanceof Error ? e.message : String(e));
