@@ -38,6 +38,9 @@ import {
   Volume2,
   Sun,
   // Sun, // S141: 輝度UI非表示につき未使用化
+  Network,
+  Smartphone,
+  Cpu,
   PlayCircle,
   Zap,
   Loader2,
@@ -711,8 +714,8 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      <div>
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
               <TabsTrigger value="overview">{t.device.tabs.overview}</TabsTrigger>
@@ -1483,6 +1486,29 @@ export default function DeviceDetailPage() {
 
           </Tabs>
         </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">{t.device.basicInfo.title}</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <KV label={t.device.basicInfo.id} value={detail.id} mono />
+              <KV label={t.device.basicInfo.serial} value={detail.serial} mono />
+              <KV label={t.device.basicInfo.store} value={detail.store_name ?? ""} />
+              <KV label={t.device.basicInfo.lastSeen} value={fmtRelative(detail.last_heartbeat_at)} />
+              <KV label={t.device.basicInfo.created} value={fmtDate(detail.created_at)} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">{t.device.techInfo.title}</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <KV label={<span className="flex items-center gap-1.5"><Smartphone className="h-3 w-3" />{t.device.techInfo.app}</span>} value={detail.app_version ?? '—'} mono />
+              <KV label={<span className="flex items-center gap-1.5"><Cpu className="h-3 w-3" />{t.device.techInfo.os}</span>} value={detail.android_version ?? '—'} />
+              <KV label={<span className="flex items-center gap-1.5"><Network className="h-3 w-3" />{t.device.techInfo.ip}</span>} value={detail.ip_address ?? '—'} mono />
+            </CardContent>
+          </Card>
+
+        </div>
       </div>
 
       {videoOpen && detail.current_program_video_url && (
@@ -1597,3 +1623,11 @@ function RemoteSliderRow({
   );
 }
 
+function KV({ label, value, mono }: { label: React.ReactNode; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className={`text-right break-all ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</span>
+    </div>
+  );
+}

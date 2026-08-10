@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Volume2, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock, Pencil } from 'lucide-react';
+import { Volume2, Power, Video, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock, Pencil } from 'lucide-react';
 import {
   DeviceStatusBadge,
 } from '@/components/domain/status-badges';
@@ -57,24 +57,48 @@ export default function DevicesPage() {
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const handleForceRefresh = async (device: Device) => {
+    if (refreshingId) return;
+    const ok = window.confirm(
+      `⚠️ ${device.name} を再起動して映像を復帰しますか?\n\n` +
+      `デバイスに停止コマンドを送り、直前の動画を再送信します。\n` +
+      `（電源 OFF/ON と同等・再生が一瞬止まります）`
+    );
+    if (!ok) return;
+    setRefreshingId(device.id);
+    try {
+      const res = await api.post<{ status: string }>(`/devices/${device.id}/force_refresh`, {});
+      if (res.status === 'refreshed') {
+        window.alert('✅ 再起動して映像を復帰しました');
+      } else if (res.status === 'stopped_only') {
+        window.alert('⚠️ 停止のみ実行しました（前回の動画情報なし）');
+      } else {
+        window.alert(`✅ 送信完了（status: ${res.status}）`);
+      }
+    } catch (e) {
+      window.alert(`❌ 失敗: ${e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message}`);
+    } finally {
+      setRefreshingId(null);
+    }
+  };
   const [devices, setDevices] = useState<Device[]>([]);
   const [planSchedules, setPlanSchedules] = useState<PlanScheduleLite[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
-  const [latestApkCode, setLatestApkCode] = useState<number | null>(null);  // 最新APKのversionCode(最大)
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [devR, strR, planR, machR, apkR] = await Promise.all([
+        const [devR, strR, planR, machR] = await Promise.all([
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
           api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
-          api.get<{ items?: { version_code: number }[] } | { version_code: number }[]>('/apk/releases?limit=100').catch(() => []),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
@@ -87,9 +111,6 @@ export default function DevicesPage() {
         const mMap: Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
         for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
         setStockMap(mMap);
-        const apkArr = Array.isArray(apkR) ? apkR : (apkR.items ?? []);
-        const maxVc = apkArr.reduce((mx, r) => Math.max(mx, r.version_code || 0), 0);
-        setLatestApkCode(maxVc > 0 ? maxVc : null);
       } catch (e) {
         if (cancelled) return;
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -140,21 +161,6 @@ export default function DevicesPage() {
       // ignore corrupt / unavailable storage
     }
   }, []);
-  // 「店舗」ページの「端末を表示」から ?store_id=... で来たら、その店舗のみに絞り込む。
-  // sessionStorage 復元(上の effect)より後に実行されるため URL 指定が優先される。
-  useEffect(() => {
-    try {
-      const sid = new URLSearchParams(window.location.search).get('store_id');
-      if (sid) {
-        setStoreFilter(sid);
-        setStatusFilter('all');
-        setGroupFilter('all');
-        setSearch('');
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
   useEffect(() => {
     if (!filtersHydrated.current) {
       filtersHydrated.current = true;
@@ -188,20 +194,6 @@ export default function DevicesPage() {
     return Array.from(m, ([id, name]) => ({ id, name }));
   }, [devices]);
 
-  // 記憶していた店舗/グループ絞り込みが「現在のアカウント」に存在しない場合(運営の成り代わりで
-  // 別顧客の店舗IDが sessionStorage に残っている等)は「すべて」に戻す。
-  // これをしないと、該当しない絞り込みのままで端末が1件も表示されない。
-  useEffect(() => {
-    if (storeFilter !== 'all' && stores.length > 0 && !stores.some((s) => s.id === storeFilter)) {
-      setStoreFilter('all');
-    }
-  }, [stores, storeFilter]);
-  useEffect(() => {
-    if (groupFilter !== 'all' && devices.length > 0 && !groupOptions.some((g) => g.id === groupFilter)) {
-      setGroupFilter('all');
-    }
-  }, [groupOptions, devices.length, groupFilter]);
-
   const filtered = useMemo(() => {
     return effectiveDevices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
@@ -209,7 +201,7 @@ export default function DevicesPage() {
       if (groupFilter !== 'all' && !(d.group_ids ?? []).includes(groupFilter)) return false;
       if (search) {
         const s = search.toLowerCase();
-        if (!d.name.toLowerCase().includes(s)) return false;  // 名前のみ(シリアルは検索対象外)
+        if (!d.name.toLowerCase().includes(s) && !d.serial.toLowerCase().includes(s)) return false;
       }
       return true;
     });
@@ -282,7 +274,7 @@ export default function DevicesPage() {
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="名前で検索..."
+              placeholder="名前またはシリアルで検索..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -390,18 +382,7 @@ export default function DevicesPage() {
                 </TableCell>
                 <TableCell>
                   <Link href={`/devices/${d.id}`} className="hover:underline">
-                    <div className="text-sm flex items-center gap-1.5">
-                      <span>{d.name}</span>
-                      {(() => {
-                        if (latestApkCode == null) return null;
-                        const nums = [...(d.app_version ?? '').matchAll(/\(vc(\d+)\)/g)].map((x) => Number(x[1]));
-                        const dvc = nums.length ? Math.max(...nums) : null;
-                        if (dvc == null) return null;
-                        return dvc >= latestApkCode
-                          ? <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-medium">最新</span>
-                          : <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">要更新</span>;
-                      })()}
-                    </div>
+                    <div className="text-sm">{d.name}</div>
                     {isSuperAdmin && d.customer_name && (
                       <div className="text-[10.5px] text-amber-500/90">{d.customer_name}</div>
                     )}
@@ -479,6 +460,28 @@ export default function DevicesPage() {
                     onClick={() => { setRenameDevice(d); setRenameValue(d.name); setRenameError(null); }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={d.status !== 'online'}
+                    title="再生中の映像を見る"
+                    onClick={() => setVideoDevice(d)}
+                  >
+                    <Video className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={d.status !== 'online' || refreshingId === d.id}
+                    title="再起動して映像を復帰"
+                    onClick={() => handleForceRefresh(d)}
+                  >
+                    {refreshingId === d.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Power className="h-3.5 w-3.5" />}
                   </Button>
                 </TableCell>
               </TableRow>

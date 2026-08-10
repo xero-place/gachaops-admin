@@ -11,7 +11,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
@@ -166,9 +166,6 @@ export default function SalesEventsPage() {
   const [summaryOpen, setSummaryOpen] = useState(true);  // S224: サマリー折りたたみ
   const [byDeviceOpen, setByDeviceOpen] = useState(false);  // S225/S229: 端末別内訳は既定で折りたたみ
   const [undispensed, setUndispensed] = useState<{ count: number; yen: number }>({ count: 0, yen: 0 });  // ★P1: 未排出アラート
-  const [onlyUndispensed, setOnlyUndispensed] = useState(false);  // ★rankSR1: 未排出のみ表示(バナークリック)
-  const [refreshTick, setRefreshTick] = useState(0);              // ★rankSR1: 対応済み後の再取得トリガ
-  const [resolving, setResolving] = useState<string | null>(null); // ★rankSR1: 対応中の注文ID
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -353,40 +350,22 @@ export default function SalesEventsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [buildParams, refreshTick]);
-
-  // ★rankSR1: 未排出(課金済み・排出なし)を「対応済み」にする(会計影響なし・アラートから消すだけ)。
-  async function handleResolve(orderId: string) {
-    setResolving(orderId);
-    try {
-      await api.post(`/orders/${orderId}/resolve-dispense`);
-      setRefreshTick((t) => t + 1);  // 一覧＋バナー件数を再取得
-    } catch (e) {
-      const msg = e instanceof ApiError ? (e.problem?.detail || e.problem?.title || e.message) : String(e);
-      window.alert(`対応済みにできませんでした: ${msg}`);
-    } finally {
-      setResolving(null);
-    }
-  }
+  }, [buildParams]);
 
   // フィルタを変えたら1ページ目へ戻す
   useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo]);
 
   // 検索が端末に解決した場合はサーバー側で既に絞り込み済み。それ以外の語だけクライアント絞り込み。
   const visible = useMemo(() => {
-    let list = events;
-    if (clientFilterActive) {
-      const s = search.toLowerCase();
-      list = list.filter((e) =>
-        e.device_name.toLowerCase().includes(s) ||
-        e.customer_name.toLowerCase().includes(s) ||
-        (e.group_names ?? []).some((g) => g.toLowerCase().includes(s)) ||
-        (e.payment_id ?? '').toLowerCase().includes(s)
-      );
-    }
-    if (onlyUndispensed) list = list.filter((e) => e.is_undispensed);  // ★rankSR1: 未排出のみ
-    return list;
-  }, [events, search, clientFilterActive, onlyUndispensed]);
+    if (!clientFilterActive) return events;
+    const s = search.toLowerCase();
+    return events.filter((e) =>
+      e.device_name.toLowerCase().includes(s) ||
+      e.customer_name.toLowerCase().includes(s) ||
+      (e.group_names ?? []).some((g) => g.toLowerCase().includes(s)) ||
+      (e.payment_id ?? '').toLowerCase().includes(s)
+    );
+  }, [events, search, clientFilterActive]);
 
   // S229: 検索ボックスは端末別 売上内訳も同じ語で絞り込む（端末名 / 端末ID / 顧客名）。
   const visibleByDevice = useMemo(() => {
@@ -640,29 +619,16 @@ export default function SalesEventsPage() {
   return (
     <AppShell title="売上管理" breadcrumb={['ホーム', '売上管理']}>
       {undispensed.count > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            setOnlyUndispensed(true);
-            setTimeout(() => document.getElementById('sales-events-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-          }}
-          className="mb-3 w-full text-left flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 hover:bg-red-500/15 transition-colors"
-        >
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
           <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
           <div className="text-sm leading-relaxed">
             <span className="font-medium text-red-600 dark:text-red-400">
               未排出（課金済み・排出なし）が {undispensed.count.toLocaleString()} 件（{fmtYen(undispensed.yen)}）あります。
             </span>
             <span className="ml-1 text-xs text-muted-foreground">
-              クリックすると該当（未排出）だけを一覧表示します。各行の「対応済みにする」で消せます。
+              返金・排出対応が必要です。下の一覧の赤い行をご確認ください。
             </span>
           </div>
-        </button>
-      )}
-      {onlyUndispensed && (
-        <div className="mb-3 flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-2.5 py-0.5 font-medium">未排出のみ表示中</span>
-          <button type="button" onClick={() => setOnlyUndispensed(false)} className="text-muted-foreground underline hover:text-foreground">全件表示に戻す</button>
         </div>
       )}
       <div className="flex justify-end gap-2 mb-3">
@@ -892,7 +858,7 @@ export default function SalesEventsPage() {
         </Card>
       )}
 
-      <Card id="sales-events-list">
+      <Card>
         <div className="md:hidden divide-y divide-border">
           {visible.map((e) => (
             <div key={e.event_id} className={`p-3 space-y-1.5 ${e.is_undispensed ? 'bg-red-500/5' : ''}`}>
@@ -918,18 +884,6 @@ export default function SalesEventsPage() {
                         ? <span className="text-muted-foreground">—</span>
                         : <span className="text-muted-foreground">排出済み</span>}
                   </div>
-                  {e.is_undispensed && (
-                    <div className="mt-1">
-                      <Button
-                        size="sm" variant="outline"
-                        className="h-6 px-2 text-[11px]"
-                        disabled={resolving === e.event_id}
-                        onClick={() => handleResolve(e.event_id)}
-                      >
-                        {resolving === e.event_id ? <Loader2 className="h-3 w-3 animate-spin" /> : '対応済みにする'}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
@@ -978,19 +932,7 @@ export default function SalesEventsPage() {
                 </TableCell>
                 <TableCell className="text-xs">
                   {e.is_undispensed
-                    ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-red-600 dark:text-red-400 font-medium">未排出</span>
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-6 px-2 text-[11px]"
-                          disabled={resolving === e.event_id}
-                          onClick={() => handleResolve(e.event_id)}
-                        >
-                          {resolving === e.event_id ? <Loader2 className="h-3 w-3 animate-spin" /> : '対応済みにする'}
-                        </Button>
-                      </div>
-                    )
+                    ? <span className="text-red-600 dark:text-red-400 font-medium">未排出</span>
                     : e.kind === 'token'
                       ? <span className="text-muted-foreground">—</span>
                       : <span className="text-muted-foreground">排出済み</span>}

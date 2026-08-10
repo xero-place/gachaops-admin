@@ -1,7 +1,7 @@
 'use client';
 
 // src/app/customers/page.tsx
-// 運営（lv1_super）専用「顧客」ページ。新規顧客登録・ウィザード。
+// 運営（lv1_super）専用「顧客」ページ。新規顧客オンボーディング・ウィザード。
 // device-groups/page.tsx と同じ作法（AppShell + Card + @/components/ui + tokenStore ガード）。
 
 import { AppShell } from '@/components/layout/app-shell';
@@ -14,10 +14,10 @@ import {
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, auth, ApiError } from '@/lib/api';
+import { api, auth } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil, UserCog } from 'lucide-react';
 
 type DeviceForm = {
   id: string; name: string; serial: string; store_index: number; is_master: boolean;
@@ -53,7 +53,6 @@ export default function CustomersPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [impersonating, setImpersonating] = useState<string | null>(null);
@@ -110,7 +109,7 @@ export default function CustomersPage() {
           {isSuperAdmin && (
             <Button onClick={() => setWizardOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              新規顧客登録
+              新規顧客オンボーディング
             </Button>
           )}
         </div>
@@ -135,7 +134,7 @@ export default function CustomersPage() {
             <CardContent>
               {customers.length === 0 ? (
                 <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-                  顧客がありません。「新規顧客登録」から作成してください。
+                  顧客がありません。「新規顧客オンボーディング」から作成してください。
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -145,11 +144,12 @@ export default function CustomersPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{c.name}</span>
                         </div>
+                        <div className="mt-1 font-mono text-xs text-muted-foreground">{c.id}</div>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />店舗 {c.store_count}</span>
-                        <span className="flex items-center gap-1"><Package className="h-4 w-4" />マシン {c.device_count}</span>
-                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />ユーザー {c.user_count}</span>
+                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{c.store_count}</span>
+                        <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />{c.device_count}</span>
+                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{c.user_count}</span>
                         <Button
                           variant="outline"
                           size="sm"
@@ -165,14 +165,6 @@ export default function CustomersPage() {
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />編集
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(c)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />削除
                         </Button>
                       </div>
                     </div>
@@ -197,85 +189,7 @@ export default function CustomersPage() {
           onSaved={() => { setEditTarget(null); loadCustomers(); }}
         />
       )}
-      {deleteTarget && (
-        <DeleteCustomerDialog
-          target={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
-          onDeleted={() => { setDeleteTarget(null); loadCustomers(); }}
-        />
-      )}
     </AppShell>
-  );
-}
-
-function DeleteCustomerDialog({
-  target,
-  onClose,
-  onDeleted,
-}: {
-  target: CustomerRow;
-  onClose: () => void;
-  onDeleted: () => void;
-}) {
-  const [confirmText, setConfirmText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // 端末/売上がある顧客はサーバ側ガードで削除不可。ここでも端末数>0なら事前に注意喚起。
-  const hasDevices = (target.device_count ?? 0) > 0;
-  const canDelete = confirmText.trim() === target.name.trim() && !submitting;
-
-  async function remove() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.delete(`/customers/${target.id}`);
-      onDeleted();
-    } catch (e) {
-      const msg = e instanceof ApiError
-        ? (e.problem?.detail || e.problem?.title || e.message)
-        : (e instanceof Error ? e.message : String(e));
-      setError(msg);
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>顧客を削除</DialogTitle>
-          <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <div><strong>{target.name}</strong> を削除します。この操作は取り消せません。</div>
-              <div>付随する店舗（{target.store_count}）・管理ユーザ（{target.user_count}）も一緒に削除されます。</div>
-              {hasDevices && (
-                <div>この顧客には端末が {target.device_count} 台あります。端末・売上のある顧客はサーバ側の保護により削除できません（先に端末の付け替え・削除が必要）。</div>
-              )}
-            </div>
-          </div>
-          <Field label={`確認のため顧客名「${target.name}」を入力`}>
-            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={target.name} />
-          </Field>
-          {error && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>キャンセル</Button>
-          <Button variant="destructive" onClick={remove} disabled={!canDelete}>
-            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}削除する
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -423,7 +337,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
       setResult(res);
       onCreated();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '登録に失敗しました';
+      const msg = e instanceof Error ? e.message : 'オンボーディングに失敗しました';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -436,7 +350,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
       <Dialog open onOpenChange={onClose}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>登録完了</DialogTitle>
+            <DialogTitle>オンボーディング完了</DialogTitle>
             <DialogDescription>
               管理者パスワードはこの画面でしか表示されません。閉じる前に控えてください。
             </DialogDescription>
@@ -489,7 +403,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            新規顧客登録（{step}/3）
+            新規顧客オンボーディング（{step}/3）
           </DialogTitle>
         </DialogHeader>
 
