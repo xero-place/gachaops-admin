@@ -145,12 +145,11 @@ export default function CustomersPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{c.name}</span>
                         </div>
-                        <div className="mt-1 font-mono text-xs text-muted-foreground">{c.id}</div>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{c.store_count}</span>
-                        <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />{c.device_count}</span>
-                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{c.user_count}</span>
+                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />店舗 {c.store_count}</span>
+                        <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />端末 {c.device_count}</span>
+                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />ユーザー {c.user_count}</span>
                         <Button
                           variant="outline"
                           size="sm"
