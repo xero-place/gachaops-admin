@@ -3,14 +3,13 @@
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Loader2, Layers3, ChevronRight, Plus, Link2, Sparkles, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
+import { Loader2, Layers3, ChevronRight, Plus, Link2, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
 import VideoWallPreviewModal from '@/components/videowall/VideoWallPreviewModal';
 
 type GroupMember = { device_id: string; is_master: boolean };
@@ -30,6 +29,7 @@ type DeviceGroup = {
 };
 
 type DeviceLite = { id: string; name?: string; status?: string; current_program_name?: string | null };
+type CustomerLite = { id: string; name?: string };  // ★uiGrp: 顧客ごとに束ねる見出し名の解決用
 type VwAssetLite = { id: string; name: string; type?: string; url?: string | null };
 type VwTile = { id: string; row: number; col: number; position_index: number; tile_asset_id?: string | null; device_id?: string | null; tile_asset_url?: string | null };
 type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; source_asset_id?: string | null; tiles: VwTile[] };
@@ -39,6 +39,7 @@ export default function DeviceGroupsPage() {
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
   const [programs, setPrograms] = useState<ProgramLite[]>([]);  // S145: 箸休めセレクタ用
+  const [customers, setCustomers] = useState<CustomerLite[]>([]);  // ★uiGrp: 顧客名で束ねる
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DeviceGroup | null>(null);
   const [creating, setCreating] = useState(false);
@@ -55,18 +56,21 @@ export default function DeviceGroupsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [groupsRes, devRes, progRes] = await Promise.all([
+        const [groupsRes, devRes, progRes, custRes] = await Promise.all([
           api.get<{ items?: DeviceGroup[] } | DeviceGroup[]>('/device-groups?limit=200'),
           api.get<{ items?: DeviceLite[] } | DeviceLite[]>('/devices?limit=200'),
           api.get<{ items?: ProgramLite[] } | ProgramLite[]>('/programs?limit=200'),  // S145
+          api.get<{ items?: CustomerLite[] } | CustomerLite[]>('/customers?limit=200').catch(() => []),  // ★uiGrp
         ]);
         if (cancelled) return;
         const groups = Array.isArray(groupsRes) ? groupsRes : (groupsRes.items ?? []);
         const devs = Array.isArray(devRes) ? devRes : (devRes.items ?? []);
         const progs = Array.isArray(progRes) ? progRes : (progRes.items ?? []);  // S145
+        const custs = Array.isArray(custRes) ? custRes : (custRes.items ?? []);  // ★uiGrp
         setDeviceGroups(groups.map((g) => ({ ...g, members: g.members ?? [] })));
         setDevices(devs);
         setPrograms(progs);  // S145
+        setCustomers(custs);  // ★uiGrp
       } catch (e) {
         console.error('[device-groups] fetch failed:', e);
       } finally {
@@ -89,6 +93,19 @@ export default function DeviceGroupsPage() {
   const roots = deviceGroups.filter((g) => g.parent_id === null);
   const childrenOf = (id: string) => deviceGroups.filter((g) => g.parent_id === id);
 
+  // ★uiGrp: ルートグループを顧客ごとに束ねる。顧客名の昇順。IDは表示しない。
+  const custName = (id?: string) => customers.find((c) => c.id === id)?.name ?? '（顧客未設定）';
+  const custOrder: string[] = [];
+  const rootsByCust = new Map<string, DeviceGroup[]>();
+  for (const r of roots) {
+    const key = r.customer_id ?? '__none__';
+    if (!rootsByCust.has(key)) { rootsByCust.set(key, []); custOrder.push(key); }
+    rootsByCust.get(key)!.push(r);
+  }
+  custOrder.sort((a, b) => custName(a === '__none__' ? undefined : a).localeCompare(custName(b === '__none__' ? undefined : b), 'ja'));
+  // 顧客が1件だけ（顧客アカウントでの閲覧など）のときは冗長なので見出しを出さない。
+  const showCustomerHeader = custOrder.length > 1;
+
   return (
     <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
       <div className="flex items-center justify-end mb-4">
@@ -100,25 +117,64 @@ export default function DeviceGroupsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">グループ階層</CardTitle>
-          <p className="text-xs text-muted-foreground">エリア単位や連動再生グループを階層管理</p>
+          <p className="text-xs text-muted-foreground">エリア単位や連動再生グループを、顧客ごとに束ねて表示します。</p>
+          {/* ★uiGrp: 凡例。アイコン・バッジの意味を明示。 */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />オンライン
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />オフライン
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 font-medium">
+                <Crown className="h-2.5 w-2.5" />マスター
+              </span>
+              同期再生の基準端末
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 font-medium">
+                <Link2 className="h-2.5 w-2.5" />連動再生
+              </span>
+              複数台を同期
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="font-medium text-foreground/70">箸休め</span>
+              番組の合間に流す映像
+            </span>
+          </div>
         </CardHeader>
-        <CardContent>
-          <ul className="space-y-1">
-            {roots.map((root) => (
-              <GroupNode
-                key={root.id}
-                group={root}
-                childrenList={childrenOf(root.id)}
-                depth={0}
-                allGroups={deviceGroups}
-                canEdit={true}
-                onEdit={setEditing}
-                onDelete={setDeleting}
-                devices={devices}
-                programs={programs}
-              />
-            ))}
-          </ul>
+        <CardContent className="space-y-6">
+          {roots.length === 0 && (
+            <p className="text-sm text-muted-foreground py-6 text-center">グループがまだありません。右上の「新規グループ」から作成できます。</p>
+          )}
+          {custOrder.map((custKey) => (
+            <section key={custKey} className="space-y-2">
+              {showCustomerHeader && (
+                <div className="flex items-center gap-2 px-0.5">
+                  <span className="text-sm font-semibold text-foreground">{custName(custKey === '__none__' ? undefined : custKey)}</span>
+                  <span className="text-[11px] text-muted-foreground">グループ {rootsByCust.get(custKey)!.length} 件</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+              )}
+              <ul className="space-y-2">
+                {rootsByCust.get(custKey)!.map((root) => (
+                  <GroupNode
+                    key={root.id}
+                    group={root}
+                    childrenList={childrenOf(root.id)}
+                    depth={0}
+                    allGroups={deviceGroups}
+                    canEdit={true}
+                    onEdit={setEditing}
+                    onDelete={setDeleting}
+                    devices={devices}
+                    programs={programs}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
         </CardContent>
       </Card>
 
@@ -170,80 +226,105 @@ function GroupNode({
     m,
     d: devices.find((x) => x.id === m.device_id),
   }));
+  const onlineCount = memberDevices.filter(({ d }) => d?.status === 'online').length;
+  const offlineCount = memberDevices.length - onlineCount;
+
   return (
     <li>
-      <div
-        className="flex items-center gap-2 p-2.5 rounded-md hover:bg-accent transition-colors group"
-        style={{ paddingLeft: `${depth * 24 + 10}px` }}
-      >
-        {childrenList.length > 0 ? (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-        ) : (
-          <div className="w-3.5" />
-        )}
-        <Layers3 className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{group.name}</span>
-        {canEdit && group.customer_id && (
-          <span className="text-[10px] font-mono text-amber-500/80">{group.customer_id}</span>
-        )}
-        {group.linked && (
-          <Badge variant="default" className="gap-1 text-[10px]">
-            <Link2 className="h-2.5 w-2.5" />連動再生
-          </Badge>
-        )}
-        {/* S145: 演出はグループ既定常時true・端末タブで制御のためバッジ非表示 */}
-        {false && group.effect_enabled_default && (
-          <Badge variant="secondary" className="gap-1 text-[10px]">
-            <Sparkles className="h-2.5 w-2.5" />演出ON
-          </Badge>
-        )}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {group.device_count} 台
-          {group.child_group_count > 0 && ` · ${group.child_group_count} 子グループ`}
-        </span>
-        {canEdit && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>編集</Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
-              onClick={() => onDelete(group)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+      {/* ★uiGrp: 1グループ=1カード。見出し→箸休め→端末の順で読み下せるレイアウト。 */}
+      <div className="group/card rounded-lg border bg-card overflow-hidden">
+        {/* 見出し行 */}
+        <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/30">
+          {childrenList.length > 0 ? (
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : (
+            <Layers3 className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+          <span className="text-sm font-semibold text-foreground truncate">{group.name}</span>
+          {group.linked && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium shrink-0">
+              <Link2 className="h-2.5 w-2.5" />連動再生
+            </span>
+          )}
+
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {/* オン/オフ集計 */}
+            {memberDevices.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />オン {onlineCount}
+                </span>
+                {offlineCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[11px] font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />オフ {offlineCount}
+                  </span>
+                )}
+              </div>
+            )}
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {group.device_count}台{group.child_group_count > 0 && ` ・子${group.child_group_count}`}
+            </span>
+            {canEdit && (
+              <div className="flex gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>編集</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                  onClick={() => onDelete(group)}
+                  aria-label="削除"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* 本文：箸休め＋端末 */}
+        {group.members.length > 0 ? (
+          <div className="px-3 py-2 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/70">箸休め</span>
+              <span>{restName}</span>
+            </div>
+            <ul className="divide-y divide-border/60">
+              {memberDevices.map(({ m, d }) => {
+                const online = d?.status === 'online';
+                return (
+                  <li key={m.device_id} className="flex items-center gap-2 py-1.5 text-xs">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${online ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
+                    <span className="font-medium text-foreground truncate">{d?.name ?? m.device_id}</span>
+                    {m.is_master && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium shrink-0">
+                        <Crown className="h-2.5 w-2.5" />マスター
+                      </span>
+                    )}
+                    <span className="ml-auto flex items-center gap-2 shrink-0">
+                      {online ? (
+                        <>
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">オンライン</span>
+                          <span className="text-muted-foreground max-w-[220px] truncate">
+                            再生中: {d?.current_program_name ?? '—'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium">オフライン</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="px-3 py-2 text-[11px] text-muted-foreground">端末が登録されていません。</div>
         )}
       </div>
-      {group.members.length > 0 && (
-        <div className="space-y-0.5 mt-0.5 mb-1" style={{ paddingLeft: `${depth * 24 + 44}px` }}>
-          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <span className="opacity-70">箸休め:</span>
-            <span className="font-medium">{restName}</span>
-          </div>
-          {memberDevices.map(({ m, d }) => {
-            const online = d?.status === 'online';
-            return (
-              <div key={m.device_id} className="flex items-center gap-2 text-xs">
-                <span className={online ? 'text-emerald-500' : 'text-muted-foreground'}>
-                  {online ? '●' : '○'}
-                </span>
-                <span className="font-medium">{d?.name ?? m.device_id}</span>
-                {m.is_master && (
-                  <Crown className="h-3 w-3 text-amber-500" />
-                )}
-                <span className="ml-2 text-muted-foreground">
-                  {online
-                    ? (d?.current_program_name ? `再生中: ${d.current_program_name}` : '再生中: —')
-                    : 'オフライン'}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+
+      {/* 子グループ：左罫線で入れ子を表現 */}
       {childrenList.length > 0 && (
-        <ul className="space-y-1 mt-1">
+        <ul className="space-y-2 mt-2 ml-4 pl-3 border-l border-border">
           {childrenList.map((c) => (
             <GroupNode
               key={c.id}
