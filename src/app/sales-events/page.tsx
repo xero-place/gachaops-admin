@@ -248,12 +248,15 @@ export default function SalesEventsPage() {
     const toUtc = jstDateToUtcEnd(dateTo);
     if (fromUtc) p.set('date_from', fromUtc);
     if (toUtc) p.set('date_to', toUtc);
+    // ★rankUD1: 未排出バナーON時はサーバー側で未排出だけに絞る。
+    //   これで該当行が常に先頭ページに来る（従来は全イベントの時系列に埋もれ3〜4ページ目に出ていた）。
+    if (onlyUndispensed) p.set('undispensed_only', '1');
     if (includePaging) {
       p.set('limit', String(PAGE_SIZE));
       p.set('offset', String(page * PAGE_SIZE));
     }
     return p.toString();
-  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo, page]);
+  }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo, page, onlyUndispensed]);
 
   // 初回：顧客・端末リスト
   useEffect(() => {
@@ -369,8 +372,8 @@ export default function SalesEventsPage() {
     }
   }
 
-  // フィルタを変えたら1ページ目へ戻す
-  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo]);
+  // フィルタを変えたら1ページ目へ戻す（★rankUD1: 未排出バナーのON/OFFでも先頭ページへ）
+  useEffect(() => { setPage(0); }, [kindFilter, customerFilter, storeFilter, groupFilter, deviceFilter, effectiveDeviceId, dateFrom, dateTo, onlyUndispensed]);
 
   // 検索が端末に解決した場合はサーバー側で既に絞り込み済み。それ以外の語だけクライアント絞り込み。
   const visible = useMemo(() => {
