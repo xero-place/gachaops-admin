@@ -50,7 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
       // デフォルト演出(/gacha/account-default)はL2フォールバック(cust_demo向け)で運営が日常的に触らないため非表示。ページは温存。
       // 抽選プール(/gacha/pools)は1端末1専用プール化により表から不要。端末詳細(価格/演出タブ)に集約。ページ・engine.pyは温存。
       { href: '/devices', label: '端末', icon: Monitor },
-      { href: '/devices/map', label: '端末マップ', icon: MapPinned },
+      { href: '/devices/map', label: '端末マップ', icon: MapPinned, superOnly: true },  // 運営(lv1_super)のみ。顧客アカウントには非表示。
       { href: '/device-groups', label: 'グループ', icon: Layers3 },
       // 注文ページ(返金含む)は運営(lv1_super)のみ表示。顧客アカウントには非表示。
       { href: '/orders', label: '注文(QR)', icon: Receipt, superOnly: true },

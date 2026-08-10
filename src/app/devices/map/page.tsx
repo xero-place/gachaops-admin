@@ -72,6 +72,19 @@ export default function DevicesMapPage() {
 
   // SVG座標へ変換（マウス位置 → viewBox内の座標）
 
+  // 運営(lv1_super)専用ページ。顧客アカウント(成り代わり含む)には非表示 = 直URLでもガード。
+  if (!isSuperAdmin) {
+    return (
+      <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            このページは運営専用です。
+          </CardContent>
+        </Card>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
