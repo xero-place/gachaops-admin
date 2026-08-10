@@ -11,3 +11,4 @@ node_modules/
 # Backup files (Claude session work)
 *.bak_*
 *.bak_i18n_*
+_to_delete/
