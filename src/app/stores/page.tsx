@@ -36,7 +36,7 @@ type Device = {
   status: string;
 };
 import { fmtDate } from '@/lib/format';
-import { Plus, Building2, Phone, MapPin, Trash2 } from 'lucide-react';
+import { Plus, Building2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function StoresPage() {
@@ -273,8 +273,6 @@ export default function StoresPage() {
           <TableHeader>
             <TableRow>
               <TableHead>店舗名</TableHead>
-              <TableHead>所在地</TableHead>
-              <TableHead>連絡先</TableHead>
               <TableHead>端末</TableHead>
               <TableHead>登録日</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -299,21 +297,6 @@ export default function StoresPage() {
                         )}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <MapPin className="h-3 w-3" />
-                      {s.address}
-                    </div>
-                    {s.postal_code && <div className="text-[10.5px] text-muted-foreground mt-0.5">〒{s.postal_code}</div>}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {s.phone && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        {s.phone}
-                      </div>
-                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="ok">オン {online}</Badge>
