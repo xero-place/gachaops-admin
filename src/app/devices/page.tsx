@@ -209,6 +209,20 @@ export default function DevicesPage() {
     return Array.from(m, ([id, name]) => ({ id, name }));
   }, [devices]);
 
+  // 記憶していた店舗/グループ絞り込みが「現在のアカウント」に存在しない場合(運営の成り代わりで
+  // 別顧客の店舗IDが sessionStorage に残っている等)は「すべて」に戻す。
+  // これをしないと、該当しない絞り込みのままで端末が1件も表示されない。
+  useEffect(() => {
+    if (storeFilter !== 'all' && stores.length > 0 && !stores.some((s) => s.id === storeFilter)) {
+      setStoreFilter('all');
+    }
+  }, [stores, storeFilter]);
+  useEffect(() => {
+    if (groupFilter !== 'all' && devices.length > 0 && !groupOptions.some((g) => g.id === groupFilter)) {
+      setGroupFilter('all');
+    }
+  }, [groupOptions, devices.length, groupFilter]);
+
   const filtered = useMemo(() => {
     return effectiveDevices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
