@@ -490,28 +490,6 @@ export default function DevicesPage() {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={d.status !== 'online'}
-                    title="再生中の映像を見る"
-                    onClick={() => setVideoDevice(d)}
-                  >
-                    <Video className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={d.status !== 'online' || refreshingId === d.id}
-                    title="再起動して映像を復帰"
-                    onClick={() => handleForceRefresh(d)}
-                  >
-                    {refreshingId === d.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Power className="h-3.5 w-3.5" />}
-                  </Button>
                 </TableCell>
               </TableRow>
             ))}
