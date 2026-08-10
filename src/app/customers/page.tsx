@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { api, auth, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil, UserCog } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog } from 'lucide-react';
 
 type DeviceForm = {
   id: string; name: string; serial: string; store_index: number; is_master: boolean;
@@ -148,7 +148,7 @@ export default function CustomersPage() {
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />店舗 {c.store_count}</span>
-                        <span className="flex items-center gap-1"><Monitor className="h-4 w-4" />端末 {c.device_count}</span>
+                        <span className="flex items-center gap-1"><Package className="h-4 w-4" />マシン {c.device_count}</span>
                         <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />ユーザー {c.user_count}</span>
                         <Button
                           variant="outline"
