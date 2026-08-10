@@ -318,7 +318,7 @@ export default function StoresPage() {
                   <TableCell>
                     <Badge variant="ok">オン {online}</Badge>
                     {sdev.length - online > 0 && (
-                      <Badge variant="muted" className="ml-1">他 {sdev.length - online}</Badge>
+                      <Badge variant="muted" className="ml-1">オフ {sdev.length - online}</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmtDate(s.created_at, false)}</TableCell>
