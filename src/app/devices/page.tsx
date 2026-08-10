@@ -161,6 +161,21 @@ export default function DevicesPage() {
       // ignore corrupt / unavailable storage
     }
   }, []);
+  // 「店舗」ページの「端末を表示」から ?store_id=... で来たら、その店舗のみに絞り込む。
+  // sessionStorage 復元(上の effect)より後に実行されるため URL 指定が優先される。
+  useEffect(() => {
+    try {
+      const sid = new URLSearchParams(window.location.search).get('store_id');
+      if (sid) {
+        setStoreFilter(sid);
+        setStatusFilter('all');
+        setGroupFilter('all');
+        setSearch('');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
   useEffect(() => {
     if (!filtersHydrated.current) {
       filtersHydrated.current = true;
