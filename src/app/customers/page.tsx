@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, auth } from '@/lib/api';
+import { api, auth, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Monitor, Users2, Pencil, UserCog } from 'lucide-react';
@@ -53,6 +53,7 @@ export default function CustomersPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CustomerRow | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [impersonating, setImpersonating] = useState<string | null>(null);
@@ -166,6 +167,14 @@ export default function CustomersPage() {
                         <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />編集
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(c)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />削除
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -189,7 +198,85 @@ export default function CustomersPage() {
           onSaved={() => { setEditTarget(null); loadCustomers(); }}
         />
       )}
+      {deleteTarget && (
+        <DeleteCustomerDialog
+          target={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => { setDeleteTarget(null); loadCustomers(); }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function DeleteCustomerDialog({
+  target,
+  onClose,
+  onDeleted,
+}: {
+  target: CustomerRow;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 端末/売上がある顧客はサーバ側ガードで削除不可。ここでも端末数>0なら事前に注意喚起。
+  const hasDevices = (target.device_count ?? 0) > 0;
+  const canDelete = confirmText.trim() === target.name.trim() && !submitting;
+
+  async function remove() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.delete(`/customers/${target.id}`);
+      onDeleted();
+    } catch (e) {
+      const msg = e instanceof ApiError
+        ? (e.problem?.detail || e.problem?.title || e.message)
+        : (e instanceof Error ? e.message : String(e));
+      setError(msg);
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>顧客を削除</DialogTitle>
+          <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <div><strong>{target.name}</strong> を削除します。この操作は取り消せません。</div>
+              <div>付随する店舗（{target.store_count}）・管理ユーザ（{target.user_count}）も一緒に削除されます。</div>
+              {hasDevices && (
+                <div>この顧客には端末が {target.device_count} 台あります。端末・売上のある顧客はサーバ側の保護により削除できません（先に端末の付け替え・削除が必要）。</div>
+              )}
+            </div>
+          </div>
+          <Field label={`確認のため顧客名「${target.name}」を入力`}>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={target.name} />
+          </Field>
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>キャンセル</Button>
+          <Button variant="destructive" onClick={remove} disabled={!canDelete}>
+            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}削除する
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
