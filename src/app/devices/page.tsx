@@ -89,16 +89,18 @@ export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
+  const [latestApkCode, setLatestApkCode] = useState<number | null>(null);  // 最新APKのversionCode(最大)
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [devR, strR, planR, machR] = await Promise.all([
+        const [devR, strR, planR, machR, apkR] = await Promise.all([
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
           api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
+          api.get<{ items?: { version_code: number }[] } | { version_code: number }[]>('/apk/releases?limit=100').catch(() => []),
         ]);
         if (cancelled) return;
         const dArr = Array.isArray(devR) ? devR : (devR.items ?? devR.data ?? []);
@@ -111,6 +113,9 @@ export default function DevicesPage() {
         const mMap: Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
         for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
         setStockMap(mMap);
+        const apkArr = Array.isArray(apkR) ? apkR : (apkR.items ?? []);
+        const maxVc = apkArr.reduce((mx, r) => Math.max(mx, r.version_code || 0), 0);
+        setLatestApkCode(maxVc > 0 ? maxVc : null);
       } catch (e) {
         if (cancelled) return;
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -411,7 +416,18 @@ export default function DevicesPage() {
                 </TableCell>
                 <TableCell>
                   <Link href={`/devices/${d.id}`} className="hover:underline">
-                    <div className="text-sm">{d.name}</div>
+                    <div className="text-sm flex items-center gap-1.5">
+                      <span>{d.name}</span>
+                      {(() => {
+                        if (latestApkCode == null) return null;
+                        const nums = [...(d.app_version ?? '').matchAll(/\(vc(\d+)\)/g)].map((x) => Number(x[1]));
+                        const dvc = nums.length ? Math.max(...nums) : null;
+                        if (dvc == null) return null;
+                        return dvc >= latestApkCode
+                          ? <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-medium">最新</span>
+                          : <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">要更新</span>;
+                      })()}
+                    </div>
                     {isSuperAdmin && d.customer_name && (
                       <div className="text-[10.5px] text-amber-500/90">{d.customer_name}</div>
                     )}

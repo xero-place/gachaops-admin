@@ -40,6 +40,12 @@ const CHANNEL_VARIANT: Record<string, 'ok' | 'warn' | 'muted'> = {
   Dev: 'muted',
 };
 
+// app_version 文字列(例 "0.3.97-v44 (vc358)")から versionCode を数値抽出(最大)。
+function apkVcOf(appver?: string | null): number | null {
+  const nums = [...(appver ?? '').matchAll(/\(vc(\d+)\)/g)].map((x) => Number(x[1]));
+  return nums.length ? Math.max(...nums) : null;
+}
+
 export default function ApkPage() {
   // S225: OTA配信は運営(lv1_super)専用。顧客アカウントは直リンクでも閲覧不可。
   const [role, setRole] = useState<string | null>(null);
@@ -52,7 +58,7 @@ export default function ApkPage() {
   const [groupIdInput, setGroupIdInput] = useState('');
   // S146: 配信先をチェックボックス/グループ選択で選べるように
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
-  const [apkDevices, setApkDevices] = useState<{id:string; name?:string; status?:string}[]>([]);
+  const [apkDevices, setApkDevices] = useState<{id:string; name?:string; status?:string; app_version?:string|null}[]>([]);
   const [apkGroups, setApkGroups] = useState<{id:string; name:string; customer_id?:string; members?:{device_id:string}[]}[]>([]);
   const [distributing, setDistributing] = useState(false);
   const [distributeError, setDistributeError] = useState<string | null>(null);
@@ -121,6 +127,15 @@ export default function ApkPage() {
       const gid = groupIdInput.trim();
       if (!gid) { setDistributeError('グループIDを入力してください'); return; }
       target = { group_id: gid };
+    } else if (distributeMode === 'online_outdated') {
+      // オンライン かつ このAPK未適用(versionCode未満 or 不明)の端末に一括
+      const tvc = distributeTarget.version_code;
+      const ids = apkDevices
+        .filter((d) => d.status === 'online')
+        .filter((d) => { const vc = apkVcOf(d.app_version); return vc === null || vc < tvc; })
+        .map((d) => d.id);
+      if (ids.length === 0) { setDistributeError('対象（オンラインかつ未適用）の端末がありません'); return; }
+      target = { device_ids: ids };
     } else {
       if (selectedDeviceIds.length === 0) { setDistributeError('端末を1つ以上選択してください'); return; }
       target = { device_ids: selectedDeviceIds };
@@ -322,6 +337,7 @@ export default function ApkPage() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="device">特定端末（端末ID指定）</SelectItem>
+                    <SelectItem value="online_outdated">オンライン かつ 未適用の端末に一括</SelectItem>
                     <SelectItem value="group">特定グループ</SelectItem>
                     <SelectItem value="all">全端末に即時配信</SelectItem>
                   </SelectContent>
@@ -335,6 +351,8 @@ export default function ApkPage() {
                     <div className="flex gap-2">
                       <button type="button" className="text-[10.5px] text-primary hover:underline"
                         onClick={() => setSelectedDeviceIds(apkDevices.map((d) => d.id))}>全選択</button>
+                      <button type="button" className="text-[10.5px] text-primary hover:underline"
+                        onClick={() => setSelectedDeviceIds(apkDevices.filter((d) => d.status === 'online').map((d) => d.id))}>オンラインのみ</button>
                       <button type="button" className="text-[10.5px] text-muted-foreground hover:underline"
                         onClick={() => setSelectedDeviceIds([])}>解除</button>
                     </div>
@@ -343,9 +361,11 @@ export default function ApkPage() {
                     {apkDevices.length === 0 && (
                       <div className="px-3 py-2 text-[10.5px] text-muted-foreground">端末がありません</div>
                     )}
-                    {apkDevices.map((d) => {
+                    {[...apkDevices].sort((a, b) => (a.status === 'online' ? 0 : 1) - (b.status === 'online' ? 0 : 1)).map((d) => {
                       const checked = selectedDeviceIds.includes(d.id);
                       const online = d.status === 'online';
+                      const vc = apkVcOf(d.app_version);
+                      const outdated = distributeTarget != null && (vc === null || vc < distributeTarget.version_code);
                       return (
                         <label key={d.id} className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-accent">
                           <input type="checkbox" checked={checked}
@@ -353,6 +373,9 @@ export default function ApkPage() {
                               e.target.checked ? [...prev, d.id] : prev.filter((x) => x !== d.id))} />
                           <span className={online ? 'text-emerald-500' : 'text-muted-foreground'}>{online ? '●' : '○'}</span>
                           <span className="font-medium">{d.name ?? d.id}</span>
+                          {outdated
+                            ? <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">要更新</span>
+                            : <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-medium">最新</span>}
                           <span className="ml-auto font-mono text-[10px] text-muted-foreground">{d.id}</span>
                         </label>
                       );
@@ -361,6 +384,31 @@ export default function ApkPage() {
                   <p className="text-[10.5px] text-muted-foreground">{selectedDeviceIds.length} 台選択中</p>
                 </div>
               )}
+
+              {distributeMode === 'online_outdated' && (() => {
+                const targets = [...apkDevices]
+                  .filter((d) => d.status === 'online')
+                  .filter((d) => { const vc = apkVcOf(d.app_version); return distributeTarget != null && (vc === null || vc < distributeTarget.version_code); });
+                return (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">対象: オンライン かつ このAPK未適用の端末</label>
+                    <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
+                      {targets.length === 0 && (
+                        <div className="px-3 py-2 text-[10.5px] text-muted-foreground">対象の端末はありません（オンライン端末はすべて適用済み）</div>
+                      )}
+                      {targets.map((d) => (
+                        <div key={d.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                          <span className="text-emerald-500">●</span>
+                          <span className="font-medium">{d.name ?? d.id}</span>
+                          <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">要更新</span>
+                          <span className="ml-auto font-mono text-[10px] text-muted-foreground">{d.id}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10.5px] text-muted-foreground">{targets.length} 台に配信します（オンラインのみ・適用済みは除外）</p>
+                  </div>
+                );
+              })()}
 
               {distributeMode === 'group' && (
                 <div className="space-y-1.5">
