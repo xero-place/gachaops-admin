@@ -230,7 +230,7 @@ export default function DevicesPage() {
       if (groupFilter !== 'all' && !(d.group_ids ?? []).includes(groupFilter)) return false;
       if (search) {
         const s = search.toLowerCase();
-        if (!d.name.toLowerCase().includes(s) && !d.serial.toLowerCase().includes(s)) return false;
+        if (!d.name.toLowerCase().includes(s)) return false;  // 名前のみ(シリアルは検索対象外)
       }
       return true;
     });
@@ -303,7 +303,7 @@ export default function DevicesPage() {
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="名前またはシリアルで検索..."
+              placeholder="名前で検索..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
