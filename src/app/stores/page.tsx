@@ -291,10 +291,6 @@ export default function StoresPage() {
                       </div>
                       <div>
                         <div className="text-sm font-medium">{s.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{s.prefecture}</div>
-                        {isSuperAdmin && s.customer_id && (
-                          <div className="text-[10px] font-mono text-amber-500/80">{s.customer_id}</div>
-                        )}
                       </div>
                     </div>
                   </TableCell>
