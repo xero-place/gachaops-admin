@@ -38,6 +38,7 @@ function getProgramTotalSec(scenePreviews?: ScenePreview[], fallback?: number): 
 type Program = {
   id: string;
   customer_id: string;
+  customer_name?: string;  // ★assetowner: 顧客名バッジ用
   name: string;
   description: string | null;
   total_duration_sec: number;
@@ -53,6 +54,8 @@ type Program = {
 
 export default function ProgramsPage() {
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
+  const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
+  const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -63,7 +66,9 @@ export default function ProgramsPage() {
   const fetchPrograms = useCallback(async () => {
     try {
       const token = tokenStore.getAccess();
-      const res = await fetch(`${apiBase}/programs?limit=100`, {
+      // ★assetowner: lv1_super は 自社/顧客 タブで owner を切替。それ以外は自顧客のみ。
+      const ownerParam = isSuperAdmin ? `&owner=${ownerTab}` : '';
+      const res = await fetch(`${apiBase}/programs?limit=100${ownerParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -74,7 +79,7 @@ export default function ProgramsPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiBase]);
+  }, [apiBase, ownerTab, isSuperAdmin]);
 
   useEffect(() => {
     fetchPrograms();
@@ -104,6 +109,12 @@ export default function ProgramsPage() {
               className="pl-8 h-8 text-xs"
             />
           </div>
+          {isSuperAdmin && (
+            <div className="flex border rounded-md">
+              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>自社</Button>
+              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>顧客</Button>
+            </div>
+          )}
           <Button
             variant={showUnpublished ? 'secondary' : 'outline'}
             size="sm"
@@ -185,8 +196,10 @@ export default function ProgramsPage() {
                 <Link href={`/programs/${p.id}`} className="hover:underline">
                   <h3 className="font-medium text-sm">{p.name}</h3>
                 </Link>
-                {isSuperAdmin && p.customer_id && (
-                  <span className="text-[10px] font-mono text-amber-500/80">{p.customer_id}</span>
+                {isSuperAdmin && p.customer_id !== myCid && (
+                  <div className="mt-0.5">
+                    <span className="inline-block max-w-full truncate text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0" title={p.customer_name || p.customer_id}>{p.customer_name || p.customer_id}</span>
+                  </div>
                 )}
                 {/* S224: セットされた素材名 */}
                 {(() => {

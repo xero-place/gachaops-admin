@@ -213,6 +213,7 @@ export interface Widget {
 export interface Asset {
   id: string;
   customer_id: string;
+  customer_name?: string;  // ★assetowner: 顧客名バッジ用(lv1_super横断表示)
   name: string;
   type: AssetType;
   url: string;

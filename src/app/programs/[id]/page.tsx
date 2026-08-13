@@ -61,6 +61,8 @@ function getDisplayDurationSec(sc: Scene): number {
 
 type Program = {
   id: string;
+  customer_id?: string;      // ★assetowner: 顧客分削除確認用
+  customer_name?: string;    // ★assetowner: 顧客名表示用
   name: string;
   description: string | null;
   total_duration_sec: number;
@@ -192,7 +194,14 @@ export default function ProgramDetailPage() {
 
   const handleDeleteProgram = async () => {
     if (!program) return;
-    if (!confirm(`プログラム「${program.name}」を完全に削除しますか?\nシーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`)) return;
+    // ★assetowner: 顧客のプログラムを消す時は「顧客アカウントからも消える/復元不可」を明示。
+    const _u = tokenStore.getUser();
+    const isCustomerItem = _u?.role === 'lv1_super' && !!program.customer_id && program.customer_id !== _u?.customer_id;
+    const who = program.customer_name || program.customer_id;
+    const msg = isCustomerItem
+      ? `⚠️ 顧客「${who}」のプログラムを削除します\n\n「${program.name}」を完全に削除しますか?\nこれは顧客のアカウントからも消え、シーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`
+      : `プログラム「${program.name}」を完全に削除しますか?\nシーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`;
+    if (!confirm(msg)) return;
     setBusy(true);
     try {
       const token = tokenStore.getAccess();

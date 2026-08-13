@@ -37,6 +37,8 @@ const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> 
 
 export default function AssetsPage() {
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
+  const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
+  const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -52,19 +54,26 @@ export default function AssetsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get<{ items?: unknown[]; data?: unknown[] } | unknown[]>('/assets?limit=100');
+        // ★assetowner: lv1_super は 自社/顧客 タブで owner を切替。それ以外は自顧客のみ。
+        const ownerParam = isSuperAdmin ? `&owner=${ownerTab}` : '';
+        const res = await api.get<{ items?: unknown[]; data?: unknown[] } | unknown[]>(`/assets?limit=100${ownerParam}`);
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res.items ?? res.data ?? []);
-        if (Array.isArray(arr) && arr.length > 0) {
-          setUploadedAssets(arr as Asset[]);
-        }
+        setUploadedAssets(Array.isArray(arr) ? (arr as Asset[]) : []);
       } catch {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`)) return;
+  }, [ownerTab, isSuperAdmin]);
+  const handleDelete = async (a: Asset) => {
+    const { id, name } = a;
+    // ★assetowner: 顧客分は「顧客アカウントからも消える/復元不可」を明示した確認を出す。
+    const isCustomerItem = isSuperAdmin && a.customer_id !== myCid;
+    const who = a.customer_name || a.customer_id;
+    const msg = isCustomerItem
+      ? `⚠️ 顧客「${who}」の素材を削除します\n\n「${name}」を完全に削除しますか?\nこれは顧客のアカウントからも消え、動画ファイル・サムネイル・DBレコードがすべて削除されます。\nこの操作は取り消せません。`
+      : `「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`;
+    if (!confirm(msg)) return;
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
     try {
       const token = tokenStore.getAccess();
@@ -190,6 +199,12 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
               className="pl-8 h-8 text-xs"
             />
           </div>
+          {isSuperAdmin && (
+            <div className="flex border rounded-md">
+              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>自社</Button>
+              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>顧客</Button>
+            </div>
+          )}
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-[140px] h-8 text-xs">
               <SelectValue />
@@ -253,7 +268,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                     className="absolute top-2 right-2 p-1.5 rounded-md bg-destructive/90 hover:bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(a.id, a.name);
+                      handleDelete(a);
                     }}
                     title="削除"
                     aria-label="削除"
@@ -263,8 +278,10 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                 </button>
                 <div className="p-3">
                   <div className="text-xs font-medium truncate" title={a.name}>{a.name}</div>
-                  {isSuperAdmin && a.customer_id && (
-                    <div className="text-[9px] font-mono text-amber-500/80 truncate">{a.customer_id}</div>
+                  {isSuperAdmin && a.customer_id !== myCid && (
+                    <div className="mt-0.5">
+                      <span className="inline-block max-w-full truncate text-[9px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-0" title={a.customer_name || a.customer_id}>{a.customer_name || a.customer_id}</span>
+                    </div>
                   )}
                   <div className="text-[10px] text-muted-foreground mt-0.5 flex justify-between">
                     <span>{fmtBytes(a.size)}</span>
@@ -314,8 +331,8 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                         )}
                       </div>
                       <span className="text-sm">{a.name}</span>
-                      {isSuperAdmin && a.customer_id && (
-                        <span className="text-[10px] font-mono text-amber-500/80">{a.customer_id}</span>
+                      {isSuperAdmin && a.customer_id !== myCid && (
+                        <span className="inline-block text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0" title={a.customer_name || a.customer_id}>{a.customer_name || a.customer_id}</span>
                       )}
                     </div>
                   </TableCell>
