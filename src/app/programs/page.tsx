@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -57,6 +57,7 @@ export default function ProgramsPage() {
   const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
   const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
   const [programs, setPrograms] = useState<Program[]>([]);
+  const reqSeq = useRef(0);  // ★assetowner: タブ切替レース対策(古い応答で新タブを上書きしない)
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showUnpublished, setShowUnpublished] = useState(true);
@@ -64,6 +65,7 @@ export default function ProgramsPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 
   const fetchPrograms = useCallback(async () => {
+    const seq = ++reqSeq.current;  // ★assetowner: この呼び出しの世代番号
     try {
       const token = tokenStore.getAccess();
       // ★assetowner: lv1_super は 自社/顧客 タブで owner を切替。それ以外は自顧客のみ。
@@ -73,11 +75,11 @@ export default function ProgramsPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setPrograms(data.items ?? data ?? []);
+      if (seq === reqSeq.current) setPrograms(data.items ?? data ?? []);  // 最新要求のみ反映
     } catch (err) {
       console.error('Failed to fetch programs:', err);
     } finally {
-      setLoading(false);
+      if (seq === reqSeq.current) setLoading(false);
     }
   }, [apiBase, ownerTab, isSuperAdmin]);
 
