@@ -73,17 +73,29 @@ export default function AssetsPage() {
     const msg = isCustomerItem
       ? `⚠️ 顧客「${who}」の素材を削除します\n\n「${name}」を完全に削除しますか?\nこれは顧客のアカウントからも消え、動画ファイル・サムネイル・DBレコードがすべて削除されます。\nこの操作は取り消せません。`
       : `「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`;
-    if (!confirm(msg)) return;
+    const usageWarn = (a.used_in_program_count ?? 0) > 0
+      ? `\n\n⚠️ この素材は ${a.used_in_program_count} 個のプログラムで使用中です。削除するとその表示が壊れます。`
+      : '';
+    if (!confirm(msg + usageWarn)) return;
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
-    try {
-      const token = tokenStore.getAccess();
-      const res = await fetch(`${apiBase}/assets/${id}`, {
+    const token = tokenStore.getAccess();
+    // ★delguard: 使用中(409)なら詳細を見せて強制削除の再確認。force=true で上書き。
+    const doDelete = (force: boolean) =>
+      fetch(`${apiBase}/assets/${id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+    try {
+      let res = await doDelete(false);
+      if (res.status === 409) {
+        let detail = 'この素材は使用中です。';
+        try { const j = await res.json(); detail = j.detail || j.title || detail; } catch {}
+        if (!confirm(`${detail}\n\n使用中プログラムの表示が壊れることを承知で強制削除しますか?`)) return;
+        res = await doDelete(true);
+      }
       if (!res.ok) throw new Error(`削除失敗 (HTTP ${res.status})`);
       // Optimistic UI: remove the deleted item from the list without full reload
-      setUploadedAssets((prev) => prev.filter((a) => a.id !== id));
+      setUploadedAssets((prev) => prev.filter((x) => x.id !== id));
     } catch (err) {
       alert(`削除失敗: ${err}`);
     }

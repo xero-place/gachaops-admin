@@ -203,12 +203,21 @@ export default function ProgramDetailPage() {
       : `プログラム「${program.name}」を完全に削除しますか?\nシーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`;
     if (!confirm(msg)) return;
     setBusy(true);
-    try {
-      const token = tokenStore.getAccess();
-      const res = await fetch(`${apiBase}/programs/${programId}`, {
+    const token = tokenStore.getAccess();
+    // ★delguard: 使用中(409)なら詳細を見せて強制削除の再確認。force=true で上書き。
+    const doDelete = (force: boolean) =>
+      fetch(`${apiBase}/programs/${programId}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+    try {
+      let res = await doDelete(false);
+      if (res.status === 409) {
+        let detail = 'このプログラムは使用中です。';
+        try { const j = await res.json(); detail = j.detail || j.title || detail; } catch {}
+        if (!confirm(`${detail}\n\n該当端末の表示が既定に戻ることを承知で強制削除しますか?`)) { setBusy(false); return; }
+        res = await doDelete(true);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       router.push('/programs');
     } catch (err) {
