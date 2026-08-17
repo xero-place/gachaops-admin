@@ -340,14 +340,17 @@ export default function SalesEventsPage() {
         const qs = buildParams(true);
         const resp = await api.get<ListResp | SalesEvent[]>(`/sales-events?${qs}`);
         if (cancelled) return;
+        // ★rankUD1: 未排出(課金済み・排出なし)は運営(lv1_super)のみに表示。
+        //   顧客(lv1_super以外)には is_undispensed を落とし、バナー/バッジ/対応ボタンを一切出さない(通常売上として表示)。
+        const _hideUndisp = (list: SalesEvent[]) => isSuper ? list : list.map((e) => ({ ...e, is_undispensed: false }));
         if (Array.isArray(resp)) {
-          setEvents(resp);
+          setEvents(_hideUndisp(resp));
           setTotal(resp.length);
           setUndispensed({ count: 0, yen: 0 });
         } else {
-          setEvents(resp.items ?? []);
+          setEvents(_hideUndisp(resp.items ?? []));
           setTotal(resp.total ?? (resp.items?.length ?? 0));
-          setUndispensed({ count: resp.undispensed_count ?? 0, yen: resp.undispensed_yen ?? 0 });
+          setUndispensed(isSuper ? { count: resp.undispensed_count ?? 0, yen: resp.undispensed_yen ?? 0 } : { count: 0, yen: 0 });
         }
       } catch (e) {
         console.error('[sales-events] list fetch failed:', e);
@@ -356,7 +359,7 @@ export default function SalesEventsPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [buildParams, refreshTick]);
+  }, [buildParams, refreshTick, isSuper]);
 
   // ★rankSR1: 未排出(課金済み・排出なし)を「対応済み」にする(会計影響なし・アラートから消すだけ)。
   async function handleResolve(orderId: string) {
