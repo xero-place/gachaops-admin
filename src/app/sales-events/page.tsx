@@ -553,8 +553,8 @@ export default function SalesEventsPage() {
     w.document.close();
   }, [summary, customerFilter, customers, dateFrom, dateTo, byDevice, deviceFilter, groupFilter, storeFilter, groups, stores, devices, effectiveDeviceId, kindFilter]);
 
-  type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean };
-  type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; outstanding_carry_yen: number; machines?: { device_id: string; device_name: string; qr_yen: number }[] };
+  type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_done: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean };
+  type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; total_scheduled_yen: number; outstanding_carry_yen: number; machines?: { device_id: string; device_name: string; qr_yen: number }[] };
 
   const generatePayoutStatement = useCallback(async () => {
     let ledgers: _Ledger[] = [];
@@ -600,7 +600,7 @@ export default function SalesEventsPage() {
     const isCustomerScope = (!isSuper || customerFilter !== 'all') && groupFilter === 'all' && storeFilter === 'all' && !effectiveDeviceId;
     const sections = ledgers.map((L) => {
       const rows = (L.rows || []).map((r) => {
-        const state = r.is_provisional ? '当月（暫定）' : (r.is_transfer ? '振込' : '繰越');
+        const state = r.is_provisional ? '当月（暫定）' : (r.is_transfer ? (r.transfer_done ? '振込済み' : '振込予定') : '繰越');
         // 当月（暫定）でも累計が振込下限(¥10,000)以上なら翌月末の振込予定を表示
         const willPay = r.is_transfer || (r.is_provisional && (r.running_total_yen ?? 0) >= 10000);
         const feeCell = willPay ? yen(r.is_transfer ? r.transfer_fee_yen : 200) : '—';
@@ -618,7 +618,7 @@ export default function SalesEventsPage() {
         ? `<span class="rcpt" contenteditable="true" spellcheck="false">${esc(L.customer_name || L.customer_id)}</span> 御中`
         : `${esc(L.customer_name || L.customer_id)} 御中`;
       const sumHtml = isCustomerScope
-        ? `<div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div><div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div>`
+        ? `<div class="sum"><div>振込済み合計：<strong>${yen(L.total_transferred_yen)}</strong></div>${(L.total_scheduled_yen ?? 0) > 0 ? `<div>振込予定：<strong>${yen(L.total_scheduled_yen)}</strong></div>` : ''}<div>未振込の繰越残高：<strong>${yen(L.outstanding_carry_yen)}</strong></div></div>`
         : '';
       return `<div class="stmt"><div class="head"><div><div class="title">振込明細書</div><div class="sub">${nameHtml}<br>発行日時：${issued}</div>${condLine}</div><div class="corp">株式会社ゼロプレイス<br>QR決済 精算</div></div><div class="note">本明細は、貴社がガチャマシンで販売された商品のQR決済売上を弊社が一時的にお預かりし、決済・取扱手数料5%（消費税込）および振込手数料¥200を差し引いてお振込みするものです。お振込みは対象売上計上月の翌月末日。ひと月の振込予定額（5%控除後の累計）が¥10,000未満の月は翌月へ繰り越します。現金売上は対象外です。</div><table><thead><tr><th>対象月</th><th class="num">件数</th><th class="num">対象売上</th><th class="num">5%控除後</th><th class="num">繰越</th><th class="num">累計</th><th>状態</th><th class="num">振込手数料</th><th class="num">お振込額</th><th>振込予定日</th></tr></thead><tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#999;">対象データがありません</td></tr>'}</tbody></table>${sumHtml}${machineTable}</div>`;
     }).join('');
