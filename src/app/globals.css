@@ -19,7 +19,7 @@
 @layer base {
   :root {
     /* Light theme (used for printing, daytime ops) */
-    --background: 30 25% 98%;
+    --background: 0 0% 99%;
     --foreground: 222 30% 10%;
 
     --card: 0 0% 100%;
@@ -33,20 +33,20 @@
     --grad-to: 6 74% 51%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 18% 94%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 222 30% 14%;
 
-    --muted: 30 18% 94%;
+    --muted: 0 0% 96%;
     --muted-foreground: 222 10% 42%;
 
-    --accent: 30 18% 92%;
+    --accent: 0 0% 94%;
     --accent-foreground: 222 30% 14%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 14% 88%;
-    --input: 30 14% 88%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
     --ring: 7 78% 49%;
 
     --ok: 145 55% 38%;
