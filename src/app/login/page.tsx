@@ -9,8 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Loader2, Lock } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { loginDict } from '@/i18n/ns/login';
 
 function LoginForm() {
+  const t = usePageT(loginDict);
   const router = useRouter();
   const search = useSearchParams();
   const [email, setEmail] = useState('');
@@ -46,14 +49,14 @@ function LoginForm() {
         // Step 2: verify the 6-digit email code.
         const code = emailCode.trim();
         if (code.length === 0) {
-          setError('確認コードを入力してください');
+          setError(t.enterCode);
           return;
         }
         // Verify against the email pinned at step 1, with a final guard so a
         // blank/invalid value can never be sent (the cause of the 422 lockout).
         const verifyEmail = (otpEmail || email).trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(verifyEmail)) {
-          setError('メールアドレスが正しくありません。最初からやり直してください。');
+          setError(t.emailInvalid);
           setRequireEmailOtp(false);
           setEmailCode('');
           return;
@@ -67,7 +70,7 @@ function LoginForm() {
       if (isOtpRequired(res)) {
         setOtpEmail(email.trim());
         setRequireEmailOtp(true);
-        setInfo('確認コードをメールに送信しました。10分以内に入力してください。');
+        setInfo(t.codeSent);
         return;
       }
       router.replace(search.get('next') || '/');
@@ -75,12 +78,12 @@ function LoginForm() {
       if (err instanceof ApiError) {
         if (err.problem.detail?.includes('2FA')) {
           setRequireTotp(true);
-          setError('2FAコードを入力してください');
+          setError(t.enter2fa);
         } else {
-          setError(err.problem.detail || err.problem.title || 'ログインに失敗しました');
+          setError(err.problem.detail || err.problem.title || t.loginFailed);
         }
       } else {
-        setError('ログインに失敗しました');
+        setError(t.loginFailed);
       }
     } finally {
       setSubmitting(false);
@@ -124,24 +127,33 @@ function LoginForm() {
                 <div className="rounded-2xl border bg-card/95 backdrop-blur shadow-2xl p-8">
                   {/* Logo + Title */}
                   <div className="flex flex-col items-center mb-6">
+                    {/* ライト時=黒文字ロゴ / ダーク時=白文字ロゴ（ユーザーのテーマに追従） */}
+                    <Image
+                      src="/branding/gtcha-x-text-logo-black.png"
+                      alt="GTCHA X"
+                      width={220}
+                      height={60}
+                      className="h-12 w-auto object-contain mb-2 block dark:hidden"
+                      priority
+                    />
                     <Image
                       src="/branding/gtcha-x-text-logo.png"
                       alt="GTCHA X"
                       width={220}
                       height={60}
-                      className="h-12 w-auto object-contain mb-2"
+                      className="h-12 w-auto object-contain mb-2 hidden dark:block"
                       style={{
                         filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.15))',
                       }}
                       priority
                     />
-                    <p className="text-xs text-muted-foreground">管理画面ログイン</p>
+                    <p className="text-xs text-muted-foreground">{t.adminLogin}</p>
                   </div>
 
                   {/* Form */}
                   <form onSubmit={onSubmit} className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="email">メールアドレス</Label>
+                      <Label htmlFor="email">{t.email}</Label>
                       <Input
                         id="email"
                         type="email"
@@ -153,7 +165,7 @@ function LoginForm() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="password">パスワード</Label>
+                      <Label htmlFor="password">{t.password}</Label>
                       <Input
                         id="password"
                         type="password"
@@ -166,7 +178,7 @@ function LoginForm() {
                     </div>
                     {requireTotp && (
                       <div className="space-y-1.5">
-                        <Label htmlFor="totp">2FAコード (6桁)</Label>
+                        <Label htmlFor="totp">{t.twoFaCode}</Label>
                         <Input
                           id="totp"
                           type="text"
@@ -183,7 +195,7 @@ function LoginForm() {
                     )}
                     {requireEmailOtp && (
                       <div className="space-y-1.5">
-                        <Label htmlFor="emailcode">確認コード (6桁)</Label>
+                        <Label htmlFor="emailcode">{t.verifyCode}</Label>
                         <Input
                           id="emailcode"
                           type="text"
@@ -218,12 +230,12 @@ function LoginForm() {
                       {submitting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          ログイン中...
+                          {t.loggingIn}
                         </>
                       ) : (
                         <>
                           <Lock className="h-4 w-4" />
-                          {requireEmailOtp ? 'コードを確認' : 'ログイン'}
+                          {requireEmailOtp ? t.confirmCode : t.login}
                         </>
                       )}
                     </Button>
@@ -237,7 +249,7 @@ function LoginForm() {
         {/* Footer */}
         <footer className="relative py-6 text-center">
           <p className="text-[11px] text-muted-foreground/60">
-            © 2026 株式会社ゼロプレイス · GTCHA X Admin Console
+            {t.footer}
           </p>
         </footer>
       </div>
