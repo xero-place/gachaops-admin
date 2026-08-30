@@ -43,6 +43,15 @@ module.exports = {
         ok: { DEFAULT: 'hsl(var(--ok))', foreground: 'hsl(var(--ok-foreground))' },
         warn: { DEFAULT: 'hsl(var(--warn))', foreground: 'hsl(var(--warn-foreground))' },
       },
+      backgroundImage: {
+        'primary-grad':
+          'linear-gradient(135deg, hsl(var(--grad-from)) 0%, hsl(var(--grad-to)) 100%)',
+      },
+      boxShadow: {
+        btn: '0 3px 10px hsl(var(--grad-to) / 0.28), 0 1px 3px hsl(var(--grad-to) / 0.20)',
+        'btn-hover': '0 8px 20px hsl(var(--grad-to) / 0.34), 0 3px 8px hsl(var(--grad-to) / 0.24)',
+        'card-soft': '0 1px 2px hsl(222 30% 10% / 0.05), 0 6px 18px hsl(222 30% 10% / 0.07)',
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
