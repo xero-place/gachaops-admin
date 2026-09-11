@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { tokenStore } from '@/lib/token-store';
+import { useLocale } from '@/store/useLocale';
 
 export interface NavItem {
   href: string;
@@ -84,11 +85,43 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+
+// ★i18n: ナビ表示ラベルの英語対応（キー=日本語ラベル）。値・hrefは不変。
+export const NAV_LABELS_EN: Record<string, string> = {
+  'コア': 'Core',
+  'コンテンツ配信': 'Content delivery',
+  '設定': 'Settings',
+  'システム': 'System',
+  'ダッシュボード': 'Dashboard',
+  'ライブ操作': 'Live control',
+  '演出パック': 'Effect packs',
+  '端末': 'Devices',
+  '端末マップ': 'Device map',
+  'グループ': 'Groups',
+  '注文(QR)': 'Orders (QR)',
+  '売上管理': 'Sales',
+  'プログラム': 'Programs',
+  '素材': 'Assets',
+  '計画配信': 'Scheduled delivery',
+  '顧客': 'Customers',
+  '店舗': 'Stores',
+  'アップデート': 'Updates',
+  '監査ログ': 'Audit logs',
+  'WSデバッグコンソール': 'WS debug console',
+  '環境設定': 'Preferences',
+};
+const SIDEBAR_FOOTER_EN = {
+  live: 'Live API mode (production)',
+  mock: 'Mock mode (NEXT_PUBLIC_API_BASE_URL not set)',
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   // S224: 運営(lv1_super)以外＝顧客アカウントでは superOnly 項目を非表示。
   // マウント後にロール確定（SSRとのhydration不一致を避けるため、初期はnull→superOnlyは隠す）。
   const [role, setRole] = useState<string | null>(null);
+  const locale = useLocale((s) => s.locale);
+  const tr = (ja: string) => (locale === 'en' ? (NAV_LABELS_EN[ja] ?? ja) : ja);
   useEffect(() => { setRole(tokenStore.getUser()?.role ?? null); }, []);
   const isSuper = role === 'lv1_super';
 
@@ -121,7 +154,7 @@ export function Sidebar() {
           return (
           <div key={group.label} className="mb-5">
             <div className="px-3 mb-1.5 text-[10px] font-semibold text-muted-foreground/70 tracking-widest uppercase">
-              {group.label}
+              {tr(group.label)}
             </div>
             <ul className="space-y-0.5">
               {items.map((item) => {
@@ -140,7 +173,7 @@ export function Sidebar() {
                       )}
                     >
                       <item.icon className="h-4 w-4" strokeWidth={2} />
-                      <span>{item.label}</span>
+                      <span>{tr(item.label)}</span>
                       {item.badge && (
                         <span className="ml-auto text-[10px] rounded-full bg-primary/20 text-primary px-1.5 py-0.5">
                           {item.badge}
@@ -160,8 +193,8 @@ export function Sidebar() {
           <span className="live-dot" />
           <span>
             {process.env.NEXT_PUBLIC_API_BASE_URL
-              ? '実 API モード (本番)'
-              : 'モックモード (NEXT_PUBLIC_API_BASE_URL 未設定)'}
+              ? (locale === 'en' ? SIDEBAR_FOOTER_EN.live : '実 API モード (本番)')
+              : (locale === 'en' ? SIDEBAR_FOOTER_EN.mock : 'モックモード (NEXT_PUBLIC_API_BASE_URL 未設定)')}
           </span>
         </div>
       </div>

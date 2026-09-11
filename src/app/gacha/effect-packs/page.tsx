@@ -47,6 +47,8 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import type { GachaEffectPack, Asset } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { gachaEffectPacksDict } from '@/i18n/ns/gachaEffectPacks';
 import {
   Sparkles,
   Loader2,
@@ -69,15 +71,6 @@ const TIER_COLOR: Record<number, string> = {
   5: 'bg-gradient-to-r from-pink-100 via-yellow-100 to-cyan-100 text-purple-800 border-purple-300',
 };
 
-/** tier 名 */
-const TIER_LABEL: Record<number, string> = {
-  1: 'ノーマル',
-  2: 'ブロンズ',
-  3: 'シルバー',
-  4: 'ゴールド',
-  5: 'レインボー',
-};
-
 /** DELETE /effect-packs/{id} のレスポンス形 (バックエンド EffectPackDeleteResult) */
 interface EffectPackDeleteResult {
   deleted: boolean;
@@ -90,6 +83,8 @@ interface EffectPackDeleteResult {
 }
 
 export default function GachaEffectPacksPage() {
+  const t = usePageT(gachaEffectPacksDict);
+  const TIER_LABEL = t.tierLabels;
   // ─── 状態 ───
   const [packs, setPacks] = useState<GachaEffectPack[]>([]);
   const [loading, setLoading] = useState(false);
@@ -144,7 +139,7 @@ export default function GachaEffectPacksPage() {
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`演出パック取得失敗: ${msg}`);
+      setError(t.loadFailed(msg));
     } finally {
       setLoading(false);
     }
@@ -208,7 +203,7 @@ export default function GachaEffectPacksPage() {
     if (!editPackId) return;
 
     if (!editName.trim()) {
-      setError('演出名は必須です');
+      setError(t.nameRequired);
       return;
     }
 
@@ -227,7 +222,7 @@ export default function GachaEffectPacksPage() {
       }
 
       if (Object.keys(body).length === 0) {
-        setError('変更点がありません');
+        setError(t.noChanges);
         setEditSaving(false);
         return;
       }
@@ -237,13 +232,13 @@ export default function GachaEffectPacksPage() {
         body,
       );
       setPacks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setSuccessMsg(`「${updated.name}」を更新しました`);
+      setSuccessMsg(t.updated(updated.name));
       setEditDialogOpen(false);
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`保存失敗: ${msg}`);
+      setError(t.saveFailed(msg));
     } finally {
       setEditSaving(false);
     }
@@ -266,20 +261,20 @@ export default function GachaEffectPacksPage() {
   const handleCreateSave = async () => {
     // 入力バリデーション (サーバ側 EffectPackCreate と一致させる)
     if (!createCode.trim()) {
-      setError('コード (code) は必須です');
+      setError(t.codeRequired);
       return;
     }
     if (!createName.trim()) {
-      setError('演出名は必須です');
+      setError(t.nameRequired);
       return;
     }
     const tier = parseInt(createTier, 10);
     if (isNaN(tier) || tier < 1 || tier > 5) {
-      setError('tier は 1〜5 で指定してください');
+      setError(t.tierRange);
       return;
     }
     if (createEffectType === 'mp4' && !createAssetId.trim()) {
-      setError('mp4 演出には素材 ID (asset_id) が必須です');
+      setError(t.assetRequired);
       return;
     }
 
@@ -306,13 +301,13 @@ export default function GachaEffectPacksPage() {
       setPacks((prev) =>
         [...prev, created].sort((a, b) => a.tier - b.tier),
       );
-      setSuccessMsg(`演出パック「${created.name}」を作成しました`);
+      setSuccessMsg(t.createdPack(created.name));
       setCreateDialogOpen(false);
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`作成失敗: ${msg}`);
+      setError(t.createFailed(msg));
     } finally {
       setCreateSaving(false);
     }
@@ -344,8 +339,8 @@ export default function GachaEffectPacksPage() {
         setPacks((prev) => prev.filter((p) => p.id !== deleteTarget.id));
         setSuccessMsg(
           result.draw_order_effect_refs > 0
-            ? `「${deleteTarget.name}」を削除しました (排出順マッピング ${result.draw_order_effect_refs} 件も削除)`
-            : `「${deleteTarget.name}」を削除しました`,
+            ? t.deletedWithRefs(deleteTarget.name, result.draw_order_effect_refs)
+            : t.deleted(deleteTarget.name),
         );
         setDeleteDialogOpen(false);
         setDeleteTarget(null);
@@ -355,14 +350,14 @@ export default function GachaEffectPacksPage() {
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`削除失敗: ${msg}`);
+      setError(t.deleteFailed(msg));
     } finally {
       setDeleteDeleting(false);
     }
   };
 
   return (
-    <AppShell title="演出パック管理" breadcrumb={['ガチャ', '演出パック']}>
+    <AppShell title={t.title} breadcrumb={[t.bcGacha, t.bcPacks]}>
       <div className="space-y-6">
         {/* ─── 概要カード ─── */}
         <Card>
@@ -370,12 +365,12 @@ export default function GachaEffectPacksPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-purple-500" />
-                演出パック一覧
+                {t.listTitle}
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Button onClick={openCreateDialog} disabled={loading}>
                   <Plus className="h-4 w-4" />
-                  <span className="ml-1">新規作成</span>
+                  <span className="ml-1">{t.createNew}</span>
                 </Button>
                 <Button onClick={reloadPacks} disabled={loading} variant="outline">
                   {loading ? (
@@ -383,17 +378,17 @@ export default function GachaEffectPacksPage() {
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
-                  <span className="ml-2">再読み込み</span>
+                  <span className="ml-2">{t.reload}</span>
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              ガチャ抽選時に再生される演出パックです。名称や説明をここで変更できます。
+              {t.intro}
               {!isSuperAdmin && (
                 <span className="block mt-1">
-                  組み込み演出 (ロックアイコン) は変更・削除できません。自社で追加した演出のみ編集・削除可能です。
+                  {t.builtinNote}
                 </span>
               )}
             </p>
@@ -423,12 +418,12 @@ export default function GachaEffectPacksPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-3 py-2 text-left">演出</th>
+                    <th className="px-3 py-2 text-left">{t.colEffect}</th>
                     <th className="px-3 py-2 text-left w-24">tier</th>
-                    <th className="px-3 py-2 text-left w-20">種別</th>
-                    <th className="px-3 py-2 text-left">説明</th>
-                    <th className="px-3 py-2 text-center w-20">状態</th>
-                    <th className="px-3 py-2 text-right w-36">操作</th>
+                    <th className="px-3 py-2 text-left w-20">{t.colType}</th>
+                    <th className="px-3 py-2 text-left">{t.colDesc}</th>
+                    <th className="px-3 py-2 text-center w-20">{t.colStatus}</th>
+                    <th className="px-3 py-2 text-right w-36">{t.colAction}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -438,7 +433,7 @@ export default function GachaEffectPacksPage() {
                         colSpan={6}
                         className="px-3 py-6 text-center text-muted-foreground"
                       >
-                        演出パックがありません
+                        {t.noPacks}
                       </td>
                     </tr>
                   )}
@@ -471,7 +466,7 @@ export default function GachaEffectPacksPage() {
                                 {pack.is_builtin && !isSuperAdmin && (
                                   <Lock
                                     className="h-3 w-3 text-muted-foreground flex-shrink-0"
-                                    aria-label="組み込み演出 (編集不可)"
+                                    aria-label={t.builtinLockAria}
                                   />
                                 )}
                                 <Badge variant="outline" className={TIER_COLOR[pack.tier]}>
@@ -491,11 +486,11 @@ export default function GachaEffectPacksPage() {
                         <td className="px-3 py-2 text-center">
                           {pack.is_active ? (
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                              有効
+                              {t.active}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="bg-slate-100 text-slate-500">
-                              無効
+                              {t.inactive}
                             </Badge>
                           )}
                         </td>
@@ -507,12 +502,12 @@ export default function GachaEffectPacksPage() {
                             onClick={() => openEditDialog(pack)}
                             title={
                               editable
-                                ? '編集'
-                                : '組み込み演出は編集できません (lv1_super のみ可)'
+                                ? t.edit
+                                : t.editDisabledTip
                             }
                           >
                             <Pencil className="h-3 w-3" />
-                            <span className="ml-1 text-xs">編集</span>
+                            <span className="ml-1 text-xs">{t.edit}</span>
                           </Button>
                           <Button
                             size="sm"
@@ -521,8 +516,8 @@ export default function GachaEffectPacksPage() {
                             onClick={() => openDeleteDialog(pack)}
                             title={
                               deletable
-                                ? '削除'
-                                : '組み込み演出は削除できません'
+                                ? t.delete
+                                : t.deleteDisabledTip
                             }
                             className={
                               deletable
@@ -531,7 +526,7 @@ export default function GachaEffectPacksPage() {
                             }
                           >
                             <Trash2 className="h-3 w-3" />
-                            <span className="ml-1 text-xs">削除</span>
+                            <span className="ml-1 text-xs">{t.delete}</span>
                           </Button>
                         </td>
                       </tr>
@@ -548,37 +543,37 @@ export default function GachaEffectPacksPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>演出パックの編集</DialogTitle>
+            <DialogTitle>{t.editTitle}</DialogTitle>
             <DialogDescription>
               {editingPack
-                ? `「${editingPack.name}」(${editingPack.id}) の設定を変更します。`
+                ? t.editDesc(editingPack.name, editingPack.id)
                 : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>演出名</Label>
+              <Label>{t.effectName}</Label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="例: ゴールド"
+                placeholder={t.effectNamePlaceholder}
                 maxLength={200}
               />
             </div>
             <div>
-              <Label>説明 (任意)</Label>
+              <Label>{t.descLabel}</Label>
               <Input
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="例: 大当たり演出"
+                placeholder={t.descPlaceholder}
               />
             </div>
             <div>
-              <Label>BGM URL (任意)</Label>
+              <Label>{t.bgmLabel}</Label>
               <Input
                 value={editBgmUrl}
                 onChange={(e) => setEditBgmUrl(e.target.value)}
-                placeholder="例: https://..."
+                placeholder={t.bgmPlaceholder}
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
@@ -588,7 +583,7 @@ export default function GachaEffectPacksPage() {
                 onChange={(e) => setEditIsActive(e.target.checked)}
               />
               <span>
-                <strong>有効</strong>: チェックを外すとこの演出は抽選で使われなくなります
+                <strong>{t.activeStrong}</strong>{t.activeNote}
               </span>
             </label>
           </div>
@@ -598,7 +593,7 @@ export default function GachaEffectPacksPage() {
               onClick={() => setEditDialogOpen(false)}
               disabled={editSaving}
             >
-              キャンセル
+              {t.cancel}
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving}>
               {editSaving ? (
@@ -606,7 +601,7 @@ export default function GachaEffectPacksPage() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              <span className="ml-2">保存</span>
+              <span className="ml-2">{t.save}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -616,43 +611,43 @@ export default function GachaEffectPacksPage() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>演出パックの新規作成</DialogTitle>
+            <DialogTitle>{t.createTitle}</DialogTitle>
             <DialogDescription>
-              自社の演出パックを新しく追加します。組み込み演出は作成できません。
+              {t.createDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>コード (code) ※自社内で一意</Label>
+              <Label>{t.codeLabel}</Label>
               <Input
                 value={createCode}
                 onChange={(e) => setCreateCode(e.target.value)}
-                placeholder="例: my_custom_gold"
+                placeholder={t.codePlaceholder}
                 maxLength={80}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
-                半角英数字推奨。同じコードが既にあると作成できません。
+                {t.codeNote}
               </p>
             </div>
             <div>
-              <Label>演出名</Label>
+              <Label>{t.effectName}</Label>
               <Input
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                placeholder="例: 限定ゴールド演出"
+                placeholder={t.createNamePlaceholder}
                 maxLength={200}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>種別</Label>
+                <Label>{t.typeLabel}</Label>
                 {/* NEW S45-B: 演出は mp4 に一本化。html5 は新規作成不可。 */}
                 <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
                   mp4
                 </div>
               </div>
               <div>
-                <Label>tier (1-5)</Label>
+                <Label>{t.tierLabel}</Label>
                 <select
                   value={createTier}
                   onChange={(e) => setCreateTier(e.target.value)}
@@ -667,23 +662,23 @@ export default function GachaEffectPacksPage() {
               </div>
             </div>
             <div>
-              <Label>説明 (任意)</Label>
+              <Label>{t.descLabel}</Label>
               <Input
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
-                placeholder="例: 周年記念の特別演出"
+                placeholder={t.createDescPlaceholder}
               />
             </div>
             {/* NEW S45-B で mp4 一本化したため html5 用の HTML テンプレート欄は廃止。
                 R1残: 素材 ID のテキスト入力を、動画 asset の選択ドロップダウンに変更。 */}
             <div>
-              <Label>素材 (動画 asset) ※必須</Label>
+              <Label>{t.assetLabel}</Label>
               <select
                 value={createAssetId}
                 onChange={(e) => setCreateAssetId(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">— 動画素材を選択 —</option>
+                <option value="">{t.assetSelectPlaceholder}</option>
                 {assets
                   .filter((a) => a.type === 'video')
                   .map((a) => (
@@ -693,15 +688,15 @@ export default function GachaEffectPacksPage() {
                   ))}
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                「素材」ページにアップロード済みの動画素材から選択してください。
+                {t.assetNote}
               </p>
             </div>
             <div>
-              <Label>BGM URL (任意)</Label>
+              <Label>{t.bgmLabel}</Label>
               <Input
                 value={createBgmUrl}
                 onChange={(e) => setCreateBgmUrl(e.target.value)}
-                placeholder="例: https://..."
+                placeholder={t.bgmPlaceholder}
               />
             </div>
           </div>
@@ -711,7 +706,7 @@ export default function GachaEffectPacksPage() {
               onClick={() => setCreateDialogOpen(false)}
               disabled={createSaving}
             >
-              キャンセル
+              {t.cancel}
             </Button>
             <Button onClick={handleCreateSave} disabled={createSaving}>
               {createSaving ? (
@@ -719,7 +714,7 @@ export default function GachaEffectPacksPage() {
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              <span className="ml-2">作成</span>
+              <span className="ml-2">{t.create}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -729,10 +724,10 @@ export default function GachaEffectPacksPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>演出パックの削除</DialogTitle>
+            <DialogTitle>{t.deleteTitle}</DialogTitle>
             <DialogDescription>
               {deleteTarget
-                ? `「${deleteTarget.name}」(${deleteTarget.id}) を削除します。`
+                ? t.deleteDesc(deleteTarget.name, deleteTarget.id)
                 : ''}
             </DialogDescription>
           </DialogHeader>
@@ -744,32 +739,29 @@ export default function GachaEffectPacksPage() {
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-medium mb-1">この演出パックは使用中です。</p>
+                    <p className="font-medium mb-1">{t.inUse}</p>
                     <ul className="list-disc list-inside space-y-0.5 text-xs">
                       <li>
-                        排出順マッピング: {deleteBlockedInfo.draw_order_effect_refs} 件
+                        {t.refDrawLabel}{deleteBlockedInfo.draw_order_effect_refs}{t.countUnit}
                         {deleteBlockedInfo.draw_order_effect_refs > 0 && (
                           <span className="text-red-600 font-medium">
-                            {' '}
-                            ← 一緒に削除されます
+                            {t.willDeleteToo}
                           </span>
                         )}
                       </li>
                       <li>
-                        プールのデフォルト演出: {deleteBlockedInfo.pool_refs} 件
+                        {t.refPoolLabel}{deleteBlockedInfo.pool_refs}{t.countUnit}
                         {deleteBlockedInfo.pool_refs > 0 && (
                           <span className="text-muted-foreground">
-                            {' '}
-                            (未設定に戻ります)
+                            {t.resetToUnset}
                           </span>
                         )}
                       </li>
                       <li>
-                        アカウントのデフォルト演出: {deleteBlockedInfo.customer_refs} 件
+                        {t.refCustomerLabel}{deleteBlockedInfo.customer_refs}{t.countUnit}
                         {deleteBlockedInfo.customer_refs > 0 && (
                           <span className="text-muted-foreground">
-                            {' '}
-                            (未設定に戻ります)
+                            {t.resetToUnset}
                           </span>
                         )}
                       </li>
@@ -778,15 +770,13 @@ export default function GachaEffectPacksPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                強制削除すると、上記の排出順マッピングも一緒に削除されます。
-                この操作は取り消せません。本当に削除しますか?
+                {t.forceWarn}
               </p>
             </div>
           ) : (
             // ── 通常の削除確認 ──
             <p className="text-sm text-muted-foreground">
-              この演出パックを削除します。もしこの演出が排出順マッピングやデフォルト演出に
-              使われている場合は、削除前に件数をお知らせします。
+              {t.deleteNormalNote}
             </p>
           )}
 
@@ -796,7 +786,7 @@ export default function GachaEffectPacksPage() {
               onClick={() => setDeleteDialogOpen(false)}
               disabled={deleteDeleting}
             >
-              キャンセル
+              {t.cancel}
             </Button>
             {deleteBlockedInfo ? (
               <Button
@@ -809,7 +799,7 @@ export default function GachaEffectPacksPage() {
                 ) : (
                   <Trash2 className="h-4 w-4" />
                 )}
-                <span className="ml-2">強制削除する</span>
+                <span className="ml-2">{t.forceDelete}</span>
               </Button>
             ) : (
               <Button
@@ -822,7 +812,7 @@ export default function GachaEffectPacksPage() {
                 ) : (
                   <Trash2 className="h-4 w-4" />
                 )}
-                <span className="ml-2">削除</span>
+                <span className="ml-2">{t.delete}</span>
               </Button>
             )}
           </DialogFooter>

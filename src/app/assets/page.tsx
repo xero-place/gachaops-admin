@@ -26,6 +26,8 @@ import { Badge } from '@/components/ui/badge';
 import { fmtBytes, fmtDuration, fmtRelative } from '@/lib/format';
 import { Search, Upload, Grid2x2, List, Image, Film, FileAudio, FileCode2, Trash2, X } from 'lucide-react';
 import type { AssetType, Asset } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { assetsDict } from '@/i18n/ns/assets';
 
 const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> = {
   image: Image,
@@ -36,6 +38,7 @@ const TYPE_ICON: Record<AssetType, React.ComponentType<{ className?: string }>> 
 };
 
 export default function AssetsPage() {
+  const t = usePageT(assetsDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
   const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
@@ -71,10 +74,10 @@ export default function AssetsPage() {
     const isCustomerItem = isSuperAdmin && a.customer_id !== myCid;
     const who = a.customer_name || a.customer_id;
     const msg = isCustomerItem
-      ? `⚠️ 顧客「${who}」の素材を削除します\n\n「${name}」を完全に削除しますか?\nこれは顧客のアカウントからも消え、動画ファイル・サムネイル・DBレコードがすべて削除されます。\nこの操作は取り消せません。`
-      : `「${name}」を完全に削除しますか?\n動画ファイル + サムネイル + DB レコードがすべて削除されます。\nこの操作は取り消せません。`;
+      ? t.deleteCustomerMsg(who ?? '', name)
+      : t.deleteSelfMsg(name);
     const usageWarn = (a.used_in_program_count ?? 0) > 0
-      ? `\n\n⚠️ この素材は ${a.used_in_program_count} 個のプログラムで使用中です。削除するとその表示が壊れます。`
+      ? t.usageWarn(a.used_in_program_count)
       : '';
     if (!confirm(msg + usageWarn)) return;
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
@@ -88,16 +91,16 @@ export default function AssetsPage() {
     try {
       let res = await doDelete(false);
       if (res.status === 409) {
-        let detail = 'この素材は使用中です。';
+        let detail = t.inUse;
         try { const j = await res.json(); detail = j.detail || j.title || detail; } catch {}
-        if (!confirm(`${detail}\n\n使用中プログラムの表示が壊れることを承知で強制削除しますか?`)) return;
+        if (!confirm(t.forceDeleteConfirm(detail))) return;
         res = await doDelete(true);
       }
-      if (!res.ok) throw new Error(`削除失敗 (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(t.deleteFailedHttp(res.status));
       // Optimistic UI: remove the deleted item from the list without full reload
       setUploadedAssets((prev) => prev.filter((x) => x.id !== id));
     } catch (err) {
-      alert(`削除失敗: ${err}`);
+      alert(t.deleteFailed(String(err)));
     }
   };
 
@@ -117,8 +120,7 @@ export default function AssetsPage() {
     // 1 GB limit
     const MAX_BYTES = 1503238553; // 1.4 GiB (raised from 1 GiB / backendのMAX_UPLOAD_BYTESと一致)
     if (file.size > MAX_BYTES) {
-      window.alert(`ファイルサイズが大きすぎます (${(file.size / 1024 / 1024).toFixed(1)} MB)
-最大: 1.4 GB`);
+      window.alert(t.fileTooBig((file.size / 1024 / 1024).toFixed(1)));
       return;
     }
 
@@ -128,7 +130,7 @@ export default function AssetsPage() {
     try {
       const token = tokenStore.getAccess();
       if (!token) {
-        throw new Error('未ログインです。再度ログインしてください。');
+        throw new Error(t.notLoggedIn);
       }
 
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
@@ -147,7 +149,7 @@ export default function AssetsPage() {
               setUploadedAssets((prev) => [newAsset, ...prev]);
               resolve();
             } catch {
-              reject(new Error('レスポンス解析失敗'));
+              reject(new Error(t.parseFailed));
             }
           } else {
             try {
@@ -158,8 +160,8 @@ export default function AssetsPage() {
             }
           }
         };
-        xhr.onerror = () => reject(new Error('ネットワークエラー'));
-        xhr.ontimeout = () => reject(new Error('タイムアウト'));
+        xhr.onerror = () => reject(new Error(t.networkError));
+        xhr.ontimeout = () => reject(new Error(t.timeout));
         xhr.open('POST', `${apiBase}/assets/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.timeout = 30 * 60 * 1000; // 30 分
@@ -170,14 +172,9 @@ export default function AssetsPage() {
         xhr.send(formData);
       });
 
-      window.alert(`✅ アップロード完了
-
-ファイル: ${file.name}
-サイズ: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+      window.alert(t.uploadDone(file.name, (file.size / 1024 / 1024).toFixed(1)));
     } catch (err) {
-      window.alert(`❌ アップロード失敗
-
-${err instanceof Error ? err.message : '不明なエラー'}`);
+      window.alert(t.uploadFailed(err instanceof Error ? err.message : t.unknownError));
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -199,13 +196,13 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
   const totalSize = filtered.reduce((a, x) => a + x.size, 0);
 
   return (
-    <AppShell title="素材" breadcrumb={['ホーム', '素材']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="ファイル名 / タグで検索..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -213,8 +210,8 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
           </div>
           {isSuperAdmin && (
             <div className="flex border rounded-md">
-              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>自社</Button>
-              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>顧客</Button>
+              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>{t.self}</Button>
+              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>{t.customer}</Button>
             </div>
           )}
           <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -222,12 +219,12 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全ての種別</SelectItem>
-              <SelectItem value="image">画像</SelectItem>
-              <SelectItem value="video">動画</SelectItem>
-              <SelectItem value="gif">GIF</SelectItem>
-              <SelectItem value="audio">音声</SelectItem>
-              <SelectItem value="html">HTML</SelectItem>
+              <SelectItem value="all">{t.allTypes}</SelectItem>
+              <SelectItem value="image">{t.typeImage}</SelectItem>
+              <SelectItem value="video">{t.typeVideo}</SelectItem>
+              <SelectItem value="gif">{t.typeGif}</SelectItem>
+              <SelectItem value="audio">{t.typeAudio}</SelectItem>
+              <SelectItem value="html">{t.typeHtml}</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex border rounded-md">
@@ -239,7 +236,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
             </Button>
           </div>
           <div className="ml-auto text-xs text-muted-foreground">
-            {filtered.length} 件 / {fmtBytes(totalSize)}
+            {t.countSize(filtered.length, fmtBytes(totalSize))}
           </div>
           <input
             ref={fileInputRef}
@@ -250,7 +247,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
           />
           <Button size="sm" className="gap-1.5" onClick={handleUploadClick} disabled={uploading}>
             <Upload className="h-3.5 w-3.5" />
-            {uploading ? `アップロード中 ${uploadProgress}%` : 'アップロード'}
+            {uploading ? t.uploading(uploadProgress) : t.upload}
           </Button>
         </CardContent>
       </Card>
@@ -265,7 +262,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                   type="button"
                   onClick={() => setPreviewAsset(a)}
                   className="aspect-square bg-muted flex items-center justify-center relative w-full cursor-pointer"
-                  title="クリックで拡大表示"
+                  title={t.clickToEnlarge}
                 >
                   {a.thumbnail_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -282,8 +279,8 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                       e.stopPropagation();
                       handleDelete(a);
                     }}
-                    title="削除"
-                    aria-label="削除"
+                    title={t.delete}
+                    aria-label={t.delete}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -301,7 +298,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                   </div>
                   {a.used_in_program_count > 0 && (
                     <div className="text-[10px] text-muted-foreground mt-1">
-                      使用中: {a.used_in_program_count} プログラム
+                      {t.usedIn(a.used_in_program_count)}
                     </div>
                   )}
                 </div>
@@ -310,7 +307,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
           })}
           {filtered.length === 0 && (
             <div className="col-span-full text-center text-sm text-muted-foreground py-12">
-              該当する素材がありません
+              {t.noAssets}
             </div>
           )}
         </div>
@@ -319,14 +316,14 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>名前</TableHead>
-                <TableHead>種別</TableHead>
-                <TableHead className="text-right">サイズ</TableHead>
-                <TableHead>解像度</TableHead>
-                <TableHead>長さ</TableHead>
-                <TableHead>タグ</TableHead>
-                <TableHead>使用</TableHead>
-                <TableHead>作成</TableHead>
+                <TableHead>{t.colName}</TableHead>
+                <TableHead>{t.colType}</TableHead>
+                <TableHead className="text-right">{t.colSize}</TableHead>
+                <TableHead>{t.colResolution}</TableHead>
+                <TableHead>{t.colLength}</TableHead>
+                <TableHead>{t.colTags}</TableHead>
+                <TableHead>{t.colUsed}</TableHead>
+                <TableHead>{t.colCreated}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -353,7 +350,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                   <TableCell className="text-xs tabular-nums">{a.width && a.height ? `${a.width}×${a.height}` : '—'}</TableCell>
                   <TableCell className="text-xs tabular-nums">{fmtDuration(a.duration_ms)}</TableCell>
                   <TableCell><div className="flex flex-wrap gap-1">{a.tags.map((t) => <Badge key={t} variant="muted" className="text-[10px]">{t}</Badge>)}</div></TableCell>
-                  <TableCell className="text-xs">{a.used_in_program_count > 0 ? `${a.used_in_program_count} プログラム` : '—'}</TableCell>
+                  <TableCell className="text-xs">{a.used_in_program_count > 0 ? t.usedPrograms(a.used_in_program_count) : '—'}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmtRelative(a.created_at)}</TableCell>
                 </TableRow>
               ))}
@@ -372,7 +369,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
             type="button"
             className="absolute top-4 right-4 text-white hover:bg-white/10 rounded-full p-2 z-10"
             onClick={(e) => { e.stopPropagation(); setPreviewAsset(null); }}
-            aria-label="閉じる"
+            aria-label={t.close}
           >
             <X className="h-6 w-6" />
           </button>
@@ -398,7 +395,7 @@ ${err instanceof Error ? err.message : '不明なエラー'}`);
                 style={{ maxWidth: '95vw', maxHeight: '85vh' }}
               />
             ) : (
-              <div className="text-white text-sm">プレビュー対応外: {previewAsset.type}</div>
+              <div className="text-white text-sm">{t.previewUnsupported(previewAsset.type)}</div>
             )}
             <div className="text-white text-sm bg-black/60 px-4 py-2 rounded">
               {previewAsset.name} · {fmtBytes(previewAsset.size)}

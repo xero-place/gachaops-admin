@@ -11,10 +11,19 @@ import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { tokenStore } from '@/lib/token-store';
-import { NAV_GROUPS } from '@/components/layout/sidebar';
+import { NAV_GROUPS, NAV_LABELS_EN } from '@/components/layout/sidebar';
+import { useLocale } from '@/store/useLocale';
+
+const MOBILE_NAV_LABELS = {
+  ja: { close: 'メニューを閉じる', open: 'メニューを開く' },
+  en: { close: 'Close menu', open: 'Open menu' },
+} as const;
 
 export function MobileNav() {
   const pathname = usePathname();
+  const locale = useLocale((s) => s.locale);
+  const tr = (ja: string) => (locale === 'en' ? (NAV_LABELS_EN[ja] ?? ja) : ja);
+  const nl = locale === 'en' ? MOBILE_NAV_LABELS.en : MOBILE_NAV_LABELS.ja;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [role, setRole] = useState<string | null>(null);
@@ -64,7 +73,7 @@ export function MobileNav() {
           </div>
           <button
             type="button"
-            aria-label="メニューを閉じる"
+            aria-label={nl.close}
             onClick={() => setOpen(false)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
           >
@@ -78,7 +87,7 @@ export function MobileNav() {
             return (
               <div key={group.label} className="mb-5">
                 <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                  {group.label}
+                  {tr(group.label)}
                 </div>
                 <ul className="space-y-0.5">
                   {items.map((item) => {
@@ -99,7 +108,7 @@ export function MobileNav() {
                           )}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
+                          <span className="truncate">{tr(item.label)}</span>
                           {item.badge && (
                             <span className="ml-auto rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                               {item.badge}
@@ -122,7 +131,7 @@ export function MobileNav() {
     <>
       <button
         type="button"
-        aria-label="メニューを開く"
+        aria-label={nl.open}
         onClick={() => setOpen(true)}
         className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
       >

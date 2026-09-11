@@ -11,6 +11,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Loader2, Layers3, ChevronRight, Plus, Link2, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
 import VideoWallPreviewModal from '@/components/videowall/VideoWallPreviewModal';
+import { usePageT } from '@/i18n/usePageT';
+import { deviceGroupsDict } from '@/i18n/ns/deviceGroups';
 
 type GroupMember = { device_id: string; is_master: boolean };
 
@@ -36,6 +38,7 @@ type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_p
 type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
 
 export default function DeviceGroupsPage() {
+  const t = usePageT(deviceGroupsDict);
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
   const [programs, setPrograms] = useState<ProgramLite[]>([]);  // S145: 箸休めセレクタ用
@@ -82,7 +85,7 @@ export default function DeviceGroupsPage() {
 
   if (loading) {
     return (
-      <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.groups]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -94,7 +97,7 @@ export default function DeviceGroupsPage() {
   const childrenOf = (id: string) => deviceGroups.filter((g) => g.parent_id === id);
 
   // ★uiGrp: ルートグループを顧客ごとに束ねる。顧客名の昇順。IDは表示しない。
-  const custName = (id?: string) => customers.find((c) => c.id === id)?.name ?? '（顧客未設定）';
+  const custName = (id?: string) => customers.find((c) => c.id === id)?.name ?? t.custUnset;
   const custOrder: string[] = [];
   const rootsByCust = new Map<string, DeviceGroup[]>();
   for (const r of roots) {
@@ -107,53 +110,53 @@ export default function DeviceGroupsPage() {
   const showCustomerHeader = custOrder.length > 1;
 
   return (
-    <AppShell title="デバイスグループ" breadcrumb={['ホーム', 'グループ']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.groups]}>
       <div className="flex items-center justify-end mb-4">
         <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-          <Plus className="h-3.5 w-3.5" />新規グループ
+          <Plus className="h-3.5 w-3.5" />{t.newGroup}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">グループ階層</CardTitle>
-          <p className="text-xs text-muted-foreground">エリア単位や連動再生グループを、顧客ごとに束ねて表示します。</p>
+          <CardTitle className="text-sm">{t.hierarchy}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t.hierarchyDesc}</p>
           {/* ★uiGrp: 凡例。アイコン・バッジの意味を明示。 */}
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />オンライン
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />{t.online}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />オフライン
+              <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />{t.offline}
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 font-medium">
-                <Crown className="h-2.5 w-2.5" />マスター
+                <Crown className="h-2.5 w-2.5" />{t.master}
               </span>
-              同期再生の基準端末
+              {t.masterDesc}
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 font-medium">
-                <Link2 className="h-2.5 w-2.5" />連動再生
+                <Link2 className="h-2.5 w-2.5" />{t.linked}
               </span>
-              複数台を同期
+              {t.linkedDesc}
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="font-medium text-foreground/70">箸休め</span>
-              番組の合間に流す映像
+              <span className="font-medium text-foreground/70">{t.restRoom}</span>
+              {t.restRoomDesc}
             </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {roots.length === 0 && (
-            <p className="text-sm text-muted-foreground py-6 text-center">グループがまだありません。右上の「新規グループ」から作成できます。</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">{t.noGroups}</p>
           )}
           {custOrder.map((custKey) => (
             <section key={custKey} className="space-y-2">
               {showCustomerHeader && (
                 <div className="flex items-center gap-2 px-0.5">
                   <span className="text-sm font-semibold text-foreground">{custName(custKey === '__none__' ? undefined : custKey)}</span>
-                  <span className="text-[11px] text-muted-foreground">グループ {rootsByCust.get(custKey)!.length} 件</span>
+                  <span className="text-[11px] text-muted-foreground">{t.groupCount(rootsByCust.get(custKey)!.length)}</span>
                   <div className="flex-1 h-px bg-border" />
                 </div>
               )}
@@ -218,10 +221,11 @@ function GroupNode({
   devices: DeviceLite[];
   programs: ProgramLite[];
 }) {
+  const t = usePageT(deviceGroupsDict);
   // S145: メンバー端末の状態表示。restProgram名解決（NULL=既定の箸休め）。
   const restName = group.rest_program_id
     ? (programs.find((p) => p.id === group.rest_program_id)?.name ?? group.rest_program_id)
-    : '既定の箸休め';
+    : t.defaultRest;
   const memberDevices = group.members.map((m) => ({
     m,
     d: devices.find((x) => x.id === m.device_id),
@@ -243,7 +247,7 @@ function GroupNode({
           <span className="text-sm font-semibold text-foreground truncate">{group.name}</span>
           {group.linked && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium shrink-0">
-              <Link2 className="h-2.5 w-2.5" />連動再生
+              <Link2 className="h-2.5 w-2.5" />{t.linked}
             </span>
           )}
 
@@ -252,27 +256,27 @@ function GroupNode({
             {memberDevices.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />オン {onlineCount}
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{t.on} {onlineCount}
                 </span>
                 {offlineCount > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[11px] font-medium">
-                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />オフ {offlineCount}
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />{t.off} {offlineCount}
                   </span>
                 )}
               </div>
             )}
             <span className="text-[11px] text-muted-foreground tabular-nums">
-              {group.device_count}台{group.child_group_count > 0 && ` ・子${group.child_group_count}`}
+              {t.deviceCountText(group.device_count, group.child_group_count)}
             </span>
             {canEdit && (
               <div className="flex gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>編集</Button>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>{t.edit}</Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
                   onClick={() => onDelete(group)}
-                  aria-label="削除"
+                  aria-label={t.delete}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -285,7 +289,7 @@ function GroupNode({
         {group.members.length > 0 ? (
           <div className="px-3 py-2 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/70">箸休め</span>
+              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/70">{t.restRoom}</span>
               <span>{restName}</span>
             </div>
             <ul className="divide-y divide-border/60">
@@ -297,19 +301,19 @@ function GroupNode({
                     <span className="font-medium text-foreground truncate">{d?.name ?? m.device_id}</span>
                     {m.is_master && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium shrink-0">
-                        <Crown className="h-2.5 w-2.5" />マスター
+                        <Crown className="h-2.5 w-2.5" />{t.master}
                       </span>
                     )}
                     <span className="ml-auto flex items-center gap-2 shrink-0">
                       {online ? (
                         <>
-                          <span className="inline-flex items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">オンライン</span>
+                          <span className="inline-flex items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">{t.online}</span>
                           <span className="text-muted-foreground max-w-[220px] truncate">
-                            再生中: {d?.current_program_name ?? '—'}
+                            {t.playing(d?.current_program_name ?? '—')}
                           </span>
                         </>
                       ) : (
-                        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium">オフライン</span>
+                        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium">{t.offline}</span>
                       )}
                     </span>
                   </li>
@@ -318,7 +322,7 @@ function GroupNode({
             </ul>
           </div>
         ) : (
-          <div className="px-3 py-2 text-[11px] text-muted-foreground">端末が登録されていません。</div>
+          <div className="px-3 py-2 text-[11px] text-muted-foreground">{t.noDevicesRegistered}</div>
         )}
       </div>
 
@@ -354,6 +358,7 @@ function EditGroupDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = usePageT(deviceGroupsDict);
   const [name, setName] = useState(group.name);
   const [linked, setLinked] = useState(group.linked);
   // S145: 演出ON/OFFは端末タブで制御。グループ既定は常にtrue固定（三値フォールバックの参照先を維持）。UIは非表示。
@@ -386,7 +391,7 @@ function EditGroupDialog({
         const list = Array.isArray(r) ? r : (r.items ?? []);
         setVwAssets(list.filter((a) => (a.type ?? 'video') === 'video'));
       })
-      .catch(() => setVwErr('素材の取得に失敗しました'));
+      .catch(() => setVwErr(t.assetFetchFailed));
   }, [vwEnabled, vwAssets.length]);
 
   // S148: グループを開いたとき、保存済みビデオウォールを復元（チェック・行列・分割状態も保持）
@@ -413,9 +418,9 @@ function EditGroupDialog({
   }, [group.id]);
 
   const vwCreate = async () => {
-    if (!vwSourceId) { setVwErr('元動画を選択してください'); return; }
+    if (!vwSourceId) { setVwErr(t.selectSource); return; }
     const n = vwRows * vwCols;
-    if (n < 2 || n > 20) { setVwErr('台数は2〜20の範囲です'); return; }
+    if (n < 2 || n > 20) { setVwErr(t.countRange); return; }
     setVwBusy(true); setVwErr(null);
     try {
       const created = await api.post<VideoWall>('/videowalls', {
@@ -423,7 +428,7 @@ function EditGroupDialog({
         rows: vwRows, cols: vwCols, bezel_px: vwBezel, device_group_id: group.id,
       });
       setVw(created);
-    } catch { setVwErr('作成に失敗しました（権限・接続を確認）'); }
+    } catch { setVwErr(t.createFailedVw); }
     finally { setVwBusy(false); }
   };
   // S149: split開始→ready/failedまでポーリング。経過秒数を表示し、
@@ -444,7 +449,7 @@ function EditGroupDialog({
         const sec = Math.floor((Date.now() - t0) / 1000);
         setVwSplitSec(sec);
         if (Date.now() - t0 > TIMEOUT_MS) {
-          setVwErr('分割に時間がかかっています。バックグラウンドで継続中です。数分おいて画面を再読み込みし、状態をご確認ください。');
+          setVwErr(t.splitSlow);
           break;
         }
         if (sec % 3 !== 0) continue;
@@ -458,18 +463,18 @@ function EditGroupDialog({
         if (latest.status === 'ready') {
           // ★S227: 自動割当は行わない。既存の割り当て(R0C0=140 等)を保持したまま完了。
           setVw(latest);
-          setVwErr('分割が完了しました。割り当てを確認し、「実機に反映」を押してください。');
+          setVwErr(t.splitDone);
           break;
         }
         if (latest.status === 'failed') {
           setVw(latest);
-          setVwErr('分割に失敗しました。ログを確認してください。');
+          setVwErr(t.splitFailed);
           break;
         }
         setVw(latest); // splitting中も状態を反映
       }
     } catch {
-      setVwErr('分割の開始に失敗しました');
+      setVwErr(t.splitStartFailed);
     } finally {
       setVwBusy(false); setVwSplitSec(0);
     }
@@ -478,7 +483,7 @@ function EditGroupDialog({
   const vwAssignTile = async (tileId: string, deviceId: string) => {
     if (!vw) return;
     try { const r = await api.patch<VideoWall>(`/videowalls/${vw.id}/tiles/${tileId}`, { device_id: deviceId || null }); setVw(r); }
-    catch { setVwErr('割当の変更に失敗しました'); }
+    catch { setVwErr(t.assignFailed); }
   };
   // S148: 実機に反映（各タイルをProgram化→担当端末へ同期配信）
   const vwDeploy = async () => {
@@ -486,8 +491,8 @@ function EditGroupDialog({
     setVwBusy(true); setVwErr(null);
     try {
       await api.post(`/videowalls/${vw.id}/deploy`, {});
-      setVwErr('実機に反映しました（各マシンで同期再生が開始されます）');
-    } catch { setVwErr('実機反映に失敗しました（分割実行と割当が完了しているか確認）'); }
+      setVwErr(t.deployed);
+    } catch { setVwErr(t.deployFailed); }
     finally { setVwBusy(false); }
   };
 
@@ -523,7 +528,7 @@ function EditGroupDialog({
       onSaved();
     } catch (e) {
       console.error('[device-groups] save failed:', e);
-      setError('保存に失敗しました。権限（lv1_super）と接続を確認してください。');
+      setError(t.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -533,15 +538,15 @@ function EditGroupDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className={`${vwPreview ? "max-w-5xl" : "max-w-lg"} max-h-[85vh] overflow-y-auto`}>
         <DialogHeader>
-          <DialogTitle className="text-sm">グループ編集：{group.name}</DialogTitle>
+          <DialogTitle className="text-sm">{t.editTitle(group.name)}</DialogTitle>
           <DialogDescription className="text-xs">
-            メンバー・連動再生・演出既定・同期マスターを設定します。
+            {t.editDesc}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">グループ名</label>
+            <label className="text-xs font-medium">{t.groupName}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -551,14 +556,14 @@ function EditGroupDialog({
 
           <div className="flex items-center gap-2">
             <Checkbox id="edit-linked" checked={linked} onCheckedChange={(c) => setLinked(c === true)} />
-            <label htmlFor="edit-linked" className="text-xs">連動再生（複数台を同期）</label>
+            <label htmlFor="edit-linked" className="text-xs">{t.linkedCheckbox}</label>
           </div>
 
           {/* S145: 演出ON/OFFは端末タブで制御するため非表示。値は常にtrue固定。 */}
           {false && (
           <div className="flex items-center gap-2">
             <Checkbox id="edit-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
-            <label htmlFor="edit-effect" className="text-xs">演出をグループ既定で有効にする</label>
+            <label htmlFor="edit-effect" className="text-xs">{t.effectDefaultCheckbox}</label>
           </div>
           )}
 
@@ -566,26 +571,26 @@ function EditGroupDialog({
           {true && (
             <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
               <label className="text-xs font-medium flex items-center gap-1.5">
-                <span className="text-amber-500">●</span>箸休め番組（運営専用）
+                <span className="text-amber-500">●</span>{t.restProgramLabel}
               </label>
               <select
                 value={restProgramId}
                 onChange={(e) => setRestProgramId(e.target.value)}
                 className="w-full h-9 rounded-md border bg-background px-3 text-sm"
               >
-                <option value="">既定の箸休めを使う</option>
+                <option value="">{t.useDefaultRest}</option>
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
               <p className="text-[10px] text-muted-foreground">
-                このグループの番組境界で挟む箸休め映像。未選択なら既定の箸休めになります。運営（lv1_super）のみ設定でき、顧客アカウントからは変更できません。
+                {t.restProgramNote}
               </p>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
+            <label className="text-xs font-medium">{t.membersMaster}</label>
             <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
               {[...devices]
                 .sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online'))
@@ -597,7 +602,7 @@ function EditGroupDialog({
                     <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
                     <span
                       className={online ? 'text-emerald-500 text-xs leading-none' : 'text-muted-foreground text-xs leading-none'}
-                      title={online ? 'オンライン' : 'オフライン'}
+                      title={online ? t.online : t.offline}
                     >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
@@ -616,7 +621,7 @@ function EditGroupDialog({
               })}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              連動再生グループでは、master 端末が同期の基準になります。メンバーに含まれる端末のみ master 指定できます。
+              {t.masterNote}
             </p>
           </div>
 
@@ -624,33 +629,33 @@ function EditGroupDialog({
           <div className="space-y-2 rounded-md border p-3">
             <label className="flex items-center gap-2 text-xs font-medium">
               <Checkbox checked={vwEnabled} onCheckedChange={() => setVwEnabled((v) => !v)} />
-              <Grid3x3 className="h-3.5 w-3.5" />ビデオウォール分割（1映像を複数台に分割投影）
+              <Grid3x3 className="h-3.5 w-3.5" />{t.vwSplit}
             </label>
             {vwEnabled && (
               <div className="space-y-2 pl-1">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2">
-                    <label className="text-[10px] text-muted-foreground">元動画</label>
+                    <label className="text-[10px] text-muted-foreground">{t.sourceVideo}</label>
                     <select className="w-full rounded border bg-background px-2 py-1 text-xs"
                       value={vwSourceId} onChange={(e) => setVwSourceId(e.target.value)}>
-                      <option value="">選択してください</option>
+                      <option value="">{t.pleaseSelect}</option>
                       {vwAssets.map((a) => (<option key={a.id} value={a.id}>{a.name}</option>))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground">行</label>
+                    <label className="text-[10px] text-muted-foreground">{t.rows}</label>
                     <input type="number" min={1} max={20} value={vwRows}
                       onChange={(e) => setVwRows(Math.max(1, Number(e.target.value)))}
                       className="w-full rounded border bg-background px-2 py-1 text-xs" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground">列</label>
+                    <label className="text-[10px] text-muted-foreground">{t.cols}</label>
                     <input type="number" min={1} max={20} value={vwCols}
                       onChange={(e) => setVwCols(Math.max(1, Number(e.target.value)))}
                       className="w-full rounded border bg-background px-2 py-1 text-xs" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-muted-foreground">ベゼル補正(px)</label>
+                    <label className="text-[10px] text-muted-foreground">{t.bezelCorrection}</label>
                     <input type="number" min={0} max={400}
                       value={vwBezel === 0 ? "" : vwBezel}
                       placeholder="0"
@@ -661,37 +666,37 @@ function EditGroupDialog({
                       className="w-full rounded border bg-background px-2 py-1 text-xs" />
                   </div>
                   <div className="flex items-end text-[10px] text-muted-foreground">
-                    {vwRows * vwCols} 台に分割
+                    {t.splitInto(vwRows * vwCols)}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={vwCreate} disabled={vwBusy || !vwSourceId}>
-                    {vwBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}作成
+                    {vwBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}{t.create}
                   </Button>
                   <Button size="sm" variant="outline" onClick={vwSplit} disabled={vwBusy || !vw}>
-                    {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />分割中… {vwSplitSec}秒</>) : '分割実行'}
+                    {vwBusy ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />{t.splitting(vwSplitSec)}</>) : t.splitRun}
                   </Button>
                   {/* ★S227: 自動割当ボタンは非表示（手動割り当てのみ） */}
                   <Button size="sm" variant="outline" onClick={() => setVwPreview(true)} disabled={!vw}>
-                    <Play className="h-3 w-3 mr-1" />プレビュー
+                    <Play className="h-3 w-3 mr-1" />{t.preview}
                   </Button>
                   <Button size="sm" onClick={vwDeploy} disabled={vwBusy || !vw || vw.status !== 'ready'}>
-                    実機に反映
+                    {t.deploy}
                   </Button>
                 </div>
                 {vw && (
                   <div className="text-[10px] text-muted-foreground">
-                    状態: {vw.status}　タイル: {vw.tiles.length}枚
+                    {t.statusTiles(vw.status, vw.tiles.length)}
                   </div>
                 )}
                 {vw && vw.tiles.length > 0 && (
                   <div className="space-y-1">
-                    {vw.tiles.map((t) => (
-                      <div key={t.id} className="flex items-center gap-2 text-[10px]">
-                        <span className="w-12 text-muted-foreground">R{t.row}C{t.col}</span>
+                    {vw.tiles.map((tile) => (
+                      <div key={tile.id} className="flex items-center gap-2 text-[10px]">
+                        <span className="w-12 text-muted-foreground">R{tile.row}C{tile.col}</span>
                         <select className="flex-1 rounded border bg-background px-2 py-1"
-                          value={t.device_id ?? ''} onChange={(e) => vwAssignTile(t.id, e.target.value)}>
-                          <option value="">未割当</option>
+                          value={tile.device_id ?? ''} onChange={(e) => vwAssignTile(tile.id, e.target.value)}>
+                          <option value="">{t.unassigned}</option>
                           {devices.filter((d) => memberIds.includes(d.id)).map((d) => (
                             <option key={d.id} value={d.id}>{d.name ?? d.id}</option>
                           ))}
@@ -724,9 +729,9 @@ function EditGroupDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>キャンセル</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>{t.cancel}</Button>
           <Button size="sm" onClick={handleSave} disabled={saving || !name.trim()}>
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}保存
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}{t.save}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -741,6 +746,7 @@ function CreateGroupDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = usePageT(deviceGroupsDict);
   const [name, setName] = useState('');
   const [linked, setLinked] = useState(false);
   const [effectDefault, setEffectDefault] = useState(true);
@@ -778,7 +784,7 @@ function CreateGroupDialog({
       onSaved();
     } catch (e) {
       console.error('[device-groups] create failed:', e);
-      setError('作成に失敗しました。権限（lv1_super）と接続を確認してください。');
+      setError(t.createFailed);
     } finally {
       setSaving(false);
     }
@@ -788,38 +794,38 @@ function CreateGroupDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-sm">新規グループ作成</DialogTitle>
+          <DialogTitle className="text-sm">{t.createTitle}</DialogTitle>
           <DialogDescription className="text-xs">
-            グループを作成し、メンバーと同期マスターを設定します。
+            {t.createDesc}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">グループ名</label>
+            <label className="text-xs font-medium">{t.groupName}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例：渋谷店 連動グループ"
+              placeholder={t.namePlaceholder}
               className="w-full h-9 rounded-md border bg-background px-3 text-sm"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <Checkbox id="new-linked" checked={linked} onCheckedChange={(c) => setLinked(c === true)} />
-            <label htmlFor="new-linked" className="text-xs">連動再生（複数台を同期）</label>
+            <label htmlFor="new-linked" className="text-xs">{t.linkedCheckbox}</label>
           </div>
 
           {/* S145: 演出ON/OFFは端末タブで制御するため非表示。値は常にtrue固定。 */}
           {false && (
           <div className="flex items-center gap-2">
             <Checkbox id="new-effect" checked={effectDefault} onCheckedChange={(c) => setEffectDefault(c === true)} />
-            <label htmlFor="new-effect" className="text-xs">演出をグループ既定で有効にする</label>
+            <label htmlFor="new-effect" className="text-xs">{t.effectDefaultCheckbox}</label>
           </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">メンバー端末 / 同期マスター</label>
+            <label className="text-xs font-medium">{t.membersMaster}</label>
             <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
               {[...devices]
                 .sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online'))
@@ -831,7 +837,7 @@ function CreateGroupDialog({
                     <Checkbox checked={isMember} onCheckedChange={() => toggleMember(d.id)} />
                     <span
                       className={online ? 'text-emerald-500 text-xs leading-none' : 'text-muted-foreground text-xs leading-none'}
-                      title={online ? 'オンライン' : 'オフライン'}
+                      title={online ? t.online : t.offline}
                     >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
@@ -855,9 +861,9 @@ function CreateGroupDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>キャンセル</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>{t.cancel}</Button>
           <Button size="sm" onClick={handleCreate} disabled={saving || !name.trim()}>
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}作成
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}{t.create}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -872,6 +878,7 @@ function DeleteGroupDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = usePageT(deviceGroupsDict);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -887,7 +894,7 @@ function DeleteGroupDialog({
       onDeleted();
     } catch (e) {
       console.error('[device-groups] delete failed:', e);
-      setError('削除に失敗しました。メンバーや子グループを含むグループは削除できない場合があります。先にメンバーを外してください。');
+      setError(t.deleteFailed);
       setDeleting(false);
     }
   };
@@ -898,30 +905,30 @@ function DeleteGroupDialog({
         <DialogHeader>
           <DialogTitle className="text-sm flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-500" />
-            グループを削除
+            {t.deleteTitle}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            この操作は取り消せません。
+            {t.irreversible}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
           <p className="text-sm">
-            グループ「<span className="font-medium">{group.name}</span>」を削除しますか？
+            {t.deletePre}<span className="font-medium">{group.name}</span>{t.deletePost}
           </p>
 
           {hasContent && (
             <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2.5 space-y-1">
               <p className="text-xs font-medium text-red-500 flex items-center gap-1.5">
                 <AlertTriangle className="h-3 w-3" />
-                このグループには以下が含まれています
+                {t.containsFollowing}
               </p>
               <ul className="text-xs text-muted-foreground list-disc list-inside">
-                {hasMembers && <li>メンバー端末 {group.device_count} 台</li>}
-                {hasChildren && <li>子グループ {group.child_group_count} 個</li>}
+                {hasMembers && <li>{t.memberCount(group.device_count)}</li>}
+                {hasChildren && <li>{t.childCount(group.child_group_count)}</li>}
               </ul>
               <p className="text-[11px] text-muted-foreground">
-                連動再生グループの場合、削除すると同期動作に影響する可能性があります。本当に削除してよいか確認してください。
+                {t.deleteWarn}
               </p>
             </div>
           )}
@@ -930,14 +937,14 @@ function DeleteGroupDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={deleting}>キャンセル</Button>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={deleting}>{t.cancel}</Button>
           <Button
             size="sm"
             className="bg-red-600 hover:bg-red-700 text-white"
             onClick={handleDelete}
             disabled={deleting}
           >
-            {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}削除する
+            {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}{t.doDelete}
           </Button>
         </DialogFooter>
       </DialogContent>

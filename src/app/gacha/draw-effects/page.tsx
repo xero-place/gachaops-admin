@@ -22,6 +22,9 @@ import { api, ApiError } from '@/lib/api';
 import { DrawOrderMappingEditor } from '@/components/domain/draw-order-mapping-editor';
 import type { GachaPool, GachaEffectPack, Device } from '@/types/domain';
 import { Sparkles, AlertCircle } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { useT } from '@/i18n/useT';
+import { gachaDrawEffectsDict } from '@/i18n/ns/gachaDrawEffects';
 
 interface ListResponse<T> {
   items?: T[];
@@ -30,6 +33,8 @@ interface ListResponse<T> {
 }
 
 export default function GachaDrawEffectsPage() {
+  const t = usePageT(gachaDrawEffectsDict);
+  const { formatPrice, locale } = useT();
   const [pools, setPools] = useState<GachaPool[]>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>('');
   const [packs, setPacks] = useState<GachaEffectPack[]>([]);
@@ -58,7 +63,7 @@ export default function GachaDrawEffectsPage() {
         if (cancelled) return;
         setPacks([...list].sort((a, b) => a.tier - b.tier));
       } catch (e) {
-        if (!cancelled) setError('演出パック取得失敗: ' + (e as Error).message);
+        if (!cancelled) setError(t.packLoadFailed((e as Error).message));
       }
     })();
     return () => {
@@ -86,11 +91,11 @@ export default function GachaDrawEffectsPage() {
         }
       } else {
         setSelectedPoolId('');
-        setError('この端末の専用設定を準備できませんでした');
+        setError(t.ensureFailed);
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError('端末設定の準備に失敗: ' + msg);
+      setError(t.ensureError(msg));
     } finally {
       setEnsuring(false);
     }
@@ -108,7 +113,7 @@ export default function GachaDrawEffectsPage() {
           void selectDevice(list[0].id);
         }
       } catch (e) {
-        if (!cancelled) setError('端末取得失敗: ' + (e as Error).message);
+        if (!cancelled) setError(t.deviceLoadFailed((e as Error).message));
       }
     })();
     return () => {
@@ -122,22 +127,22 @@ export default function GachaDrawEffectsPage() {
   }, []);
 
   return (
-    <AppShell title="ガチャ演出管理" breadcrumb={['ガチャ', '端末 → 演出マッピング']}>
+    <AppShell title={t.title} breadcrumb={[t.bcGacha, t.bcMapping]}>
       <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
-              端末を選択
+              {t.selectDevice}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-1 max-w-md">
-                <Label className="text-xs text-muted-foreground">端末</Label>
+                <Label className="text-xs text-muted-foreground">{t.device}</Label>
                 <Select value={selectedDeviceId} onValueChange={(v) => void selectDevice(v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="端末を選択..." />
+                    <SelectValue placeholder={t.devicePlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
                     {devices.map((d) => (
@@ -163,20 +168,20 @@ export default function GachaDrawEffectsPage() {
             {selectedPool && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                  <div className="text-xs text-muted-foreground">端末</div>
+                  <div className="text-xs text-muted-foreground">{t.device}</div>
                   <div className="font-medium">{selectedDevice?.name ?? '—'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">顧客 ID</div>
+                  <div className="text-xs text-muted-foreground">{t.customerId}</div>
                   <div className="font-mono">{selectedPool.customer_id}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">最大球数</div>
+                  <div className="text-xs text-muted-foreground">{t.maxBalls}</div>
                   <div>{selectedPool.max_ball_number}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">価格 / 抽選</div>
-                  <div>¥{selectedPool.price_per_draw}</div>
+                  <div className="text-xs text-muted-foreground">{t.pricePerDraw}</div>
+                  <div>{locale === 'en' ? formatPrice(selectedPool.price_per_draw) : `¥${selectedPool.price_per_draw}`}</div>
                 </div>
               </div>
             )}

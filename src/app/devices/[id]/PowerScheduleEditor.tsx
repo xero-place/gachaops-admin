@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { WEEKDAYS_JA } from '@/lib/format';
+import { usePageT } from '@/i18n/usePageT';
+import { powerScheduleDict } from '@/i18n/ns/powerSchedule';
 
 type Sched = {
   id?: string;
@@ -31,6 +32,7 @@ const DEFAULT_ROW: Row = {
 };
 
 export function PowerScheduleEditor({ deviceId }: { deviceId: string }) {
+  const t = usePageT(powerScheduleDict);
   const [rows, setRows] = useState<Row[]>(() =>
     Array.from({ length: 7 }, () => ({ ...DEFAULT_ROW }))
   );
@@ -89,23 +91,23 @@ export function PowerScheduleEditor({ deviceId }: { deviceId: string }) {
           }
         }
       }
-      window.alert('✅ 営業時間スケジュールを保存しました');
+      window.alert(t.savedMsg);
       await load();
     } catch (e) {
-      window.alert(`❌ 保存失敗: ${e instanceof Error ? e.message : '不明'}`);
+      window.alert(t.saveFailed(e instanceof Error ? e.message : t.unknownError));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground p-2">読み込み中…</div>;
+    return <div className="text-sm text-muted-foreground p-2">{t.loading}</div>;
   }
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        曜日ごとに営業時間を設定します。営業時間外は自動で「営業時間外モード」（メッセージ表示／真っ暗）になり、QR決済停止・ミュートされます。チェックを外した曜日はスケジュール対象外（終日通常運転）です。
+        {t.intro}
       </p>
       <div className="space-y-2">
         {rows.map((r, wd) => (
@@ -116,10 +118,10 @@ export function PowerScheduleEditor({ deviceId }: { deviceId: string }) {
                 checked={r.enabled}
                 onChange={(e) => update(wd, { enabled: e.target.checked })}
               />
-              <span className="text-sm font-medium">{WEEKDAYS_JA[wd]}曜日</span>
+              <span className="text-sm font-medium">{t.weekdays[wd]}</span>
             </label>
             <div className="flex items-center gap-1 text-sm">
-              <span className="text-muted-foreground">営業</span>
+              <span className="text-muted-foreground">{t.open}</span>
               <input
                 type="time"
                 value={r.power_on_time}
@@ -146,8 +148,8 @@ export function PowerScheduleEditor({ deviceId }: { deviceId: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="message">時間外: メッセージ表示</SelectItem>
-                  <SelectItem value="blackout">時間外: 真っ暗</SelectItem>
+                  <SelectItem value="message">{t.offMessage}</SelectItem>
+                  <SelectItem value="blackout">{t.offBlackout}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -156,7 +158,7 @@ export function PowerScheduleEditor({ deviceId }: { deviceId: string }) {
       </div>
       <div className="flex justify-end">
         <Button size="sm" onClick={save} disabled={saving}>
-          {saving ? '保存中…' : 'スケジュールを保存'}
+          {saving ? t.saving : t.saveBtn}
         </Button>
       </div>
     </div>

@@ -23,8 +23,11 @@ import { DeviceStatusBadge } from '@/components/domain/status-badges';
 import Link from 'next/link';
 import { SalesTrendChart } from './_components/sales-trend-chart';
 import { useDashboardData, useOfflineDevicesList } from '@/lib/dashboard-data';
+import { usePageT } from '@/i18n/usePageT';
+import { dashboardDict } from '@/i18n/ns/dashboard';
 
 export default function DashboardPage() {
+  const t = usePageT(dashboardDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
   const [customerFilter, setCustomerFilter] = useState<string>('');  // ''=全顧客横断
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
@@ -50,7 +53,7 @@ export default function DashboardPage() {
 
   if (loading || !overview) {
     return (
-      <AppShell title="ダッシュボード" breadcrumb={['ホーム']}>
+      <AppShell title={t.title} breadcrumb={[t.home]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -75,16 +78,16 @@ export default function DashboardPage() {
   const totalOrdersIn14d = salesStats.reduce((a, s) => a + s.orders, 0);
 
   return (
-    <AppShell title="ダッシュボード" breadcrumb={['ホーム']}>
+    <AppShell title={t.title} breadcrumb={[t.home]}>
       {isSuperAdmin && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">表示対象:</span>
+          <span className="text-sm text-muted-foreground">{t.filterLabel}</span>
           <select
             value={customerFilter}
             onChange={(e) => setCustomerFilter(e.target.value)}
             className="h-8 rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">全顧客（横断）</option>
+            <option value="">{t.allCustomers}</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -93,55 +96,55 @@ export default function DashboardPage() {
       )}
       {error && (
         <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-          データ取得エラー: {error}
+          {t.fetchError(error)}
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard
-          label="本日の売上"
+          label={t.revenueToday}
           value={fmtYen(overview.revenue_today_yen)}
           delta={salesStats.length >= 2 ? salesDelta : undefined}
-          deltaLabel="QR + 現金の合計"
+          deltaLabel={t.revenueTodayDelta}
           icon={<ReceiptText className="h-4 w-4" />}
           accent="primary"
         />
         <KpiCard
-          label="本日の回転数"
+          label={t.ordersToday}
           value={String(overview.orders_today)}
-          deltaLabel={`過去14日: ${totalOrdersIn14d}回転`}
+          deltaLabel={t.ordersTodayDelta(totalOrdersIn14d)}
           icon={<Activity className="h-4 w-4" />}
         />
         <KpiCard
-          label="稼働中の端末"
+          label={t.devicesActive}
           value={`${overview.device_online} / ${overview.device_total}`}
-          deltaLabel={overview.device_total > 0 ? `稼働率 ${onlinePct}%` : '端末未登録'}
+          deltaLabel={overview.device_total > 0 ? t.utilizationRate(onlinePct) : t.noDevices}
           icon={<Wifi className="h-4 w-4" />}
           accent={onlinePct >= 90 ? 'ok' : onlinePct >= 50 ? undefined : 'warn'}
         />
         <KpiCard
-          label="低在庫アラート"
+          label={t.lowStockAlert}
           value={String(overview.low_stock_inventories)}
-          deltaLabel={`配信中タスク: ${overview.active_tasks}`}
+          deltaLabel={t.activeTasks(overview.active_tasks)}
           icon={<AlertTriangle className="h-4 w-4" />}
           accent={overview.low_stock_inventories > 5 ? 'warn' : undefined}
         />
         <KpiCard
-          label="QR売上"
+          label={t.qrRevenue}
           value={fmtYen(overview.qr_revenue_today_yen)}
-          deltaLabel="本日・QR決済分"
+          deltaLabel={t.qrRevenueDelta}
           icon={<ReceiptText className="h-4 w-4" />}
         />
         <KpiCard
-          label="現金売上"
+          label={t.cashRevenue}
           value={fmtYen(overview.coin_revenue_today_yen)}
-          deltaLabel="本日・100円/500円玉"
+          deltaLabel={t.cashRevenueDelta}
           icon={<Coins className="h-4 w-4" />}
         />
         <KpiCard
-          label="メダル投入数"
-          value={`${overview.medal_count_today}枚`}
-          deltaLabel="トークンメダル・売上には含めません"
+          label={t.medalCount}
+          value={t.medalUnit(overview.medal_count_today)}
+          deltaLabel={t.medalDelta}
           icon={<HandCoins className="h-4 w-4" />}
         />
       </div>
@@ -149,13 +152,13 @@ export default function DashboardPage() {
       <Card className="mb-6">
         <CardHeader className="flex-row items-start justify-between space-y-0">
           <div>
-            <CardTitle>売上推移 (過去14日)</CardTitle>
+            <CardTitle>{t.salesTrend}</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              総売上：{fmtYen(totalSalesIn14d)} / 回転数：{totalOrdersIn14d}回
+              {t.salesTrendSub(fmtYen(totalSalesIn14d), totalOrdersIn14d)}
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/orders">決済履歴一覧へ →</Link>
+            <Link href="/orders">{t.toOrders}</Link>
           </Button>
         </CardHeader>
         <CardContent>
@@ -174,7 +177,7 @@ export default function DashboardPage() {
             />
           ) : (
             <div className="text-center text-sm text-muted-foreground py-12">
-              データがまだありません
+              {t.noData}
             </div>
           )}
         </CardContent>
@@ -185,7 +188,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-destructive" />
-              オフライン端末 ({offlineDevices.length})
+              {t.offlineDevices} ({offlineDevices.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -196,7 +199,7 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm truncate">{d.name}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      最終接続 {fmtRelative(d.last_heartbeat_at ?? null)}
+                      {t.lastConnected} {fmtRelative(d.last_heartbeat_at ?? null)}
                     </div>
                   </div>
                   <DeviceStatusBadge status={d.status as 'online' | 'offline' | 'maintenance' | 'never_connected'} />

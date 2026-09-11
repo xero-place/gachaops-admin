@@ -29,8 +29,11 @@ type Product = {
 };
 import { fmtYen } from '@/lib/format';
 import { Plus } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { productsDict } from '@/i18n/ns/products';
 
 export default function ProductsPage() {
+  const t = usePageT(productsDict);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,7 +61,7 @@ export default function ProductsPage() {
 
   if (loading) {
     return (
-      <AppShell title="商品マスタ" breadcrumb={['ホーム', '商品']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.bcProducts]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -67,11 +70,11 @@ export default function ProductsPage() {
   }
 
   return (
-    <AppShell title="商品マスタ" breadcrumb={['ホーム', '商品']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.bcProducts]}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{products.length} 商品</p>
+        <p className="text-sm text-muted-foreground">{t.count(products.length)}</p>
         <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />商品を追加
+          <Plus className="h-3.5 w-3.5" />{t.addProduct}
         </Button>
       </div>
 
@@ -79,11 +82,11 @@ export default function ProductsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>商品</TableHead>
-              <TableHead>カテゴリ</TableHead>
-              <TableHead className="text-right">標準価格</TableHead>
-              <TableHead>状態</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t.colProduct}</TableHead>
+              <TableHead>{t.colCategory}</TableHead>
+              <TableHead className="text-right">{t.colPrice}</TableHead>
+              <TableHead>{t.colStatus}</TableHead>
+              <TableHead className="text-right">{t.colAction}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -106,10 +109,10 @@ export default function ProductsPage() {
                 <TableCell><Badge variant="muted">{p.category}</Badge></TableCell>
                 <TableCell className="text-right tabular-nums text-base font-medium">{fmtYen(p.default_price_yen)}</TableCell>
                 <TableCell>
-                  {p.active ? <Badge variant="ok">販売中</Badge> : <Badge variant="muted">停止中</Badge>}
+                  {p.active ? <Badge variant="ok">{t.onSale}</Badge> : <Badge variant="muted">{t.stopped}</Badge>}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs">編集</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs">{t.edit}</Button>
                 </TableCell>
               </TableRow>
             ))}

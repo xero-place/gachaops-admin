@@ -44,6 +44,9 @@ import {
 } from '@/components/ui/dialog';
 import { api, ApiError } from '@/lib/api';
 import type { GachaPool, GachaEffectPack, Device } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { useT } from '@/i18n/useT';
+import { gachaPoolsDict } from '@/i18n/ns/gachaPools';
 import {
   Container,
   Loader2,
@@ -84,12 +87,12 @@ interface PoolMachinesResult {
   skipped: string[];
 }
 
-const PAYMENT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'coin', label: 'コイン' },
-  { value: 'qr', label: 'QR 決済' },
-];
+const PAYMENT_OPTIONS = ['coin', 'qr'] as const;
 
 export default function GachaPoolsPage() {
+  const t = usePageT(gachaPoolsDict);
+  const { formatPrice, locale } = useT();
+  const payLabel = (v: string) => (v === 'coin' ? t.paymentCoin : v === 'qr' ? t.paymentQr : v);
   // ─── 一覧の状態 ───
   const [pools, setPools] = useState<GachaPool[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,7 +143,7 @@ export default function GachaPoolsPage() {
         e instanceof ApiError
           ? e.problem.detail || e.problem.title
           : (e as Error).message;
-      setError(`抽選プール取得失敗: ${msg}`);
+      setError(t.loadFailed(msg));
     } finally {
       setLoading(false);
     }
@@ -263,17 +266,17 @@ export default function GachaPoolsPage() {
   // ─── 作成/編集の保存 ───
   const handleFormSave = async () => {
     if (!formName.trim()) {
-      setError('プール名を入力してください。');
+      setError(t.enterName);
       return;
     }
     const maxBall = Number(formMaxBall);
     const price = Number(formPrice);
     if (!Number.isInteger(maxBall) || maxBall < 1) {
-      setError('最大ボール番号は 1 以上の整数で入力してください。');
+      setError(t.maxBallInvalid);
       return;
     }
     if (!Number.isInteger(price) || price < 0) {
-      setError('1 回あたり価格は 0 以上の整数で入力してください。');
+      setError(t.priceInvalid);
       return;
     }
 
@@ -293,10 +296,10 @@ export default function GachaPoolsPage() {
     try {
       if (formMode === 'create') {
         await api.post<GachaPool>('/gacha/pools', payload);
-        flashSuccess(`プール「${payload.name}」を作成しました。`);
+        flashSuccess(t.created(payload.name));
       } else if (formPoolId) {
         await api.put<GachaPool>(`/gacha/pools/${formPoolId}`, payload);
-        flashSuccess(`プール「${payload.name}」を更新しました。`);
+        flashSuccess(t.updated(payload.name));
       }
       setFormOpen(false);
       await reloadPools();
@@ -305,7 +308,7 @@ export default function GachaPoolsPage() {
         e instanceof ApiError
           ? e.problem.detail || e.problem.title
           : (e as Error).message;
-      setError(`保存に失敗しました: ${msg}`);
+      setError(t.saveFailed(msg));
     } finally {
       setFormSaving(false);
     }
@@ -328,9 +331,9 @@ export default function GachaPoolsPage() {
       );
       const detached =
         res.detached_machines > 0
-          ? `（什器 ${res.detached_machines} 台がプール未所属に戻りました）`
+          ? t.detachedNote(res.detached_machines)
           : '';
-      flashSuccess(`プール「${deleteTarget.name}」を削除しました。${detached}`);
+      flashSuccess(t.deleted(deleteTarget.name, detached));
       setDeleteOpen(false);
       setDeleteTarget(null);
       await reloadPools();
@@ -339,7 +342,7 @@ export default function GachaPoolsPage() {
         e instanceof ApiError
           ? e.problem.detail || e.problem.title
           : (e as Error).message;
-      setError(`削除に失敗しました: ${msg}`);
+      setError(t.deleteFailed(msg));
     } finally {
       setDeleteDeleting(false);
     }
@@ -380,35 +383,32 @@ export default function GachaPoolsPage() {
       setAssignResult(res);
       const skipNote =
         res.skipped.length > 0
-          ? `${res.skipped.length} 台は什器未登録のためスキップしました。`
+          ? t.skipNote(res.skipped.length)
           : '';
-      flashSuccess(
-        `「${assignPool.name}」に什器 ${res.assigned} 台を割り当てました。${skipNote}`,
-      );
+      flashSuccess(t.assigned(assignPool.name, res.assigned, skipNote));
     } catch (e) {
       const msg =
         e instanceof ApiError
           ? e.problem.detail || e.problem.title
           : (e as Error).message;
-      setError(`割り当てに失敗しました: ${msg}`);
+      setError(t.assignFailed(msg));
     } finally {
       setAssignSaving(false);
     }
   };
 
   return (
-    <AppShell title="抽選プール管理" breadcrumb={['ガチャ', '抽選プール']}>
+    <AppShell title={t.title} breadcrumb={[t.bcGacha, t.bcPools]}>
       <div className="space-y-6">
         {/* ─── ヘッダ ─── */}
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
               <Container className="h-6 w-6 text-indigo-600" />
-              抽選プール
+              {t.poolsHeading}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              店舗・グループ単位で演出を分けるための抽選プールを管理します。
-              プールを作成し、什器を割り当て、各プールに演出を設定してください。
+              {t.intro}
             </p>
           </div>
           <div className="flex gap-2">
@@ -420,11 +420,11 @@ export default function GachaPoolsPage() {
               <RefreshCw
                 className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`}
               />
-              再読み込み
+              {t.reload}
             </Button>
             <Button onClick={openCreate}>
               <Plus className="mr-2 h-4 w-4" />
-              新規プール
+              {t.newPool}
             </Button>
           </div>
         </div>
@@ -447,31 +447,31 @@ export default function GachaPoolsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              プール一覧（{pools.length} 件）
+              {t.poolsListTitle(pools.length)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading && pools.length === 0 ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                読み込み中...
+                {t.loading}
               </div>
             ) : pools.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                プールがありません。「新規プール」から作成してください。
+                {t.noPools}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="px-3 py-2">プール名</th>
-                      <th className="px-3 py-2">説明</th>
-                      <th className="px-3 py-2">既定演出</th>
-                      <th className="px-3 py-2">受付決済</th>
-                      <th className="px-3 py-2">価格</th>
-                      <th className="px-3 py-2">状態</th>
-                      <th className="px-3 py-2 text-right">操作</th>
+                      <th className="px-3 py-2">{t.colName}</th>
+                      <th className="px-3 py-2">{t.colDesc}</th>
+                      <th className="px-3 py-2">{t.colDefaultEffect}</th>
+                      <th className="px-3 py-2">{t.colPayment}</th>
+                      <th className="px-3 py-2">{t.colPrice}</th>
+                      <th className="px-3 py-2">{t.colStatus}</th>
+                      <th className="px-3 py-2 text-right">{t.colAction}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -493,7 +493,7 @@ export default function GachaPoolsPage() {
                               {packName(pool.default_effect_pack_id)}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">未設定</span>
+                            <span className="text-muted-foreground">{t.unset}</span>
                           )}
                         </td>
                         <td className="px-3 py-3">
@@ -503,24 +503,23 @@ export default function GachaPoolsPage() {
                             ) : (
                               pool.accepted_payment_methods.map((m) => (
                                 <Badge key={m} variant="outline">
-                                  {PAYMENT_OPTIONS.find((p) => p.value === m)
-                                    ?.label ?? m}
+                                  {payLabel(m)}
                                 </Badge>
                               ))
                             )}
                           </div>
                         </td>
                         <td className="px-3 py-3 text-foreground">
-                          {pool.price_per_draw} 円
+                          {locale === 'en' ? formatPrice(pool.price_per_draw) : `${pool.price_per_draw} 円`}
                         </td>
                         <td className="px-3 py-3">
                           {pool.is_active ? (
                             <Badge className="bg-emerald-100 text-emerald-700">
-                              有効
+                              {t.active}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-muted-foreground">
-                              無効
+                              {t.inactive}
                             </Badge>
                           )}
                         </td>
@@ -532,7 +531,7 @@ export default function GachaPoolsPage() {
                               onClick={() => openAssign(pool)}
                             >
                               <Settings2 className="mr-1 h-3.5 w-3.5" />
-                              什器を割り当て
+                              {t.assignMachines}
                             </Button>
                             <Button
                               size="sm"
@@ -557,8 +556,7 @@ export default function GachaPoolsPage() {
               </div>
             )}
             <p className="mt-4 text-xs text-muted-foreground">
-              演出（既定演出・排出順マッピング）の細かい設定は「ガチャ演出」ページで
-              プールを選択して行います。このページではプールの作成と什器の割り当てを行います。
+              {t.footerNote}
             </p>
           </CardContent>
         </Card>
@@ -569,40 +567,40 @@ export default function GachaPoolsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {formMode === 'create' ? 'プールを新規作成' : 'プールを編集'}
+              {formMode === 'create' ? t.createTitle : t.editTitle}
             </DialogTitle>
             <DialogDescription>
-              店舗やグループ単位でプールを分けると、什器ごとに異なる演出を再生できます。
+              {t.formDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="pool-name">プール名 *</Label>
+              <Label htmlFor="pool-name">{t.poolNameLabel}</Label>
               <Input
                 id="pool-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="例: A 店プール"
+                placeholder={t.poolNamePlaceholder}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pool-desc">説明</Label>
+              <Label htmlFor="pool-desc">{t.descLabel}</Label>
               <Input
                 id="pool-desc"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="例: 渋谷 A 店の什器グループ"
+                placeholder={t.descPlaceholder}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pool-pack">既定演出（フォールバック）</Label>
+              <Label htmlFor="pool-pack">{t.defaultEffectLabel}</Label>
               <select
                 id="pool-pack"
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={formDefaultPackId}
                 onChange={(e) => setFormDefaultPackId(e.target.value)}
               >
-                <option value="">未設定</option>
+                <option value="">{t.unset}</option>
                 {packs.filter((p) => p.effect_type !== 'html5').map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -612,7 +610,7 @@ export default function GachaPoolsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="pool-maxball">最大ボール番号</Label>
+                <Label htmlFor="pool-maxball">{t.maxBallLabel}</Label>
                 <Input
                   id="pool-maxball"
                   type="number"
@@ -621,7 +619,7 @@ export default function GachaPoolsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="pool-price">1 回あたり価格（円）</Label>
+                <Label htmlFor="pool-price">{t.priceLabel}</Label>
                 <Input
                   id="pool-price"
                   type="number"
@@ -631,19 +629,19 @@ export default function GachaPoolsPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>受付決済</Label>
+              <Label>{t.paymentLabel}</Label>
               <div className="flex gap-4">
                 {PAYMENT_OPTIONS.map((opt) => (
                   <label
-                    key={opt.value}
+                    key={opt}
                     className="flex items-center gap-2 text-sm text-foreground"
                   >
                     <input
                       type="checkbox"
-                      checked={formPayments.includes(opt.value)}
-                      onChange={() => togglePayment(opt.value)}
+                      checked={formPayments.includes(opt)}
+                      onChange={() => togglePayment(opt)}
                     />
-                    {opt.label}
+                    {payLabel(opt)}
                   </label>
                 ))}
               </div>
@@ -654,12 +652,12 @@ export default function GachaPoolsPage() {
                 checked={formIsActive}
                 onChange={(e) => setFormIsActive(e.target.checked)}
               />
-              このプールを有効にする
+              {t.activatePool}
             </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>
-              キャンセル
+              {t.cancel}
             </Button>
             <Button onClick={() => void handleFormSave()} disabled={formSaving}>
               {formSaving ? (
@@ -667,7 +665,7 @@ export default function GachaPoolsPage() {
               ) : (
                 <Save className="mr-2 h-4 w-4" />
               )}
-              保存
+              {t.save}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -677,16 +675,14 @@ export default function GachaPoolsPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>プールを削除</DialogTitle>
+            <DialogTitle>{t.deleteTitle}</DialogTitle>
             <DialogDescription>
-              プール「{deleteTarget?.name}」を削除します。この操作は元に戻せません。
-              このプールに所属する什器がある場合、それらの什器はプール未所属に戻ります
-              （什器自体は削除されません）。
+              {t.deletePre}{deleteTarget?.name}{t.deletePost}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-              キャンセル
+              {t.cancel}
             </Button>
             <Button
               onClick={() => void handleDelete()}
@@ -698,7 +694,7 @@ export default function GachaPoolsPage() {
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
-              削除する
+              {t.doDelete}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -708,23 +704,22 @@ export default function GachaPoolsPage() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>什器を割り当て — {assignPool?.name}</DialogTitle>
+            <DialogTitle>{t.assignTitle(assignPool?.name ?? '')}</DialogTitle>
             <DialogDescription>
-              選択した端末の什器をこのプールに割り当てます。什器（gacha_machine）が
-              未登録の端末は割り当てがスキップされます。
+              {t.assignDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {storeOptions.length > 0 && (
               <div className="space-y-1.5">
-                <Label htmlFor="assign-store">店舗で絞り込み</Label>
+                <Label htmlFor="assign-store">{t.filterByStore}</Label>
                 <select
                   id="assign-store"
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={assignStoreFilter}
                   onChange={(e) => setAssignStoreFilter(e.target.value)}
                 >
-                  <option value="">すべての店舗</option>
+                  <option value="">{t.allStores}</option>
                   {storeOptions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -736,7 +731,7 @@ export default function GachaPoolsPage() {
 
             {devices.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                端末一覧を取得できませんでした。
+                {t.devicesFetchFailed}
               </div>
             ) : (
               <div className="max-h-72 overflow-y-auto rounded-md border border-border">
@@ -744,9 +739,9 @@ export default function GachaPoolsPage() {
                   <thead className="sticky top-0 bg-muted">
                     <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="px-3 py-2 w-10"></th>
-                      <th className="px-3 py-2">端末名</th>
-                      <th className="px-3 py-2">店舗</th>
-                      <th className="px-3 py-2">シリアル</th>
+                      <th className="px-3 py-2">{t.colDeviceName}</th>
+                      <th className="px-3 py-2">{t.colStore}</th>
+                      <th className="px-3 py-2">{t.colSerial}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -779,17 +774,16 @@ export default function GachaPoolsPage() {
             )}
 
             <p className="text-xs text-muted-foreground">
-              {assignSelected.length} 台を選択中
+              {t.selectedCount(assignSelected.length)}
             </p>
 
             {assignResult && (
               <div className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-                割り当て結果: {assignResult.assigned} 台に割り当て成功
+                {t.assignResultPre(assignResult.assigned)}
                 {assignResult.skipped.length > 0 && (
                   <>
                     {' / '}
-                    {assignResult.skipped.length} 台スキップ（什器未登録:{' '}
-                    {assignResult.skipped.join(', ')}）
+                    {t.assignSkip(assignResult.skipped.length, assignResult.skipped.join(', '))}
                   </>
                 )}
               </div>
@@ -797,7 +791,7 @@ export default function GachaPoolsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignOpen(false)}>
-              閉じる
+              {t.close}
             </Button>
             <Button
               onClick={() => void handleAssign()}
@@ -808,7 +802,7 @@ export default function GachaPoolsPage() {
               ) : (
                 <Settings2 className="mr-2 h-4 w-4" />
               )}
-              選択した什器を割り当て
+              {t.assignSelected}
             </Button>
           </DialogFooter>
         </DialogContent>

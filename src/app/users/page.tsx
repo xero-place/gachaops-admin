@@ -31,13 +31,9 @@ type User = {
 import { fmtRelative } from '@/lib/format';
 import { Plus, ShieldCheck, ShieldAlert } from 'lucide-react';
 import type { UserRole } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { usersDict } from '@/i18n/ns/users';
 
-const ROLE_LABEL: Record<UserRole, string> = {
-  lv1_super: 'スーパー管理者',
-  lv2_admin: '管理者',
-  lv3_operator: '運用担当',
-  lv4_viewer: '閲覧専用',
-};
 const ROLE_VARIANT: Record<UserRole, 'default' | 'destructive' | 'ok' | 'muted'> = {
   lv1_super: 'destructive',
   lv2_admin: 'default',
@@ -46,6 +42,7 @@ const ROLE_VARIANT: Record<UserRole, 'default' | 'destructive' | 'ok' | 'muted'>
 };
 
 export default function UsersPage() {
+  const t = usePageT(usersDict);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -59,7 +56,7 @@ export default function UsersPage() {
       else router.replace('/');
     } catch (e) {
       console.error('[impersonate] failed:', e);
-      alert('成り代わりに失敗しました');
+      alert(t.impersonateFailed);
     }
   };
 
@@ -82,7 +79,7 @@ export default function UsersPage() {
 
   if (loading) {
     return (
-      <AppShell title="ユーザ" breadcrumb={['ホーム', 'ユーザ']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -91,11 +88,11 @@ export default function UsersPage() {
   }
 
   return (
-    <AppShell title="ユーザ" breadcrumb={['ホーム', 'ユーザ']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{users.length} ユーザ</p>
+        <p className="text-sm text-muted-foreground">{t.userCount(users.length)}</p>
         <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />ユーザを招待
+          <Plus className="h-3.5 w-3.5" />{t.inviteUser}
         </Button>
       </div>
 
@@ -103,12 +100,12 @@ export default function UsersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ユーザ</TableHead>
-              <TableHead>メール</TableHead>
-              <TableHead>ロール</TableHead>
-              <TableHead>2FA</TableHead>
-              <TableHead>最終ログイン</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t.colUser}</TableHead>
+              <TableHead>{t.colEmail}</TableHead>
+              <TableHead>{t.colRole}</TableHead>
+              <TableHead>{t.col2fa}</TableHead>
+              <TableHead>{t.colLastLogin}</TableHead>
+              <TableHead className="text-right">{t.colAction}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -126,15 +123,15 @@ export default function UsersPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-xs">{u.email}</TableCell>
-                <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge></TableCell>
+                <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{t.roleLabels[u.role] ?? u.role}</Badge></TableCell>
                 <TableCell>
                   {u.two_factor_enabled ? (
                     <span className="inline-flex items-center gap-1 text-ok text-xs">
-                      <ShieldCheck className="h-3.5 w-3.5" />有効
+                      <ShieldCheck className="h-3.5 w-3.5" />{t.enabled}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
-                      <ShieldAlert className="h-3.5 w-3.5" />未設定
+                      <ShieldAlert className="h-3.5 w-3.5" />{t.notSet}
                     </span>
                   )}
                 </TableCell>
@@ -148,10 +145,10 @@ export default function UsersPage() {
                         className="h-7 text-xs gap-1"
                         onClick={() => onImpersonate(u.id)}
                       >
-                        <UserCog className="h-3.5 w-3.5" />このアカウントで操作
+                        <UserCog className="h-3.5 w-3.5" />{t.operateAsAccount}
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">編集</Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs">{t.edit}</Button>
                   </div>
                 </TableCell>
               </TableRow>

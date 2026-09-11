@@ -12,6 +12,8 @@ import { tokenStore, type StoredUser } from '@/lib/token-store';
 import { api } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePageT } from '@/i18n/usePageT';
+import { settingsPageDict } from '@/i18n/ns/settingsPage';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 const HEALTH_URL = API_BASE.replace(/\/v1\/?$/, '') + '/health';
@@ -37,6 +39,7 @@ function decodeJwtExp(token: string | null): number | null {
 }
 
 export default function SettingsPage() {
+  const t = usePageT(settingsPageDict);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [notif, setNotif] = useState<NotificationSettings>({
@@ -100,10 +103,10 @@ export default function SettingsPage() {
     if (!tokenExp) { setRemainLabel('—'); return; }
     const tick = () => {
       const sec = tokenExp - Math.floor(Date.now() / 1000);
-      if (sec <= 0) { setRemainLabel('期限切れ（再ログインが必要）'); return; }
+      if (sec <= 0) { setRemainLabel(t.expired); return; }
       const m = Math.floor(sec / 60);
       const s = sec % 60;
-      setRemainLabel(`残 ${m} 分 ${String(s).padStart(2, '0')} 秒`);
+      setRemainLabel(t.remaining(m, String(s).padStart(2, '0')));
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -124,38 +127,38 @@ export default function SettingsPage() {
       const ms = Math.round(performance.now() - t0);
       if (res.ok) {
         setTestState('ok');
-        setTestMsg(`接続成功（${res.status} / ${ms}ms）`);
+        setTestMsg(t.connOk(res.status, ms));
       } else {
         setTestState('fail');
-        setTestMsg(`応答あり・異常ステータス（${res.status} / ${ms}ms）`);
+        setTestMsg(t.connAbnormal(res.status, ms));
       }
     } catch (e) {
       const ms = Math.round(performance.now() - t0);
       setTestState('fail');
-      setTestMsg(`接続失敗（${ms}ms）: ${e instanceof Error ? e.message : 'unknown'}`);
+      setTestMsg(t.connFail(ms, e instanceof Error ? e.message : 'unknown'));
     }
   };
 
   const roleLabel = (r?: string) => {
     if (!r) return '—';
-    if (r.includes('super')) return 'スーパー管理者';
+    if (r.includes('super')) return t.superAdmin;
     return r;
   };
 
   const themeOptions: { value: ThemeOption; label: string; desc: string; icon: typeof Sun }[] = [
-    { value: 'system', label: 'システム', desc: 'OSの設定に従う', icon: Monitor },
-    { value: 'dark', label: 'ダーク', desc: '運用中の標準', icon: Moon },
-    { value: 'light', label: 'ライト', desc: '日中・印刷用', icon: Sun },
+    { value: 'system', label: t.themeSystem, desc: t.themeSystemDesc, icon: Monitor },
+    { value: 'dark', label: t.themeDark, desc: t.themeDarkDesc, icon: Moon },
+    { value: 'light', label: t.themeLight, desc: t.themeLightDesc, icon: Sun },
   ];
 
   return (
-    <AppShell title="環境設定" breadcrumb={['ホーム', '環境設定']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           {/* Theme */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2"><Sun className="h-3.5 w-3.5" />テーマ</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2"><Sun className="h-3.5 w-3.5" />{t.theme}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-3">
@@ -176,7 +179,7 @@ export default function SettingsPage() {
                 })}
               </div>
               <p className="text-[11px] text-muted-foreground mt-3">
-                初期値は「システム」（パソコン側の表示設定に追従）。ここで手動切替できます。設定はこのブラウザに保存されます。
+                {t.themeNote}
               </p>
             </CardContent>
           </Card>
@@ -184,26 +187,26 @@ export default function SettingsPage() {
           {/* Notifications */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2"><Bell className="h-3.5 w-3.5" />通知</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2"><Bell className="h-3.5 w-3.5" />{t.notifications}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <ToggleRow
-                title="オフライン端末の通知"
-                description="端末が30分以上応答しない時に通知"
+                title={t.offlineTitle}
+                description={t.offlineDesc}
                 checked={notif.notify_offline}
                 onChange={(v) => setNotif((n) => ({ ...n, notify_offline: v }))}
                 disabled={notifLoading}
               />
               <ToggleRow
-                title="低在庫アラート"
-                description="しきい値を下回った商品の通知"
+                title={t.lowStockTitle}
+                description={t.lowStockDesc}
                 checked={notif.notify_low_stock}
                 onChange={(v) => setNotif((n) => ({ ...n, notify_low_stock: v }))}
                 disabled={notifLoading}
               />
               <ToggleRow
-                title="配信タスク失敗"
-                description="配信タスクで失敗端末が出た時に通知"
+                title={t.taskFailedTitle}
+                description={t.taskFailedDesc}
                 checked={notif.notify_task_failed}
                 onChange={(v) => setNotif((n) => ({ ...n, notify_task_failed: v }))}
                 disabled={notifLoading}
@@ -211,15 +214,15 @@ export default function SettingsPage() {
 
               <div className="border-t border-border pt-4 space-y-3">
                 <ToggleRow
-                  title="メール通知"
-                  description="上記の通知を登録メールアドレスに送信（メール基盤の準備が必要）"
+                  title={t.emailTitle}
+                  description={t.emailDesc}
                   checked={notif.email_enabled}
                   onChange={(v) => setNotif((n) => ({ ...n, email_enabled: v }))}
                   disabled={notifLoading}
                 />
                 <div className="space-y-2">
                   <Label htmlFor="notif-email" className="text-xs flex items-center gap-1.5">
-                    <Mail className="h-3.5 w-3.5" />通知先メールアドレス
+                    <Mail className="h-3.5 w-3.5" />{t.emailToLabel}
                   </Label>
                   <Input
                     id="notif-email"
@@ -236,10 +239,10 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3 pt-1">
                 <Button size="sm" onClick={handleSaveNotif} disabled={notifLoading || notifSaving}>
                   {notifSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-                  保存
+                  {t.save}
                 </Button>
                 {notifSaved && (
-                  <span className="text-xs text-primary flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />保存しました</span>
+                  <span className="text-xs text-primary flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />{t.saved}</span>
                 )}
               </div>
             </CardContent>
@@ -248,23 +251,23 @@ export default function SettingsPage() {
           {/* API endpoint */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2"><Globe className="h-3.5 w-3.5" />API エンドポイント</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2"><Globe className="h-3.5 w-3.5" />{t.apiEndpoint}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-md bg-accent border border-border p-3 flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                 <div className="text-xs">
-                  <div className="font-medium">本番 API に接続中</div>
+                  <div className="font-medium">{t.connectedProd}</div>
                   <div className="text-muted-foreground mt-1 font-mono break-all">{API_BASE}</div>
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                接続先は環境変数 NEXT_PUBLIC_API_BASE_URL（.env.local / Vercel）で管理しています。変更が必要な場合は環境変数を更新して再デプロイしてください。
+                {t.apiNote}
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="outline" size="sm" onClick={handleTest} disabled={testState === 'loading'}>
                   {testState === 'loading' ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-                  接続テスト
+                  {t.connTest}
                 </Button>
                 {testState === 'ok' && (
                   <span className="text-xs text-primary flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />{testMsg}</span>
@@ -280,20 +283,20 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2"><Key className="h-3.5 w-3.5" />セッション</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2"><Key className="h-3.5 w-3.5" />{t.session}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <KV label="ユーザ" value={user?.name ?? '—'} />
-              <KV label="メール" value={user?.email ?? '—'} />
-              <KV label="ロール" value={<Badge variant="destructive">{roleLabel(user?.role)}</Badge>} />
-              <KV label="2FA" value={user?.two_factor_enabled ? <Badge variant="ok">有効</Badge> : <Badge variant="outline">無効</Badge>} />
-              <KV label="トークン期限" value={remainLabel} />
-              <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleLogout}>ログアウト</Button>
+              <KV label={t.kvUser} value={user?.name ?? '—'} />
+              <KV label={t.kvEmail} value={user?.email ?? '—'} />
+              <KV label={t.kvRole} value={<Badge variant="destructive">{roleLabel(user?.role)}</Badge>} />
+              <KV label={t.kv2fa} value={user?.two_factor_enabled ? <Badge variant="ok">{t.enabled}</Badge> : <Badge variant="outline">{t.disabled}</Badge>} />
+              <KV label={t.kvTokenExpiry} value={remainLabel} />
+              <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleLogout}>{t.logout}</Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">ビルド情報</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t.buildInfo}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-xs font-mono text-muted-foreground">
               <div>UI v0.1.0</div>
               <div>OpenAPI v0.1</div>

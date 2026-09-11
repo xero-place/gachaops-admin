@@ -2,6 +2,8 @@
 
 import { Play, Pause, Square, Film, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { usePageT } from '@/i18n/usePageT';
+import { playbackStatusDict } from '@/i18n/ns/playbackStatus';
 
 interface Playback {
   state: 'playing' | 'paused' | 'idle';
@@ -34,10 +36,11 @@ function getAssetType(url?: string): 'video' | 'image' | 'unknown' {
 }
 
 export function PlaybackStatus({ playback, compact = false }: Props) {
+  const t = usePageT(playbackStatusDict);
   if (!playback) {
     return (
       <div className="text-xs text-muted-foreground italic">
-        再生状態なし
+        {t.noPlayback}
       </div>
     );
   }
@@ -73,16 +76,16 @@ export function PlaybackStatus({ playback, compact = false }: Props) {
         <div className="flex items-center gap-2">
           <StateIcon className={`h-4 w-4 ${stateColor}`} />
           <span className="text-sm font-medium">
-            {state === 'playing' ? '再生中' : state === 'paused' ? '一時停止' : '停止中'}
+            {state === 'playing' ? t.playing : state === 'paused' ? t.paused : t.stopped}
           </span>
           {assetType !== 'unknown' && (
             <Badge variant="muted" className="text-[10px] h-4 px-1.5 gap-1">
               {assetType === 'video' ? <Film className="h-2.5 w-2.5" /> : <ImageIcon className="h-2.5 w-2.5" />}
-              {assetType === 'video' ? '動画' : '画像'}
+              {assetType === 'video' ? t.video : t.image}
             </Badge>
           )}
           {isStale && (
-            <Badge variant="warn" className="text-[10px] h-4 px-1.5">古い</Badge>
+            <Badge variant="warn" className="text-[10px] h-4 px-1.5">{t.stale}</Badge>
           )}
         </div>
         <span className="font-mono text-xs text-muted-foreground tabular-nums">

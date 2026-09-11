@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { fmtRelative, fmtDuration, fmtBytes } from '@/lib/format';
 import { Search, Plus, Layers, HardDrive, Clock, Eye, Film, Image as ImageIcon } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
+import { usePageT } from '@/i18n/usePageT';
+import { programsDict } from '@/i18n/ns/programs';
 
 type ScenePreview = {
   scene_id: string;
@@ -53,6 +55,7 @@ type Program = {
 };
 
 export default function ProgramsPage() {
+  const t = usePageT(programsDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
   const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
@@ -99,13 +102,13 @@ export default function ProgramsPage() {
   }, [programs, search, showUnpublished]);
 
   return (
-    <AppShell title="プログラム" breadcrumb={['ホーム', 'プログラム']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="プログラム名で検索..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -113,8 +116,8 @@ export default function ProgramsPage() {
           </div>
           {isSuperAdmin && (
             <div className="flex border rounded-md">
-              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>自社</Button>
-              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>顧客</Button>
+              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>{t.self}</Button>
+              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>{t.customer}</Button>
             </div>
           )}
           <Button
@@ -123,12 +126,12 @@ export default function ProgramsPage() {
             onClick={() => setShowUnpublished(!showUnpublished)}
             className="h-8 text-xs"
           >
-            下書きを含む
+            {t.includeDrafts}
           </Button>
           <div className="ml-auto" />
           <Button size="sm" className="gap-1.5" asChild>
             <Link href="/programs/new">
-              <Plus className="h-3.5 w-3.5" />新規作成
+              <Plus className="h-3.5 w-3.5" />{t.createNew}
             </Link>
           </Button>
         </CardContent>
@@ -136,7 +139,7 @@ export default function ProgramsPage() {
 
       {loading ? (
         <div className="text-center text-sm text-muted-foreground py-12">
-          読み込み中...
+          {t.loading}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -155,7 +158,7 @@ export default function ProgramsPage() {
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={scene.thumbnail_url}
-                                alt={`シーン ${i + 1}`}
+                                alt={t.sceneAlt(i + 1)}
                                 className="absolute inset-0 w-full h-full object-cover"
                               />
                             ) : (
@@ -180,13 +183,13 @@ export default function ProgramsPage() {
                       </div>
                     );
                   })() : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">シーンなし</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">{t.noScene}</div>
                   )}
                   {!p.published && (
-                    <Badge variant="warn" className="absolute top-2 left-2">下書き</Badge>
+                    <Badge variant="warn" className="absolute top-2 left-2">{t.draft}</Badge>
                   )}
                   {p.published && (
-                    <Badge className="absolute top-2 left-2">公開中</Badge>
+                    <Badge className="absolute top-2 left-2">{t.published}</Badge>
                   )}
                   <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
                     <Clock className="h-3 w-3" />
@@ -218,7 +221,7 @@ export default function ProgramsPage() {
                 )}
                 <div className="flex items-center gap-3 mt-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Layers className="h-3 w-3" />{p.scene_count ?? 0} シーン
+                    <Layers className="h-3 w-3" />{p.scene_count ?? 0} {t.sceneUnit}
                   </span>
                   <span className="flex items-center gap-1">
                     <HardDrive className="h-3 w-3" />{fmtBytes(p.size_bytes ?? 0)}
@@ -228,7 +231,7 @@ export default function ProgramsPage() {
                 <div className="flex gap-2 mt-3">
                   <Button variant="outline" size="sm" className="h-7 text-xs flex-1 gap-1" asChild>
                     <Link href={`/programs/${p.id}`}>
-                      <Eye className="h-3 w-3" />開く
+                      <Eye className="h-3 w-3" />{t.open}
                     </Link>
                   </Button>
                 </div>
@@ -239,15 +242,15 @@ export default function ProgramsPage() {
             <div className="col-span-full text-center text-sm text-muted-foreground py-12">
               {programs.length === 0 ? (
                 <>
-                  <div>プログラムがまだありません</div>
+                  <div>{t.noPrograms}</div>
                   <Button size="sm" className="mt-3 gap-1.5" asChild>
                     <Link href="/programs/new">
-                      <Plus className="h-3.5 w-3.5" />最初のプログラムを作成
+                      <Plus className="h-3.5 w-3.5" />{t.createFirst}
                     </Link>
                   </Button>
                 </>
               ) : (
-                '該当するプログラムがありません'
+                t.noMatch
               )}
             </div>
           )}

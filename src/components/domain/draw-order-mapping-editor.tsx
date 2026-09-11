@@ -61,6 +61,8 @@ import {
   Shuffle,
   PowerOff,
 } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { drawOrderMappingEditorDict } from '@/i18n/ns/drawOrderMappingEditor';
 
 const MAX_DRAW_ORDER = 100;
 
@@ -95,6 +97,7 @@ interface Props {
 }
 
 export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
+  const t = usePageT(drawOrderMappingEditorDict);
   // ★S197: 排出順カウンタ (gacha_machines.draw_count)
   const [drawCount, setDrawCount] = useState<number | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -151,11 +154,11 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       );
       setDrawCount(m.draw_count);
       setResetDialogOpen(false);
-      setSuccessMsg('排出順カウンタをリセットしました。次の排出から 1 番目の演出になります。');
+      setSuccessMsg(t.resetSuccess);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
-      setError(`カウンタのリセットに失敗しました: ${msg}`);
+      setError(t.resetFail(msg));
     } finally {
       setResetting(false);
     }
@@ -173,7 +176,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       setEffects(data);
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`マッピング取得失敗: ${msg}`);
+      setError(t.loadFail(msg));
     } finally {
       setLoading(false);
     }
@@ -215,20 +218,20 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       const existing = effectsByOrder.get(editDrawOrder);
       if (existing) {
         await api.put(`/gacha/pools/${poolId}/draw-order-effects/${editDrawOrder}`, body);
-        setSuccessMsg(`排出順 ${editDrawOrder} 番を更新しました`);
+        setSuccessMsg(t.updated(editDrawOrder));
       } else {
         await api.post(`/gacha/pools/${poolId}/draw-order-effects`, {
           draw_order: editDrawOrder,
           ...body,
         });
-        setSuccessMsg(`排出順 ${editDrawOrder} 番を追加しました`);
+        setSuccessMsg(t.added(editDrawOrder));
       }
       setEditDialogOpen(false);
       await reloadEffects();
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`保存失敗: ${msg}`);
+      setError(t.saveFail(msg));
     } finally {
       setEditSaving(false);
     }
@@ -236,18 +239,18 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
 
   const handleEditDelete = async () => {
     if (editDrawOrder === null || !poolId) return;
-    if (!confirm(`排出順 ${editDrawOrder} 番のマッピングを削除しますか?`)) return;
+    if (!confirm(t.confirmDelete(editDrawOrder))) return;
     setEditSaving(true);
     setError(null);
     try {
       await api.delete(`/gacha/pools/${poolId}/draw-order-effects/${editDrawOrder}`);
-      setSuccessMsg(`排出順 ${editDrawOrder} 番を削除しました`);
+      setSuccessMsg(t.deleted(editDrawOrder));
       setEditDialogOpen(false);
       await reloadEffects();
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`削除失敗: ${msg}`);
+      setError(t.deleteFail(msg));
     } finally {
       setEditSaving(false);
     }
@@ -291,19 +294,19 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
     // ── OFF: 端末の当選演出を止める（マッピングは保持）──
     if (bulkMode === 'off') {
       if (!deviceId) {
-        setError('演出OFFは端末詳細の演出タブからのみ設定できます');
+        setError(t.offOnlyDevice);
         return;
       }
       setBulkSaving(true);
       try {
         const ok = await setDeviceEffectEnabled(false);
-        if (!ok) throw new Error('effect_enabled の更新に失敗しました');
-        setSuccessMsg('演出をOFFにしました（当選演出を流しません。番組・売上は継続します）');
+        if (!ok) throw new Error(t.effectEnabledFail);
+        setSuccessMsg(t.offSuccess);
         setBulkDialogOpen(false);
         setTimeout(() => setSuccessMsg(null), 4000);
       } catch (e) {
         const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-        setError(`演出OFF失敗: ${msg}`);
+        setError(t.offFail(msg));
       } finally {
         setBulkSaving(false);
       }
@@ -314,20 +317,20 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
     const start = parseInt(bulkStart, 10);
     const end = parseInt(bulkEnd, 10);
     if (isNaN(start) || isNaN(end) || start < 1 || end > MAX_DRAW_ORDER || start > end) {
-      setError(`不正な範囲指定: ${start}〜${end} (1〜${MAX_DRAW_ORDER} の昇順で指定してください)`);
+      setError(t.invalidRange(start, end, MAX_DRAW_ORDER));
       return;
     }
 
     let chosen: string[];
     if (bulkMode === 'single') {
       if (!bulkEffectPackId) {
-        setError('演出を選択してください');
+        setError(t.selectEffect);
         return;
       }
       chosen = [bulkEffectPackId];
     } else {
       if (bulkPackIds.length < 1) {
-        setError('ランダムに流す演出を1つ以上選択してください');
+        setError(t.selectAtLeastOne);
         return;
       }
       chosen = bulkPackIds;
@@ -349,10 +352,10 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       );
       // 演出が確実に流れるよう ON にする（撤去した「演出再生」トグルの代替）。
       const turnedOn = await setDeviceEffectEnabled(true);
-      const onNote = deviceId ? (turnedOn ? ' / 演出ON' : ' / ※演出ONの反映は失敗（権限等）') : '';
+      const onNote = deviceId ? (turnedOn ? t.onNoteOn : t.onNoteFail) : '';
       setSuccessMsg(
-        `${bulkMode === 'random' ? '複数演出をランダム割当' : '演出を一括設定'}: ` +
-          `${res.inserted} 追加 / ${res.updated} 更新 / ${res.deleted} 削除 (合計 ${res.total_after} 件)` +
+        `${bulkMode === 'random' ? t.bulkRandomLabel : t.bulkSingleLabel}: ` +
+          t.bulkResult(res.inserted, res.updated, res.deleted, res.total_after) +
           onNote,
       );
       setBulkDialogOpen(false);
@@ -360,7 +363,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       setTimeout(() => setSuccessMsg(null), 6000);
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`一括設定失敗: ${msg}`);
+      setError(t.bulkFail(msg));
     } finally {
       setBulkSaving(false);
     }
@@ -408,16 +411,15 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-sm">この端末の演出</CardTitle>
+              <CardTitle className="text-sm">{t.cardTitle}</CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                「一括設定」で演出のまとめ設定（1種類 / 複数ランダム / OFF）ができます。
-                下の表で 1 番ずつ個別に設定することもできます。
+                {t.cardDesc}
               </p>
               {/* ★S197: 次に出る排出順を明示。ここがズレていると設定通りの演出が出ない。 */}
               {deviceId && drawCount !== null && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  現在 {drawCount} 回排出済み → 次は{' '}
-                  <span className="font-medium text-foreground">{drawCount + 1} 番</span> の演出が出ます
+                  {t.drawnStatPre}{drawCount}{t.drawnStatMid}
+                  <span className="font-medium text-foreground">{drawCount + 1}{t.orderUnit}</span>{t.drawnStatPost}
                 </p>
               )}
             </div>
@@ -429,12 +431,12 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                   ) : (
                     <RotateCcw className="h-4 w-4 mr-1" />
                   )}
-                  カウンタをリセット
+                  {t.resetCounter}
                 </Button>
               )}
               <Button onClick={openBulkDialog}>
                 <Shuffle className="h-4 w-4 mr-1" />
-                一括設定
+                {t.bulkSet}
               </Button>
             </div>
           </div>
@@ -443,7 +445,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
           {stats.total > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               <Badge variant="outline">
-                設定済み {stats.total} / {MAX_DRAW_ORDER}
+                {t.configured} {stats.total} / {MAX_DRAW_ORDER}
               </Badge>
             </div>
           )}
@@ -468,9 +470,9 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 text-left w-20 whitespace-nowrap">排出順</th>
-                  <th className="px-3 py-2 text-left">演出</th>
-                  <th className="px-3 py-2 text-right w-24">操作</th>
+                  <th className="px-3 py-2 text-left w-20 whitespace-nowrap">{t.colDrawOrder}</th>
+                  <th className="px-3 py-2 text-left">{t.colEffect}</th>
+                  <th className="px-3 py-2 text-right w-24">{t.colAction}</th>
                 </tr>
               </thead>
               <tbody>
@@ -490,7 +492,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                             {pack.name}
                           </Badge>
                         ) : (
-                          <span className="text-xs italic">(未設定)</span>
+                          <span className="text-xs italic">{t.unset}</span>
                         )}
                       </td>
                       <td className="px-3 py-1.5 text-right">
@@ -502,12 +504,12 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                           {isUnset ? (
                             <>
                               <Plus className="h-3 w-3" />
-                              <span className="ml-1 text-xs">追加</span>
+                              <span className="ml-1 text-xs">{t.add}</span>
                             </>
                           ) : (
                             <>
                               <Pencil className="h-3 w-3" />
-                              <span className="ml-1 text-xs">編集</span>
+                              <span className="ml-1 text-xs">{t.edit}</span>
                             </>
                           )}
                         </Button>
@@ -525,14 +527,14 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>排出順 {editDrawOrder} 番のマッピング</DialogTitle>
+            <DialogTitle>{t.editTitle(editDrawOrder)}</DialogTitle>
             <DialogDescription>
-              この排出順 (球番号) が出た時に再生される演出を設定します。
+              {t.editDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>演出パック</Label>
+              <Label>{t.effectPack}</Label>
               <Select value={editEffectPackId} onValueChange={setEditEffectPackId}>
                 <SelectTrigger>
                   <SelectValue />
@@ -547,12 +549,12 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               </Select>
             </div>
             <div>
-              <Label>賞金額 (任意、円)</Label>
+              <Label>{t.prizeValueLabel}</Label>
               <Input
                 type="number"
                 value={editPrizeValue}
                 onChange={(e) => setEditPrizeValue(e.target.value)}
-                placeholder="例: 5000"
+                placeholder={t.prizePlaceholder}
               />
             </div>
           </div>
@@ -560,15 +562,15 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
             {editDrawOrder !== null && effectsByOrder.has(editDrawOrder) && (
               <Button variant="destructive" onClick={handleEditDelete} disabled={editSaving}>
                 <Trash2 className="h-4 w-4 mr-1" />
-                削除
+                {t.deleteBtn}
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={editSaving}>
-              キャンセル
+              {t.cancel}
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving}>
               {editSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span className="ml-2">保存</span>
+              <span className="ml-2">{t.save}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -578,27 +580,26 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>排出順カウンタをリセット</DialogTitle>
+            <DialogTitle>{t.resetTitle}</DialogTitle>
             <DialogDescription>
-              排出順カウンタを 0 に戻します。次の排出から 1 番目の演出になります。
+              {t.resetDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-sm">
             <p>
-              現在 <span className="font-medium">{drawCount ?? 0}</span> 回排出済みです。
-              リセット後、次の排出は <span className="font-medium">1 番</span> になります。
+              {t.resetBodyPre}<span className="font-medium">{drawCount ?? 0}</span>{t.resetBodyMid}<span className="font-medium">{t.resetBodyOne}</span>{t.resetBodyPost}
             </p>
             <p className="text-muted-foreground">
-              在庫（残数・総数）は変更されません。演出の順番だけを戻します。
+              {t.resetNote}
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
-              キャンセル
+              {t.cancel}
             </Button>
             <Button onClick={() => void handleResetDrawCount()} disabled={resetting}>
               {resetting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              リセットする
+              {t.doReset}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -608,9 +609,9 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>演出の一括設定</DialogTitle>
+            <DialogTitle>{t.bulkTitle}</DialogTitle>
             <DialogDescription>
-              演出のまとめ設定を行います。個別の1番ずつ設定は表側の「編集」から行えます。
+              {t.bulkDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -624,7 +625,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               }`}
             >
               <Save className="h-4 w-4 mx-auto mb-1" />
-              1種類を割当
+              {t.modeSingle}
             </button>
             <button
               type="button"
@@ -634,7 +635,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               }`}
             >
               <Shuffle className="h-4 w-4 mx-auto mb-1" />
-              複数からランダム
+              {t.modeRandom}
             </button>
             <button
               type="button"
@@ -644,26 +645,25 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               }`}
             >
               <PowerOff className="h-4 w-4 mx-auto mb-1" />
-              演出OFF
+              {t.modeOff}
             </button>
           </div>
 
           {bulkMode === 'off' ? (
             <div className="space-y-2 text-sm">
-              <p>この端末の当選演出を <strong>OFF</strong> にします（演出を流しません）。</p>
+              <p>{t.offBodyPre}<strong>{t.offBodyStrong}</strong>{t.offBodyPost}</p>
               <p className="text-muted-foreground">
-                番組の再生・売上の記録は継続します。マッピング設定は保持され、あとで「1種類 / 複数からランダム」で
-                いつでも再開できます。
+                {t.offBody2}
               </p>
               {!deviceId && (
-                <p className="text-red-600">※ この画面では OFF は使えません（端末詳細の演出タブから設定してください）。</p>
+                <p className="text-red-600">{t.offUnavailable}</p>
               )}
             </div>
           ) : (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>開始 (1〜{MAX_DRAW_ORDER})</Label>
+                  <Label>{t.startLabel} {t.rangeHint(MAX_DRAW_ORDER)}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -673,7 +673,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                   />
                 </div>
                 <div>
-                  <Label>終了 (1〜{MAX_DRAW_ORDER})</Label>
+                  <Label>{t.endLabel} {t.rangeHint(MAX_DRAW_ORDER)}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -686,10 +686,10 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
 
               {bulkMode === 'single' ? (
                 <div>
-                  <Label>適用する演出</Label>
+                  <Label>{t.applyEffect}</Label>
                   <Select value={bulkEffectPackId} onValueChange={setBulkEffectPackId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="演出を選択..." />
+                      <SelectValue placeholder={t.selectEffectPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
                       {mp4Packs.map((p) => (
@@ -702,7 +702,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                 </div>
               ) : (
                 <div>
-                  <Label>ランダムに流す演出（複数選択）</Label>
+                  <Label>{t.randomEffectsLabel}</Label>
                   <div className="mt-1 border rounded-md max-h-52 overflow-y-auto divide-y">
                     {mp4Packs.map((p) => (
                       <label
@@ -721,7 +721,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    選択中 {bulkPackIds.length} 件 → {bulkStart}〜{bulkEnd} の各番号へランダムに割り当てます。
+                    {t.selectedCountHint(bulkPackIds.length, bulkStart, bulkEnd)}
                   </p>
                 </div>
               )}
@@ -732,19 +732,19 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                   checked={bulkReplaceAll}
                   onChange={(e) => setBulkReplaceAll(e.target.checked)}
                 />
-                <span>この範囲以外の既存設定も消して総入れ替えする（全置換）</span>
+                <span>{t.replaceAllLabel}</span>
               </label>
               <div className="text-xs text-muted-foreground">
-                プレビュー: {bulkStart}〜{bulkEnd} の {rangeCount} 件に適用
-                {bulkMode === 'random' ? '（ランダム割当）' : ''}
-                {bulkReplaceAll && ' ／ ★範囲外の既存設定も削除'}
+                {t.previewText(bulkStart, bulkEnd, rangeCount)}
+                {bulkMode === 'random' ? t.previewRandom : ''}
+                {bulkReplaceAll && t.previewReplaceAll}
               </div>
             </div>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSaving}>
-              キャンセル
+              {t.cancel}
             </Button>
             <Button
               onClick={handleBulkSave}
@@ -757,7 +757,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
               variant={bulkMode === 'off' ? 'destructive' : 'default'}
             >
               {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span className="ml-2">{bulkMode === 'off' ? 'OFFにする' : '適用'}</span>
+              <span className="ml-2">{bulkMode === 'off' ? t.offApply : t.apply}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

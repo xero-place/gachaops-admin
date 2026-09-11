@@ -4,18 +4,24 @@ import { useMemo } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Store, Device } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { devicesMapDict } from '@/i18n/ns/devicesMap';
+
+type Freshness =
+  | { fresh: boolean; kind: 'none' | 'current' }
+  | { fresh: boolean; kind: 'min' | 'hour' | 'day'; value: number };
 
 // S147: 測位鮮度を判定（30分以内=現在地、それ以前=最終位置）
-function locFreshness(updatedAt: string | null): { fresh: boolean; label: string } {
-  if (!updatedAt) return { fresh: false, label: '位置未取得' };
+function locFreshness(updatedAt: string | null): Freshness {
+  if (!updatedAt) return { fresh: false, kind: 'none' };
   const t = new Date(updatedAt).getTime();
-  if (isNaN(t)) return { fresh: false, label: '位置未取得' };
+  if (isNaN(t)) return { fresh: false, kind: 'none' };
   const diffMin = (Date.now() - t) / 60000;
-  if (diffMin < 30) return { fresh: true, label: '現在地' };
-  if (diffMin < 60) return { fresh: false, label: `最終位置 ${Math.round(diffMin)}分前` };
+  if (diffMin < 30) return { fresh: true, kind: 'current' };
+  if (diffMin < 60) return { fresh: false, kind: 'min', value: Math.round(diffMin) };
   const diffH = diffMin / 60;
-  if (diffH < 24) return { fresh: false, label: `最終位置 ${Math.round(diffH)}時間前` };
-  return { fresh: false, label: `最終位置 ${Math.round(diffH / 24)}日前` };
+  if (diffH < 24) return { fresh: false, kind: 'hour', value: Math.round(diffH) };
+  return { fresh: false, kind: 'day', value: Math.round(diffH / 24) };
 }
 
 interface Props {
@@ -24,6 +30,16 @@ interface Props {
 }
 
 export default function LeafletMap({ stores, devices }: Props) {
+  const t = usePageT(devicesMapDict);
+  const freshLabel = (f: Freshness): string => {
+    switch (f.kind) {
+      case 'none': return t.pinNoLoc;
+      case 'current': return t.pinCurrent;
+      case 'min': return t.pinLastMin(f.value);
+      case 'hour': return t.pinLastHour(f.value);
+      case 'day': return t.pinLastDay(f.value);
+    }
+  };
   // 座標を持つ端末
   const geoDevices = useMemo(
     () => devices.filter((d) => d.latitude != null && d.longitude != null),
@@ -74,7 +90,7 @@ export default function LeafletMap({ stores, devices }: Props) {
             <Tooltip direction="top" offset={[0, -8]}>
               <div style={{ fontSize: 12 }}>
                 <strong>{s.name}</strong><br />
-                端末 {noGeo.length}台（位置未取得）
+                {t.pinStoreDevices(noGeo.length)}
               </div>
             </Tooltip>
           </CircleMarker>
@@ -101,8 +117,8 @@ export default function LeafletMap({ stores, devices }: Props) {
             <Tooltip direction="top" offset={[0, -10]} permanent={false}>
               <div style={{ fontSize: 12 }}>
                 <strong>{d.name}</strong><br />
-                {fresh.label}
-                {d.status === 'offline' && <><br />オフライン</>}
+                {freshLabel(fresh)}
+                {d.status === 'offline' && <><br />{t.pinOffline}</>}
               </div>
             </Tooltip>
           </CircleMarker>

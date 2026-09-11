@@ -51,17 +51,8 @@ import { fmtDate } from '@/lib/format';
 import { Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AuditAction } from '@/types/domain';
-
-const ACTION_LABEL: Record<AuditAction, string> = {
-  create: '作成',
-  update: '更新',
-  delete: '削除',
-  login: 'ログイン',
-  logout: 'ログアウト',
-  distribute: '配信',
-  refund: '返金',
-  command: 'コマンド',
-};
+import { usePageT } from '@/i18n/usePageT';
+import { auditLogsDict } from '@/i18n/ns/auditLogs';
 
 const ACTION_VARIANT: Record<AuditAction, 'ok' | 'default' | 'destructive' | 'warn' | 'secondary' | 'muted'> = {
   create: 'ok',
@@ -75,6 +66,8 @@ const ACTION_VARIANT: Record<AuditAction, 'ok' | 'default' | 'destructive' | 'wa
 };
 
 export default function AuditLogsPage() {
+  const t = usePageT(auditLogsDict);
+  const ACTION_LABEL = t.actionLabels;
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,9 +88,9 @@ export default function AuditLogsPage() {
       if (userFilter !== 'all' && log.user_id !== userFilter) return false;
       if (customerFilter !== 'all' && log.customer_id !== customerFilter) return false;
       if (fromMs !== null || toMs !== null) {
-        const t = new Date(log.created_at).getTime();
-        if (fromMs !== null && t < fromMs) return false;
-        if (toMs !== null && t > toMs) return false;
+        const ts = new Date(log.created_at).getTime();
+        if (fromMs !== null && ts < fromMs) return false;
+        if (toMs !== null && ts > toMs) return false;
       }
       if (search) {
         const s = search.toLowerCase();
@@ -160,7 +153,7 @@ export default function AuditLogsPage() {
 
   if (loading) {
     return (
-      <AppShell title="監査ログ" breadcrumb={['ホーム', '監査ログ']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -169,13 +162,13 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <AppShell title="監査ログ" breadcrumb={['ホーム', '監査ログ']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="リソース種別 / ID / メール..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -183,10 +176,10 @@ export default function AuditLogsPage() {
           </div>
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue placeholder="操作種別" />
+              <SelectValue placeholder={t.actionPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全ての操作</SelectItem>
+              <SelectItem value="all">{t.allActions}</SelectItem>
               {(Object.keys(ACTION_LABEL) as AuditAction[]).map((a) => (
                 <SelectItem key={a} value={a}>{ACTION_LABEL[a]}</SelectItem>
               ))}
@@ -194,10 +187,10 @@ export default function AuditLogsPage() {
           </Select>
           <Select value={userFilter} onValueChange={setUserFilter}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="ユーザ" />
+              <SelectValue placeholder={t.userPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全ユーザ</SelectItem>
+              <SelectItem value="all">{t.allUsers}</SelectItem>
               {users.map((u) => (
                 <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
               ))}
@@ -206,29 +199,29 @@ export default function AuditLogsPage() {
           {isSuperAdmin && (
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="w-[180px] h-8 text-xs">
-                <SelectValue placeholder="顧客" />
+                <SelectValue placeholder={t.customerPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全顧客</SelectItem>
+                <SelectItem value="all">{t.allCustomers}</SelectItem>
                 {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}（{c.id}）</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{t.customerOption(c.name, c.id)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
           <div className="flex items-center gap-1">
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2 text-xs" title="開始日" />
+              className="h-8 rounded-md border bg-background px-2 text-xs" title={t.startDate} />
             <span className="text-xs text-muted-foreground">〜</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2 text-xs" title="終了日" />
+              className="h-8 rounded-md border bg-background px-2 text-xs" title={t.endDate} />
             {(dateFrom || dateTo) && (
               <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); }}
-                className="text-[10.5px] text-muted-foreground hover:underline ml-1">クリア</button>
+                className="text-[10.5px] text-muted-foreground hover:underline ml-1">{t.clear}</button>
             )}
           </div>
           <div className="ml-auto text-xs text-muted-foreground">
-            {filtered.length} / {auditLogs.length} 件
+            {t.itemCount(filtered.length, auditLogs.length)}
           </div>
           <Button variant="outline" size="sm" className="gap-1.5">
             <Download className="h-3.5 w-3.5" />CSV
@@ -240,13 +233,13 @@ export default function AuditLogsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>日時</TableHead>
-              <TableHead>ユーザ</TableHead>
-              <TableHead>顧客</TableHead>
-              <TableHead>操作</TableHead>
-              <TableHead>リソース</TableHead>
-              <TableHead>IP</TableHead>
-              <TableHead>変更内容</TableHead>
+              <TableHead>{t.colDatetime}</TableHead>
+              <TableHead>{t.colUser}</TableHead>
+              <TableHead>{t.colCustomer}</TableHead>
+              <TableHead>{t.colAction}</TableHead>
+              <TableHead>{t.colResource}</TableHead>
+              <TableHead>{t.colIp}</TableHead>
+              <TableHead>{t.colChanges}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -14,6 +14,8 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';  // S145
 import { Loader2, Plus, Trash2, CalendarClock } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { planSchedulesDict } from '@/i18n/ns/planSchedules';
 
 // 日時指定型スロット（S125）。start_at/end_at は ISO8601(+09:00)。
 type PlanSlot = {
@@ -67,6 +69,7 @@ function fmtSlot(iso: string): string {
 }
 
 export default function PlanSchedulesPage() {
+  const t = usePageT(planSchedulesDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
   const [planSchedules, setPlanSchedules] = useState<PlanSchedule[]>([]);
   const [groups, setGroups] = useState<GroupLite[]>([]);
@@ -141,8 +144,8 @@ export default function PlanSchedulesPage() {
   };
 
   const addSlot = () => {
-    if (!addProgram) { setMsg('番組を選んでください。'); return; }
-    if (addFrom >= addTo) { setMsg('終了時刻は開始時刻より後にしてください。'); return; }
+    if (!addProgram) { setMsg(t.selectProgram); return; }
+    if (addFrom >= addTo) { setMsg(t.endAfterStart); return; }
     const prog = programs.find((p) => p.id === addProgram);
     const rev = programs.find((p) => p.id === addRevert);
     const slot: PlanSlot = {
@@ -161,7 +164,7 @@ export default function PlanSchedulesPage() {
   };
 
   const save = async () => {
-    if (!draftName.trim()) { setMsg('名前を入力してください。'); return; }
+    if (!draftName.trim()) { setMsg(t.enterName); return; }
     setSaving(true);
     setMsg(null);
     try {
@@ -176,15 +179,15 @@ export default function PlanSchedulesPage() {
         setIsNew(false);
         await reload();
         setSelectedId(created.id);
-        setMsg('新規スケジュールを作成しました。');
+        setMsg(t.created);
       } else if (schedule) {
         await api.patch<PlanSchedule>(`/plan-schedules/${schedule.id}`, body);
         await reload();
-        setMsg('スケジュールを保存しました。');
+        setMsg(t.saved);
       }
     } catch (e) {
       const m = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
-      setMsg(`保存に失敗しました: ${m}`);
+      setMsg(t.saveFailed(m));
     } finally {
       setSaving(false);
     }
@@ -192,16 +195,16 @@ export default function PlanSchedulesPage() {
 
   const remove = async () => {
     if (!schedule) return;
-    if (!confirm(`「${schedule.name}」を削除しますか？`)) return;
+    if (!confirm(t.confirmDelete(schedule.name))) return;
     setSaving(true);
     try {
       await api.delete(`/plan-schedules/${schedule.id}`);
       setSelectedId('');
       await reload();
-      setMsg('削除しました。');
+      setMsg(t.deleted);
     } catch (e) {
       const m = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
-      setMsg(`削除に失敗しました: ${m}`);
+      setMsg(t.deleteFailed(m));
     } finally {
       setSaving(false);
     }
@@ -209,7 +212,7 @@ export default function PlanSchedulesPage() {
 
   if (loading) {
     return (
-      <AppShell title="計画配信" breadcrumb={['ホーム', '計画配信']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -220,52 +223,52 @@ export default function PlanSchedulesPage() {
   const editing = isNew || !!schedule;
 
   return (
-    <AppShell title="計画配信" breadcrumb={['ホーム', '計画配信']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="flex items-center gap-2 mb-4">
         <Select value={selectedId} onValueChange={(v) => { setIsNew(false); setSelectedId(v); }}>
           <SelectTrigger className="w-[280px] h-9 text-xs">
-            <SelectValue placeholder="スケジュールを選択" />
+            <SelectValue placeholder={t.selectSchedule} />
           </SelectTrigger>
           <SelectContent>
             {planSchedules.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.name} {p.active ? '(有効)' : '(無効)'}
+                {p.name} {p.active ? t.activeSuffix : t.inactiveSuffix}
                 {isSuperAdmin && p.customer_id ? ` [${p.customer_id}]` : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {!isNew && schedule?.active && <Badge variant="ok">有効</Badge>}
+        {!isNew && schedule?.active && <Badge variant="ok">{t.active}</Badge>}
         <div className="ml-auto">
           <Button size="sm" className="gap-1.5" onClick={startNew}>
-            <Plus className="h-3.5 w-3.5" />新規
+            <Plus className="h-3.5 w-3.5" />{t.newBtn}
           </Button>
         </div>
       </div>
 
       <p className="text-xs text-muted-foreground mb-4">
-        指定した日時になると、対象グループの端末が自動でその番組に切り替わります。15分刻みで1ヶ月先まで設定できます。
+        {t.intro}
       </p>
 
       {editing && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">{isNew ? '新規スケジュール' : schedule?.name}</CardTitle>
+            <CardTitle className="text-sm">{isNew ? t.newSchedule : schedule?.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* 基本情報 */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">名前</Label>
+                <Label className="text-xs">{t.name}</Label>
                 <Input value={draftName} onChange={(e) => setDraftName(e.target.value)}
-                  placeholder="例: 夏キャンペーン" />
+                  placeholder={t.namePlaceholder} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">対象グループ</Label>
+                <Label className="text-xs">{t.targetGroup}</Label>
                 <Select value={draftGroup || 'none'} onValueChange={(v) => setDraftGroup(v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="グループを選ぶ" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t.selectGroup} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">未選択</SelectItem>
+                    <SelectItem value="none">{t.unselected}</SelectItem>
                     {groups.map((g) => (
                       <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                     ))}
@@ -276,26 +279,26 @@ export default function PlanSchedulesPage() {
 
             <div className="flex items-center gap-2">
               <Switch checked={draftActive} onCheckedChange={setDraftActive} />
-              <Label className="text-sm">この計画配信を有効にする</Label>
+              <Label className="text-sm">{t.enablePlan}</Label>
             </div>
 
             {/* slot 一覧 */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">配信スロット（{draftSlots.length}件）</Label>
+              <Label className="text-sm font-medium">{t.slots(draftSlots.length)}</Label>
               {draftSlots.length === 0 ? (
-                <p className="text-xs text-muted-foreground">まだスロットがありません。下で追加してください。</p>
+                <p className="text-xs text-muted-foreground">{t.noSlots}</p>
               ) : (
                 <div className="space-y-1">
                   {draftSlots.map((s, i) => (
                     <div key={i} className="flex items-center gap-3 rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
                       <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="tabular-nums">{fmtSlot(s.start_at)} 〜 {fmtSlot(s.end_at)}</span>
+                      <span className="tabular-nums">{fmtSlot(s.start_at)}{t.slotRange}{fmtSlot(s.end_at)}</span>
                       <span className="text-muted-foreground">{s.program_name || s.program_id}</span>
                       {s.revert_program_id && (
-                        <span className="text-[10px] text-muted-foreground">→ 終了後 {s.revert_program_name || s.revert_program_id} に戻す</span>
+                        <span className="text-[10px] text-muted-foreground">{t.revertNote(s.revert_program_name || s.revert_program_id)}</span>
                       )}
                       <button className="ml-auto text-muted-foreground hover:text-destructive"
-                        onClick={() => removeSlot(i)} aria-label="削除">
+                        onClick={() => removeSlot(i)} aria-label={t.delete}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -306,10 +309,10 @@ export default function PlanSchedulesPage() {
 
             {/* slot 追加フォーム */}
             <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-              <Label className="text-xs font-medium">スロットを追加</Label>
+              <Label className="text-xs font-medium">{t.addSlot}</Label>
               <div className="grid gap-3 sm:grid-cols-5">
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">日付</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t.date}</Label>
                   <Input type="date" value={addDate} min={ymd(TODAY)} max={ymd(ONE_MONTH)}
                     onChange={(e) => setAddDate(e.target.value)}
                     onClick={(e) => {
@@ -320,7 +323,7 @@ export default function PlanSchedulesPage() {
                     }} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">開始</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t.start}</Label>
                   <Select value={addFrom} onValueChange={setAddFrom}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -329,7 +332,7 @@ export default function PlanSchedulesPage() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">終了</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t.end}</Label>
                   <Select value={addTo} onValueChange={setAddTo}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -338,40 +341,40 @@ export default function PlanSchedulesPage() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">番組</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t.program}</Label>
                   <Select value={addProgram || 'none'} onValueChange={(v) => setAddProgram(v === 'none' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="番組" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t.program} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">選択</SelectItem>
+                      <SelectItem value="none">{t.select}</SelectItem>
                       {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">終了後に戻す番組（任意）</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t.revertProgram}</Label>
                   <Select value={addRevert || 'none'} onValueChange={(v) => setAddRevert(v === 'none' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="戻さない" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t.noRevert} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">戻さない（最後の番組のまま）</SelectItem>
+                      <SelectItem value="none">{t.noRevertOption}</SelectItem>
                       {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={addSlot}>
-                <Plus className="h-3.5 w-3.5" />このスロットを追加
+                <Plus className="h-3.5 w-3.5" />{t.addThisSlot}
               </Button>
             </div>
 
             {/* 保存・削除 */}
             <div className="flex items-center gap-2">
               <Button size="sm" disabled={saving} onClick={save}>
-                {saving ? '保存中...' : (isNew ? '作成する' : '保存する')}
+                {saving ? t.saving : (isNew ? t.create : t.save)}
               </Button>
               {!isNew && schedule && (
                 <Button variant="outline" size="sm" disabled={saving} onClick={remove}
                   className="text-destructive">
-                  削除
+                  {t.delete}
                 </Button>
               )}
               {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
@@ -381,7 +384,7 @@ export default function PlanSchedulesPage() {
       )}
 
       {!editing && (
-        <p className="text-sm text-muted-foreground">スケジュールを選択するか、「新規」で作成してください。</p>
+        <p className="text-sm text-muted-foreground">{t.selectOrCreate}</p>
       )}
     </AppShell>
   );

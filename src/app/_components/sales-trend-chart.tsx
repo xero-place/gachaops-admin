@@ -12,20 +12,25 @@ import {
 } from 'recharts';
 import type { SalesStat } from '@/types/domain';
 import { format, parseISO } from 'date-fns';
+import { usePageT } from '@/i18n/usePageT';
+import { salesTrendDict } from '@/i18n/ns/salesTrend';
 
 type Metric = 'total' | 'qr' | 'cash' | 'medal';
 
-const METRICS: { value: Metric; label: string; dataKey: string; unit: 'yen' | 'mai' }[] = [
-  { value: 'total', label: '全体（売上合計）', dataKey: 'revenue_yen', unit: 'yen' },
-  { value: 'qr', label: 'QR売上', dataKey: 'qr_revenue_yen', unit: 'yen' },
-  { value: 'cash', label: '現金売上', dataKey: 'cash_revenue_yen', unit: 'yen' },
-  { value: 'medal', label: 'メダル投入数', dataKey: 'medal_count', unit: 'mai' },
+const METRICS: { value: Metric; dataKey: string; unit: 'yen' | 'mai' }[] = [
+  { value: 'total', dataKey: 'revenue_yen', unit: 'yen' },
+  { value: 'qr', dataKey: 'qr_revenue_yen', unit: 'yen' },
+  { value: 'cash', dataKey: 'cash_revenue_yen', unit: 'yen' },
+  { value: 'medal', dataKey: 'medal_count', unit: 'mai' },
 ];
 
 export function SalesTrendChart({ data }: { data: SalesStat[] }) {
+  const t = usePageT(salesTrendDict);
   const [metric, setMetric] = useState<Metric>('total');
   const conf = METRICS.find((m) => m.value === metric) ?? METRICS[0];
   const isYen = conf.unit === 'yen';
+  const metricLabel = (v: Metric): string =>
+    v === 'total' ? t.metricTotal : v === 'qr' ? t.metricQr : v === 'cash' ? t.metricCash : t.metricMedal;
 
   const formatted = data.map((d) => ({
     ...d,
@@ -42,7 +47,7 @@ export function SalesTrendChart({ data }: { data: SalesStat[] }) {
         >
           {METRICS.map((m) => (
             <option key={m.value} value={m.value}>
-              {m.label}
+              {metricLabel(m.value)}
             </option>
           ))}
         </select>
@@ -82,10 +87,10 @@ export function SalesTrendChart({ data }: { data: SalesStat[] }) {
                 fontSize: '12px',
               }}
               formatter={(v: number) => [
-                isYen ? `¥${v.toLocaleString()}` : `${v.toLocaleString()}枚`,
-                conf.label,
+                isYen ? `¥${v.toLocaleString()}` : t.medalUnit(v.toLocaleString()),
+                metricLabel(conf.value),
               ]}
-              labelFormatter={(l) => '日付: ' + l}
+              labelFormatter={(l) => t.dateLabel(String(l))}
             />
             <Area
               type="monotone"

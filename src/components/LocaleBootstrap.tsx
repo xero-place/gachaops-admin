@@ -17,10 +17,20 @@ import { useLocale } from "@/store/useLocale";
  */
 export function LocaleBootstrap({ userId }: { userId: string | null }) {
   const loadForUser = useLocale((s) => s.loadForUser);
+  const locale = useLocale((s) => s.locale);
 
   useEffect(() => {
     loadForUser(userId);
   }, [userId, loadForUser]);
+
+  // 選択中の言語に合わせてブラウザタブのタイトルと <html lang> を同期する。
+  // （メタデータはサーバ側静的なので、クライアントで locale 反映する）
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const en = locale === "en";
+    document.documentElement.lang = en ? "en" : "ja";
+    document.title = en ? "GTCHAXAPP Admin" : "GTCHAXAPP 管理画面";
+  }, [locale]);
 
   return null;
 }

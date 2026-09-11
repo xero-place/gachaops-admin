@@ -22,6 +22,8 @@ import {
 import { Loader2, Check, Copy, AlertCircle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import type { Store, DeviceCreateResult } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { deviceCreateDialogDict } from '@/i18n/ns/deviceCreateDialog';
 
 interface DeviceCreateDialogProps {
   open: boolean;
@@ -37,6 +39,7 @@ export function DeviceCreateDialog({
   stores,
   onCreated,
 }: DeviceCreateDialogProps) {
+  const t = usePageT(deviceCreateDialogDict);
   const [name, setName] = useState('');
   const [storeId, setStoreId] = useState('');
   const [serial, setSerial] = useState('');
@@ -83,7 +86,7 @@ export function DeviceCreateDialog({
         const fieldMsg = e.problem.errors?.[0]?.message;
         setError(fieldMsg || e.problem.detail || e.problem.title);
       } else {
-        setError(e instanceof Error ? e.message : '不明なエラーが発生しました');
+        setError(e instanceof Error ? e.message : t.unknownError);
       }
     } finally {
       setSubmitting(false);
@@ -108,16 +111,15 @@ export function DeviceCreateDialog({
           // ─── 作成成功: provisioning_code 表示 ───
           <>
             <DialogHeader>
-              <DialogTitle>端末を作成しました</DialogTitle>
+              <DialogTitle>{t.createdTitle}</DialogTitle>
               <DialogDescription>
-                下のプロビジョニングコードは<strong>この画面でのみ表示されます</strong>。
-                現地で端末に入力するため、必ず控えてください。
+                {t.createdDescPre}<strong>{t.createdDescStrong}</strong>{t.createdDescPost}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="rounded-lg border bg-muted/40 p-4">
                 <div className="text-xs text-muted-foreground mb-1.5">
-                  プロビジョニングコード
+                  {t.provisioningCode}
                 </div>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-2xl font-mono font-semibold tracking-[0.2em] tabular-nums">
@@ -128,7 +130,7 @@ export function DeviceCreateDialog({
                     size="icon"
                     className="h-9 w-9 shrink-0"
                     onClick={handleCopyCode}
-                    aria-label="コードをコピー"
+                    aria-label={t.copyCode}
                   >
                     {copied ? (
                       <Check className="h-4 w-4 text-ok" />
@@ -140,57 +142,56 @@ export function DeviceCreateDialog({
               </div>
               <div className="space-y-1.5 text-xs text-muted-foreground">
                 <div className="flex justify-between gap-3">
-                  <span>端末名</span>
+                  <span>{t.deviceName}</span>
                   <span className="text-foreground">{result.name}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span>シリアル</span>
+                  <span>{t.serial}</span>
                   <span className="font-mono text-foreground">{result.serial}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span>店舗</span>
+                  <span>{t.store}</span>
                   <span className="text-foreground">{result.store_name}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span>ID</span>
+                  <span>{t.id}</span>
                   <span className="font-mono text-foreground">{result.id}</span>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={() => handleClose(false)}>閉じる</Button>
+              <Button onClick={() => handleClose(false)}>{t.close}</Button>
             </DialogFooter>
           </>
         ) : (
           // ─── 作成フォーム ───
           <>
             <DialogHeader>
-              <DialogTitle>新規端末作成</DialogTitle>
+              <DialogTitle>{t.formTitle}</DialogTitle>
               <DialogDescription>
-                新しい端末の「枠」を登録します。作成後に表示される
-                プロビジョニングコードを現地での登録に使用します。
+                {t.formDesc}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <Label htmlFor="device-name">端末名</Label>
+                <Label htmlFor="device-name">{t.deviceName}</Label>
                 <Input
                   id="device-name"
-                  placeholder="例: 渋谷店 1F-A"
+                  placeholder={t.namePlaceholder}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={submitting}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="device-store">店舗</Label>
+                <Label htmlFor="device-store">{t.store}</Label>
                 <Select
                   value={storeId}
                   onValueChange={setStoreId}
                   disabled={submitting}
                 >
                   <SelectTrigger id="device-store">
-                    <SelectValue placeholder="店舗を選択..." />
+                    <SelectValue placeholder={t.storePlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
                     {stores.map((s) => (
@@ -202,17 +203,17 @@ export function DeviceCreateDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="device-serial">シリアル</Label>
+                <Label htmlFor="device-serial">{t.serial}</Label>
                 <Input
                   id="device-serial"
-                  placeholder="端末のハードウェアシリアル"
+                  placeholder={t.serialPlaceholder}
                   value={serial}
                   onChange={(e) => setSerial(e.target.value)}
                   disabled={submitting}
                   className="font-mono"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  シリアルは作成後に変更できません。
+                  {t.serialImmutable}
                 </p>
               </div>
               {error && (
@@ -228,11 +229,11 @@ export function DeviceCreateDialog({
                 onClick={() => handleClose(false)}
                 disabled={submitting}
               >
-                キャンセル
+                {t.cancel}
               </Button>
               <Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
                 {submitting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                作成
+                {t.create}
               </Button>
             </DialogFooter>
           </>

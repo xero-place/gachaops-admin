@@ -25,6 +25,8 @@ import { api } from '@/lib/api';
 import type { Device, Store, DeviceGroup } from '@/types/domain';
 import { fmtRelative } from '@/lib/format';
 import { getUpcomingReservation, type PlanScheduleLite } from '@/lib/plan-reservation';
+import { usePageT } from '@/i18n/usePageT';
+import { liveControlDict } from '@/i18n/ns/liveControl';
 import {
   Zap,
   Building2,
@@ -45,6 +47,7 @@ import {
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 
 export default function LiveControlPage() {
+  const t = usePageT(liveControlDict);
   const [devices, setDevices] = useState<Device[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
@@ -89,14 +92,7 @@ export default function LiveControlPage() {
 
   const handleEmergencyStop = async () => {
     if (emergencyStopBusy) return;
-    const ok = window.confirm(
-      `🚨 全マシン緊急停止を実行しますか?\n\n` +
-      `この操作は:\n` +
-      `・自社の全 online デバイスに停止コマンドを送信\n` +
-      `・全画面が「準備中」表示 (真っ黒画面ではない)\n` +
-      `・取り消しは「全マシン一斉切替」で個別動画を再送信\n\n` +
-      `⚠️ 緊急時のみ使用してください`
-    );
+    const ok = window.confirm(t.emergencyConfirm);
     if (!ok) return;
     setEmergencyStopBusy(true);
     try {
@@ -104,11 +100,9 @@ export default function LiveControlPage() {
         '/devices/emergency_stop',
         {}
       );
-      window.alert(
-        `✅ 緊急停止完了\n\n対象: ${res.target_count}台\n送信: ${res.sent_count}台`
-      );
+      window.alert(t.emergencyDone(res.target_count, res.sent_count));
     } catch (e) {
-      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
+      window.alert(t.emergencyFailed(e instanceof Error ? e.message : t.unknownError));
     } finally {
       setEmergencyStopBusy(false);
     }
@@ -166,7 +160,7 @@ export default function LiveControlPage() {
 
   if (loading) {
     return (
-      <AppShell title="ライブ操作" breadcrumb={['ホーム', 'ライブ操作']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -175,32 +169,32 @@ export default function LiveControlPage() {
   }
 
   return (
-    <AppShell title="ライブ操作" breadcrumb={['ホーム', 'ライブ操作']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       {/* Hero stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <KpiCard icon={<Wifi className="h-4 w-4" />} label="稼働中" value={onlineCount} accent="ok" sub={`/ 全${effectiveDevices.length}台`} />
-        <KpiCard icon={<Zap className="h-4 w-4" />} label="手動再生中" value={manualCount} accent="warn" sub={manualCount > 0 ? '計画配信へ復帰可能' : '0台'} />
-        <KpiCard icon={<Activity className="h-4 w-4" />} label="計画配信中" value={planCount} sub="計画配信で自動再生" />
-        <KpiCard icon={<CalendarClock className="h-4 w-4" />} label="計画配信予約中" value={reservedCount} accent="ok" sub={reservedCount > 0 ? '配信予定あり' : '0台'} />
-        <KpiCard icon={<PlayCircle className="h-4 w-4" />} label="待機/停止" value={idleCount} sub="再生中映像なし" />
+        <KpiCard icon={<Wifi className="h-4 w-4" />} label={t.kpiOnline} value={onlineCount} accent="ok" sub={t.kpiOnlineSub(effectiveDevices.length)} />
+        <KpiCard icon={<Zap className="h-4 w-4" />} label={t.kpiManual} value={manualCount} accent="warn" sub={manualCount > 0 ? t.kpiManualSubReady : t.kpiZeroDevices} />
+        <KpiCard icon={<Activity className="h-4 w-4" />} label={t.kpiPlan} value={planCount} sub={t.kpiPlanSub} />
+        <KpiCard icon={<CalendarClock className="h-4 w-4" />} label={t.kpiReserved} value={reservedCount} accent="ok" sub={reservedCount > 0 ? t.kpiReservedSubHas : t.kpiZeroDevices} />
+        <KpiCard icon={<PlayCircle className="h-4 w-4" />} label={t.kpiIdle} value={idleCount} sub={t.kpiIdleSub} />
       </div>
 
       {/* Quick actions: scope picker */}
       <Card className="mb-6 border-primary/30">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
-            <Zap className="h-4 w-4 text-primary" />クイック操作
+            <Zap className="h-4 w-4 text-primary" />{t.quickOps}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">よく使う操作を1クリックで</p>
+          <p className="text-xs text-muted-foreground">{t.quickOpsSub}</p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <QuickAction
             icon={<Globe2 className="h-5 w-5" />}
-            title="全マシン一斉切替"
-            description={`オンラインの ${onlineCount} 台に同時送信`}
+            title={t.allSwitchTitle}
+            description={t.allSwitchDesc(onlineCount)}
             onClick={() => openWithScope({
               device_ids: effectiveDevices.filter((d) => d.status === 'online').map((d) => d.id),
-              label: `全マシン一斉送信 (オンライン ${onlineCount}台)`,
+              label: t.allSwitchLabel(onlineCount),
             })}
             disabled={onlineCount === 0}
           />
@@ -208,8 +202,8 @@ export default function LiveControlPage() {
           {false && (
           <QuickAction
             icon={<Undo2 className="h-5 w-5" />}
-            title="全端末を計画モードへ"
-            description={manualCount > 0 ? `${manualCount} 台の手動切替を解除` : '手動切替中の端末はありません'}
+            title={t.restoreAllTitle}
+            description={manualCount > 0 ? t.restoreAllDesc(manualCount) : t.restoreAllNone}
             onClick={() => {
               const ids = effectiveDevices
                 .filter((d) => d.play_mode === 'manual')
@@ -217,7 +211,7 @@ export default function LiveControlPage() {
               if (ids.length > 0) {
                 restorePlan({
                   device_ids: ids,
-                  scope_label: `全手動切替を解除 (${ids.length}台)`,
+                  scope_label: t.restoreAllScope(ids.length),
                   applied_by: 'admin@gachaops.example',
                 });
               }
@@ -234,9 +228,9 @@ export default function LiveControlPage() {
             <Link href="/devices">
               <div className="flex items-center gap-2">
                 <Search className="h-5 w-5" />
-                <span className="font-medium">端末一覧から個別選択</span>
+                <span className="font-medium">{t.pickIndividually}</span>
               </div>
-              <span className="text-xs text-muted-foreground font-normal">複数台ピックアップして切替</span>
+              <span className="text-xs text-muted-foreground font-normal">{t.pickIndividuallySub}</span>
             </Link>
           </Button>
         </CardContent>
@@ -246,10 +240,10 @@ export default function LiveControlPage() {
       <Card className="mt-4 border-red-500/40 bg-red-500/5 hidden">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertTriangle className="h-4 w-4" />緊急操作
+            <AlertTriangle className="h-4 w-4" />{t.emergencyTitle}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            想定外の事態に全マシンを即停止 (画面は「準備中」表示)
+            {t.emergencySub}
           </p>
         </CardHeader>
         <CardContent>
@@ -265,7 +259,7 @@ export default function LiveControlPage() {
             ) : (
               <PowerOff className="h-5 w-5" />
             )}
-            {emergencyStopBusy ? '停止中...' : '🚨 全マシン緊急停止'}
+            {emergencyStopBusy ? t.emergencyBusy : t.emergencyBtn}
           </Button>
         </CardContent>
       </Card>
@@ -275,16 +269,16 @@ export default function LiveControlPage() {
           {/* Scope picker tabs */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">対象を選んで切替</CardTitle>
+              <CardTitle className="text-sm">{t.chooseTarget}</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="stores">
                 <TabsList className="grid grid-cols-2 w-full sm:w-auto">
                   <TabsTrigger value="stores" className="gap-1.5">
-                    <Building2 className="h-3.5 w-3.5" />店舗単位
+                    <Building2 className="h-3.5 w-3.5" />{t.byStore}
                   </TabsTrigger>
                   <TabsTrigger value="groups" className="gap-1.5">
-                    <Layers3 className="h-3.5 w-3.5" />グループ単位
+                    <Layers3 className="h-3.5 w-3.5" />{t.byGroup}
                   </TabsTrigger>
                 </TabsList>
 
@@ -292,7 +286,7 @@ export default function LiveControlPage() {
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="店舗名 / 都道府県..."
+                      placeholder={t.storeSearchPh}
                       value={storeSearch}
                       onChange={(e) => setStoreSearch(e.target.value)}
                       className="pl-8 h-8 text-xs"
@@ -310,7 +304,7 @@ export default function LiveControlPage() {
                           onClick={() =>
                             openWithScope({
                               device_ids: online.map((d) => d.id),
-                              label: `${s.name} (${online.length}台)`,
+                              label: t.storeScopeLabel(s.name, online.length),
                             })
                           }
                           className="text-left rounded-md border bg-card p-3 transition-all hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent group"
@@ -324,13 +318,13 @@ export default function LiveControlPage() {
                           </div>
                           <div className="text-[11px] text-muted-foreground ml-5">{s.prefecture}</div>
                           <div className="flex gap-2 mt-2 ml-5">
-                            <Badge variant="ok" className="text-[10px]">オン {online.length}</Badge>
+                            <Badge variant="ok" className="text-[10px]">{t.onBadge(online.length)}</Badge>
                             {sdev.length - online.length > 0 && (
-                              <Badge variant="muted" className="text-[10px]">他 {sdev.length - online.length}</Badge>
+                              <Badge variant="muted" className="text-[10px]">{t.otherBadge(sdev.length - online.length)}</Badge>
                             )}
                             {manual > 0 && (
                               <Badge variant="warn" className="text-[10px] gap-1">
-                                <Zap className="h-2.5 w-2.5" />手動 {manual}
+                                <Zap className="h-2.5 w-2.5" />{t.manualBadge(manual)}
                               </Badge>
                             )}
                           </div>
@@ -344,7 +338,7 @@ export default function LiveControlPage() {
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="グループ名..."
+                      placeholder={t.groupSearchPh}
                       value={groupSearch}
                       onChange={(e) => setGroupSearch(e.target.value)}
                       className="pl-8 h-8 text-xs"
@@ -381,7 +375,7 @@ export default function LiveControlPage() {
                           onClick={() =>
                             openWithScope({
                               device_ids: groupDeviceIds,
-                              label: `${g.name} (${groupDeviceIds.length}台${g.linked ? ' 連動' : ''})`,
+                              label: t.groupScopeLabel(g.name, groupDeviceIds.length, !!g.linked),
                             })
                           }
                           className="text-left rounded-md border bg-card p-3 transition-all hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent group"
@@ -394,8 +388,8 @@ export default function LiveControlPage() {
                             <Zap className="h-3.5 w-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                           <div className="flex gap-2 mt-2 ml-5">
-                            <Badge variant="ok" className="text-[10px]">オン {groupDeviceIds.length}</Badge>
-                            {g.linked && <Badge variant="default" className="text-[10px]">連動再生</Badge>}
+                            <Badge variant="ok" className="text-[10px]">{t.onBadge(groupDeviceIds.length)}</Badge>
+                            {g.linked && <Badge variant="default" className="text-[10px]">{t.linkedPlay}</Badge>}
                           </div>
                         </button>
                       );
@@ -410,15 +404,15 @@ export default function LiveControlPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
-                <PlayCircle className="h-3.5 w-3.5" />端末で再生中の映像
+                <PlayCircle className="h-3.5 w-3.5" />{t.nowPlayingTitle}
               </CardTitle>
-              <p className="text-xs text-muted-foreground">同じ映像を再生している端末をまとめて把握</p>
+              <p className="text-xs text-muted-foreground">{t.nowPlayingSub}</p>
             </CardHeader>
             <CardContent className="p-0">
               <ul className="divide-y">
                 {playingNow.length === 0 && (
                   <li className="p-4 text-center text-xs text-muted-foreground">
-                    現在、再生中の端末はありません
+                    {t.noPlaying}
                   </li>
                 )}
                 {playingNow.map(([programId, info]) => (
@@ -431,10 +425,10 @@ export default function LiveControlPage() {
                       <div className="text-[11px] text-muted-foreground font-mono">{programId}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold tabular-nums">{info.count}<span className="text-xs text-muted-foreground">台</span></div>
+                      <div className="text-sm font-semibold tabular-nums">{info.count}<span className="text-xs text-muted-foreground">{t.deviceUnit}</span></div>
                       {info.manual > 0 && (
                         <div className="text-[10px] text-warn flex items-center gap-1 justify-end">
-                          <Zap className="h-2.5 w-2.5" />手動 {info.manual}
+                          <Zap className="h-2.5 w-2.5" />{t.manualBadge(info.manual)}
                         </div>
                       )}
                     </div>
@@ -450,14 +444,14 @@ export default function LiveControlPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-warn" />手動切替中の端末
+                <Zap className="h-3.5 w-3.5 text-warn" />{t.manualOverridesTitle}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ul className="divide-y max-h-[280px] overflow-y-auto">
                 {Object.values(overrides).length === 0 && (
                   <li className="p-4 text-center text-xs text-muted-foreground">
-                    現在、手動切替中の端末はありません
+                    {t.noManualOverrides}
                   </li>
                 )}
                 {Object.values(overrides)
@@ -476,11 +470,11 @@ export default function LiveControlPage() {
                               {o.program_name}
                             </div>
                             <div className="flex flex-wrap gap-x-2 mt-1 text-[10px] text-muted-foreground">
-                              <span>{fmtRelative(o.applied_at)}に切替</span>
+                              <span>{t.switchedAt(fmtRelative(o.applied_at))}</span>
                               {o.expires_at && (
                                 <span className="flex items-center gap-1 text-warn">
                                   <Clock className="h-2.5 w-2.5" />
-                                  {fmtRelative(o.expires_at)}に解除
+                                  {t.releaseAt(fmtRelative(o.expires_at))}
                                 </span>
                               )}
                             </div>
@@ -511,14 +505,14 @@ export default function LiveControlPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-3.5 w-3.5" />操作履歴
+                <Activity className="h-3.5 w-3.5" />{t.actionHistory}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ul className="divide-y max-h-[320px] overflow-y-auto">
                 {history.length === 0 && (
                   <li className="p-4 text-center text-xs text-muted-foreground">
-                    まだ操作履歴がありません
+                    {t.noActionHistory}
                   </li>
                 )}
                 {history.map((h) => (
@@ -536,24 +530,16 @@ export default function LiveControlPage() {
                       <div className="min-w-0 flex-1">
                         <div className="text-xs">
                           {h.action === 'switch' ? (
-                            <>
-                              <span className="font-medium">{h.scope_label}</span>
-                              <span className="text-muted-foreground"> に </span>
-                              <span className="font-medium">{h.program_name}</span>
-                              <span className="text-muted-foreground"> を配信</span>
-                            </>
+                            <span className="font-medium">{t.switchMsg(h.scope_label, h.program_name ?? '')}</span>
                           ) : (
-                            <>
-                              <span className="font-medium">{h.scope_label}</span>
-                              <span className="text-muted-foreground"> を計画モードへ復帰</span>
-                            </>
+                            <span className="font-medium">{t.restoreMsg(h.scope_label)}</span>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-x-2 mt-1 text-[10px] text-muted-foreground">
                           <span>{fmtRelative(h.ts)}</span>
                           <span>{h.applied_by}</span>
                           {h.expires_at && (
-                            <span className="text-warn">期限あり</span>
+                            <span className="text-warn">{t.hasExpiry}</span>
                           )}
                         </div>
                       </div>

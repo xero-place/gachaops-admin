@@ -36,6 +36,8 @@ import { Badge } from '@/components/ui/badge';
 import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import type { GachaEffectPack } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { gachaAccountDefaultDict } from '@/i18n/ns/gachaAccountDefault';
 import {
   Sparkles,
   Loader2,
@@ -61,19 +63,12 @@ const TIER_COLOR: Record<number, string> = {
   5: 'bg-gradient-to-r from-pink-100 via-yellow-100 to-cyan-100 text-purple-800 border-purple-300',
 };
 
-/** tier 名 */
-const TIER_LABEL: Record<number, string> = {
-  1: 'ノーマル',
-  2: 'ブロンズ',
-  3: 'シルバー',
-  4: 'ゴールド',
-  5: 'レインボー',
-};
-
 /** 「(未設定)」を表す select の特別値 (空文字は使わない) */
 const UNSET_VALUE = '__unset__';
 
 export default function GachaAccountDefaultPage() {
+  const t = usePageT(gachaAccountDefaultDict);
+  const TIER_LABEL = t.tierLabels;
   // ─── 状態 ───
   const [packs, setPacks] = useState<GachaEffectPack[]>([]);
   const [savedPackId, setSavedPackId] = useState<string | null>(null); // サーバ上の現在値
@@ -102,7 +97,7 @@ export default function GachaAccountDefaultPage() {
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`設定の読み込みに失敗しました: ${msg}`);
+      setError(t.loadFailed(msg));
     } finally {
       setLoading(false);
     }
@@ -143,21 +138,21 @@ export default function GachaAccountDefaultPage() {
       setSelectedValue(updated.default_effect_pack_id ?? UNSET_VALUE);
       const label =
         updated.default_effect_pack_id === null
-          ? 'デフォルト演出を「(未設定)」にしました'
-          : `デフォルト演出を更新しました`;
+          ? t.setToUnset
+          : t.updated;
       setSuccessMsg(label);
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       const msg =
         e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
-      setError(`保存に失敗しました: ${msg}`);
+      setError(t.saveFailed(msg));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <AppShell title="アカウント デフォルト演出" breadcrumb={['ガチャ', 'デフォルト演出']}>
+    <AppShell title={t.title} breadcrumb={[t.bcGacha, t.bcDefault]}>
       <div className="space-y-6">
         {/* ─── 説明カード ─── */}
         <Card>
@@ -165,7 +160,7 @@ export default function GachaAccountDefaultPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-indigo-500" />
-                アカウント単位のデフォルト演出
+                {t.heading}
               </CardTitle>
               <Button onClick={reload} disabled={loading} variant="outline">
                 {loading ? (
@@ -173,28 +168,27 @@ export default function GachaAccountDefaultPage() {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                <span className="ml-2">再読み込み</span>
+                <span className="ml-2">{t.reload}</span>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              ガチャ抽選時に再生する演出は、次の優先順で決まります。ここで設定するのは
-              <strong className="text-foreground"> 3 番目 (L2) </strong>
-              にあたる「アカウント全体の保険」です。排出順マッピングもプール別デフォルトも
-              設定されていない抽選に適用されます。
+              {t.descPre}
+              <strong className="text-foreground">{t.descStrong}</strong>
+              {t.descPost}
             </p>
             <ol className="text-xs text-muted-foreground space-y-1 mb-2 list-decimal list-inside">
-              <li>排出順マッピング (ガチャ演出ページで設定する 1〜100 番ごとの演出)</li>
-              <li>プール単位のデフォルト演出</li>
+              <li>{t.ol1}</li>
+              <li>{t.ol2}</li>
               <li className="text-foreground font-medium">
-                アカウント単位のデフォルト演出 ← このページ
+                {t.ol3}
               </li>
-              <li>組み込み演出 (上記すべて未設定のときの最終フォールバック)</li>
+              <li>{t.ol4}</li>
             </ol>
             {currentUser && (
               <p className="text-[11px] text-muted-foreground">
-                対象アカウント:{' '}
+                {t.targetAccount}{' '}
                 <span className="font-mono">{currentUser.customer_id}</span>
               </p>
             )}
@@ -206,7 +200,7 @@ export default function GachaAccountDefaultPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-purple-500" />
-              デフォルト演出の選択
+              {t.selectHeading}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -233,16 +227,16 @@ export default function GachaAccountDefaultPage() {
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                読み込み中...
+                {t.loading}
               </div>
             ) : (
               <div className="space-y-4">
                 {/* 現在のサーバ上の設定 */}
                 <div className="text-sm">
-                  <span className="text-muted-foreground">現在の設定: </span>
+                  <span className="text-muted-foreground">{t.currentSetting}</span>
                   {savedPackId === null ? (
                     <Badge variant="outline" className="bg-slate-100 text-slate-500">
-                      (未設定 — 組み込み演出にフォールバック)
+                      {t.unsetBadge}
                     </Badge>
                   ) : savedPack ? (
                     <Badge variant="outline" className={TIER_COLOR[savedPack.tier]}>
@@ -250,7 +244,7 @@ export default function GachaAccountDefaultPage() {
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-                      不明なパック ({savedPackId})
+                      {t.unknownPack(savedPackId)}
                     </Badge>
                   )}
                 </div>
@@ -261,7 +255,7 @@ export default function GachaAccountDefaultPage() {
                     htmlFor="default-effect-select"
                     className="block text-sm font-medium mb-1"
                   >
-                    デフォルト演出パック
+                    {t.selectLabel}
                   </label>
                   <select
                     id="default-effect-select"
@@ -270,16 +264,16 @@ export default function GachaAccountDefaultPage() {
                     disabled={saving}
                     className="w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value={UNSET_VALUE}>(未設定 — 組み込み演出にフォールバック)</option>
+                    <option value={UNSET_VALUE}>{t.unsetBadge}</option>
                     {packs.filter((pack) => pack.effect_type !== 'html5').map((pack) => (
                       <option key={pack.id} value={pack.id}>
-                        {pack.name} ({TIER_LABEL[pack.tier] ?? `tier ${pack.tier}`}
-                        {pack.is_active ? '' : '・無効'})
+                        {pack.name} ({TIER_LABEL[pack.tier] ?? t.tierFallback(pack.tier)}
+                        {pack.is_active ? '' : t.inactiveSuffix})
                       </option>
                     ))}
                   </select>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    「(未設定)」を選ぶと L2 をスキップし、組み込み演出が使われます。
+                    {t.selectNote}
                   </p>
                 </div>
 
@@ -291,23 +285,22 @@ export default function GachaAccountDefaultPage() {
                         {selectedPack.name}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {TIER_LABEL[selectedPack.tier] ?? `tier ${selectedPack.tier}`} ·{' '}
+                        {TIER_LABEL[selectedPack.tier] ?? t.tierFallback(selectedPack.tier)} ·{' '}
                         {selectedPack.effect_type}
                       </span>
                       {!selectedPack.is_active && (
                         <Badge variant="outline" className="bg-slate-100 text-slate-500">
-                          無効
+                          {t.inactive}
                         </Badge>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {selectedPack.description ?? '(説明なし)'}
+                      {selectedPack.description ?? t.noDesc}
                     </div>
                     {!selectedPack.is_active && (
                       <div className="mt-2 text-xs text-amber-700 flex items-start gap-1.5">
                         <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                        この演出は現在「無効」です。無効な演出をデフォルトに設定すると、
-                        抽選時に組み込み演出へフォールバックする場合があります。
+                        {t.inactiveWarn}
                       </div>
                     )}
                   </div>
@@ -321,13 +314,13 @@ export default function GachaAccountDefaultPage() {
                     ) : (
                       <Save className="h-4 w-4" />
                     )}
-                    <span className="ml-2">保存</span>
+                    <span className="ml-2">{t.save}</span>
                   </Button>
                   {isDirty && !saving && (
-                    <span className="text-xs text-amber-600">未保存の変更があります</span>
+                    <span className="text-xs text-amber-600">{t.unsavedChanges}</span>
                   )}
                   {!isDirty && !saving && (
-                    <span className="text-xs text-muted-foreground">変更はありません</span>
+                    <span className="text-xs text-muted-foreground">{t.noChanges}</span>
                   )}
                 </div>
               </div>

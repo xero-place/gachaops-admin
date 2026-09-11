@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Save } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 import { fmtDuration, fmtBytes } from '@/lib/format';
+import { usePageT } from '@/i18n/usePageT';
+import { programDetailDict } from '@/i18n/ns/programDetail';
 
 type Asset = {
   id: string;
@@ -73,6 +75,7 @@ type Program = {
 };
 
 export default function ProgramDetailPage() {
+  const t = usePageT(programDetailDict);
   const params = useParams();
   const router = useRouter();
   const programId = String(params.id);
@@ -120,7 +123,7 @@ export default function ProgramDetailPage() {
   }, [fetchData]);
 
   const handleDeleteScene = async (sceneId: string, name: string) => {
-    if (!confirm(`シーン「${name}」を削除しますか?`)) return;
+    if (!confirm(t.confirmDeleteScene(name))) return;
     setBusy(true);
     try {
       const token = tokenStore.getAccess();
@@ -131,7 +134,7 @@ export default function ProgramDetailPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchData();
     } catch (err) {
-      alert(`削除失敗: ${err}`);
+      alert(t.deleteFailed(String(err)));
     } finally {
       setBusy(false);
     }
@@ -163,7 +166,7 @@ export default function ProgramDetailPage() {
       ]);
       await fetchData();
     } catch (err) {
-      alert(`順序変更失敗: ${err}`);
+      alert(t.reorderFailed(String(err)));
     } finally {
       setBusy(false);
     }
@@ -172,7 +175,7 @@ export default function ProgramDetailPage() {
   const handlePublish = async () => {
     if (!program) return;
     if (scenes.length === 0) {
-      alert('公開前にシーンを少なくとも 1 つ追加してください');
+      alert(t.addSceneFirst);
       return;
     }
     setBusy(true);
@@ -184,9 +187,9 @@ export default function ProgramDetailPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchData();
-      alert('プログラムを公開しました');
+      alert(t.published);
     } catch (err) {
-      alert(`公開失敗: ${err}`);
+      alert(t.publishFailed(String(err)));
     } finally {
       setBusy(false);
     }
@@ -199,8 +202,8 @@ export default function ProgramDetailPage() {
     const isCustomerItem = _u?.role === 'lv1_super' && !!program.customer_id && program.customer_id !== _u?.customer_id;
     const who = program.customer_name || program.customer_id;
     const msg = isCustomerItem
-      ? `⚠️ 顧客「${who}」のプログラムを削除します\n\n「${program.name}」を完全に削除しますか?\nこれは顧客のアカウントからも消え、シーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`
-      : `プログラム「${program.name}」を完全に削除しますか?\nシーン・ウィジェットも全て削除されます。\nこの操作は取り消せません。`;
+      ? t.deleteCustomerMsg(who ?? '', program.name)
+      : t.deleteSelfMsg(program.name);
     if (!confirm(msg)) return;
     setBusy(true);
     const token = tokenStore.getAccess();
@@ -213,31 +216,31 @@ export default function ProgramDetailPage() {
     try {
       let res = await doDelete(false);
       if (res.status === 409) {
-        let detail = 'このプログラムは使用中です。';
+        let detail = t.inUse;
         try { const j = await res.json(); detail = j.detail || j.title || detail; } catch {}
-        if (!confirm(`${detail}\n\n該当端末の表示が既定に戻ることを承知で強制削除しますか?`)) { setBusy(false); return; }
+        if (!confirm(t.forceDeleteConfirm(detail))) { setBusy(false); return; }
         res = await doDelete(true);
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       router.push('/programs');
     } catch (err) {
-      alert(`削除失敗: ${err}`);
+      alert(t.deleteFailed(String(err)));
       setBusy(false);
     }
   };
 
   if (loading) {
     return (
-      <AppShell title="読み込み中..." breadcrumb={['ホーム', 'プログラム']}>
-        <div className="text-sm text-muted-foreground p-6">読み込み中...</div>
+      <AppShell title={t.loading} breadcrumb={[t.home, t.bcPrograms]}>
+        <div className="text-sm text-muted-foreground p-6">{t.loading}</div>
       </AppShell>
     );
   }
 
   if (!program) {
     return (
-      <AppShell title="エラー" breadcrumb={['ホーム', 'プログラム']}>
-        <div className="text-sm text-destructive p-6">プログラムが見つかりません</div>
+      <AppShell title={t.error} breadcrumb={[t.home, t.bcPrograms]}>
+        <div className="text-sm text-destructive p-6">{t.notFound}</div>
       </AppShell>
     );
   }
@@ -245,23 +248,23 @@ export default function ProgramDetailPage() {
   const totalDuration = scenes.reduce((sum, s) => sum + getDisplayDurationSec(s), 0);
 
   return (
-    <AppShell title={program.name} breadcrumb={['ホーム', 'プログラム', program.id]}>
+    <AppShell title={program.name} breadcrumb={[t.home, t.bcPrograms, program.id]}>
       <div className="mb-4 flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/programs">
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" />一覧へ戻る
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.backToList}
           </Link>
         </Button>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDeleteProgram} disabled={busy}>
-            <Trash2 className="h-3.5 w-3.5" />削除
+            <Trash2 className="h-3.5 w-3.5" />{t.delete}
           </Button>
           {!program.published ? (
             <Button size="sm" className="gap-1.5" onClick={handlePublish} disabled={busy || scenes.length === 0}>
-              <Send className="h-3.5 w-3.5" />公開する
+              <Send className="h-3.5 w-3.5" />{t.publish}
             </Button>
           ) : (
-            <Badge className="px-3 py-1.5">公開中</Badge>
+            <Badge className="px-3 py-1.5">{t.publishedBadge}</Badge>
           )}
         </div>
       </div>
@@ -271,16 +274,16 @@ export default function ProgramDetailPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <Layers className="h-4 w-4" />シーン構成 ({scenes.length})
+                <Layers className="h-4 w-4" />{t.sceneComposition(scenes.length)}
               </CardTitle>
               <Button variant="default" size="sm" className="h-8 gap-1" onClick={() => setShowAddScene(true)}>
-                <Plus className="h-3.5 w-3.5" />シーン追加
+                <Plus className="h-3.5 w-3.5" />{t.addScene}
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
               {scenes.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  シーンがまだありません。「シーン追加」ボタンから動画/画像を追加してください。
+                  {t.noScenes}
                 </div>
               ) : (
 (() => {
@@ -349,7 +352,7 @@ export default function ProgramDetailPage() {
                       )}
                       <div className="text-xs text-muted-foreground">
                         {fmtDuration(getDisplayDurationSec(sc) * 1000)}
-                        {sc.widget_count && sc.widget_count > 0 ? ` · ${sc.widget_count} ウィジェット` : ''}
+                        {sc.widget_count && sc.widget_count > 0 ? t.widgetSuffix(sc.widget_count) : ''}
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteScene(sc.id, sc.name)} disabled={busy}>
@@ -365,28 +368,28 @@ export default function ProgramDetailPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">プログラム情報</CardTitle>
+              <CardTitle className="text-base">{t.programInfo}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">合計時間</span>
+                <span className="text-muted-foreground">{t.totalTime}</span>
                 <span className="font-medium">{fmtDuration(totalDuration * 1000)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">シーン数</span>
+                <span className="text-muted-foreground">{t.sceneCount}</span>
                 <span className="font-medium">{scenes.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">容量</span>
+                <span className="text-muted-foreground">{t.size}</span>
                 <span className="font-medium tabular-nums">{fmtBytes(program.size_bytes ?? 0)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">ステータス</span>
-                <span className="font-medium">{program.published ? '公開中' : '下書き'}</span>
+                <span className="text-muted-foreground">{t.status}</span>
+                <span className="font-medium">{program.published ? t.publishedBadge : t.draft}</span>
               </div>
               {program.description && (
                 <div className="pt-2 border-t">
-                  <div className="text-muted-foreground mb-1">説明</div>
+                  <div className="text-muted-foreground mb-1">{t.description}</div>
                   <div className="text-sm">{program.description}</div>
                 </div>
               )}
@@ -427,7 +430,8 @@ function AddSceneModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [name, setName] = useState(`シーン ${nextOrderIndex + 1}`);
+  const t = usePageT(programDetailDict);
+  const [name, setName] = useState(t.sceneNameDefault(nextOrderIndex + 1));
   const [durationSec, setDurationSec] = useState(10);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -479,22 +483,18 @@ function AddSceneModal({
 
   const handleCreate = async () => {
     if (!selectedAssetId) {
-      alert('動画 / 画像を選択してください');
+      alert(t.selectAssetAlert);
       return;
     }
     if (durationSec < 1) {
-      alert('表示時間は 1 秒以上にしてください');
+      alert(t.durationMinAlert);
       return;
     }
     // 容量上限ガード: プログラム合計が 1GB(1,000,000,000 bytes) を超える追加を拒否
     const PROGRAM_SIZE_LIMIT = 1_000_000_000;
     const projected = currentSizeBytes + (selectedAsset?.size ?? 0);
     if (projected > PROGRAM_SIZE_LIMIT) {
-      alert(
-        `この素材を追加するとプログラムの合計容量が上限(1GB)を超えます。\n` +
-        `追加後: ${fmtBytes(projected)}（上限: 1GB）\n` +
-        `マシンで再生できなくなるため追加できません。`
-      );
+      alert(t.sizeLimitAlert(fmtBytes(projected)));
       return;
     }
     setCreating(true);
@@ -505,12 +505,12 @@ function AddSceneModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          name: name.trim() || `シーン ${nextOrderIndex + 1}`,
+          name: name.trim() || t.sceneNameDefault(nextOrderIndex + 1),
           duration_sec: durationSec,
           order_index: nextOrderIndex,
         }),
       });
-      if (!sceneRes.ok) throw new Error(`シーン作成失敗 (HTTP ${sceneRes.status})`);
+      if (!sceneRes.ok) throw new Error(t.sceneCreateFailed(sceneRes.status));
       const scene = await sceneRes.json();
       
       // 2. ウィジェット追加 (動画 / 画像) — selectedAsset は上で取得済み
@@ -526,11 +526,11 @@ function AddSceneModal({
           config: {},
         }),
       });
-      if (!widgetRes.ok) throw new Error(`ウィジェット追加失敗 (HTTP ${widgetRes.status})`);
-      
+      if (!widgetRes.ok) throw new Error(t.widgetAddFailed(widgetRes.status));
+
       onCreated();
     } catch (err) {
-      alert(`作成失敗: ${err}`);
+      alert(t.createFailed(String(err)));
       setCreating(false);
     }
   };
@@ -539,7 +539,7 @@ function AddSceneModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between border-b">
-          <CardTitle className="text-base">新しいシーンを追加</CardTitle>
+          <CardTitle className="text-base">{t.addNewScene}</CardTitle>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -547,11 +547,11 @@ function AddSceneModal({
         <CardContent className="flex-1 overflow-y-auto space-y-4 pt-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="scene-name">シーン名</Label>
+              <Label htmlFor="scene-name">{t.sceneName}</Label>
               <Input id="scene-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="scene-duration">表示時間 (秒)（最大3600秒＝60分まで設定可能）</Label>
+              <Label htmlFor="scene-duration">{t.durationLabel}</Label>
               <Input
                 id="scene-duration"
                 type="number"
@@ -565,37 +565,37 @@ function AddSceneModal({
               />
               <div className="text-xs text-muted-foreground mt-1">
                 {isVideo
-                  ? 'ファイル実長で再生されます (編集不可)'
+                  ? t.videoFixedNote
                   : selectedAsset
-                    ? '画像の表示秒数を指定してください（1〜3600秒＝最大60分）'
-                    : '動画はファイル全体、画像は指定秒数表示します（画像は最大3600秒＝60分）'}
+                    ? t.imageDurationNote
+                    : t.mixedDurationNote}
               </div>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>素材選択 *</Label>
+              <Label>{t.selectAsset}</Label>
               <div className="flex gap-1 text-xs">
                 <button
                   className={`px-2 py-1 rounded ${filter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
                   onClick={() => setFilter('all')}
-                >全て</button>
+                >{t.filterAll}</button>
                 <button
                   className={`px-2 py-1 rounded ${filter === 'video' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
                   onClick={() => setFilter('video')}
-                >動画</button>
+                >{t.filterVideo}</button>
                 <button
                   className={`px-2 py-1 rounded ${filter === 'image' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
                   onClick={() => setFilter('image')}
-                >画像</button>
+                >{t.filterImage}</button>
               </div>
             </div>
             {filteredAssets.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground border rounded-md">
-                <div>素材がアップロードされていません</div>
+                <div>{t.noAssets}</div>
                 <Link href="/assets" className="text-primary underline text-xs mt-1 inline-block">
-                  素材ページでアップロード
+                  {t.uploadOnAssets}
                 </Link>
               </div>
             ) : (
@@ -633,10 +633,10 @@ function AddSceneModal({
           </div>
         </CardContent>
         <div className="border-t p-4 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button variant="outline" onClick={onClose}>{t.cancel}</Button>
           <Button onClick={handleCreate} disabled={creating || !selectedAssetId} className="gap-1.5">
             <Save className="h-3.5 w-3.5" />
-            {creating ? '追加中...' : 'シーン追加'}
+            {creating ? t.adding : t.addScene}
           </Button>
         </div>
       </Card>

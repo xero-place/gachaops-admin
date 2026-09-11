@@ -18,6 +18,8 @@ import { api, auth, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { customersDict } from '@/i18n/ns/customers';
 
 type DeviceForm = {
   id: string; name: string; serial: string; store_index: number; is_master: boolean;
@@ -48,6 +50,7 @@ const EMPTY_DEVICE: DeviceForm = {
 };
 
 export default function CustomersPage() {
+  const t = usePageT(customersDict);
   const role = tokenStore.getUser()?.role;
   const isSuperAdmin = role === 'lv1_super';
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -67,7 +70,7 @@ export default function CustomersPage() {
       );
       const list = Array.isArray(res) ? res : (res.items ?? []);
       if (list.length === 0) {
-        alert('この顧客には操作可能なユーザーがいません。');
+        alert(t.noUsersToOperate);
         return;
       }
       // Prefer a lv2_admin; otherwise fall back to the first user.
@@ -77,7 +80,7 @@ export default function CustomersPage() {
       else router.replace('/');
     } catch (e) {
       console.error('[operate-as] failed:', e);
-      alert('成り代わりに失敗しました。');
+      alert(t.impersonateFailed);
     } finally {
       setImpersonating(null);
     }
@@ -101,16 +104,16 @@ export default function CustomersPage() {
   }, [loadCustomers]);
 
   return (
-    <AppShell title="顧客" breadcrumb={['ホーム', '顧客']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">運営専用 — 新規顧客の立ち上げと一覧</p>
+            <p className="text-sm text-muted-foreground">{t.intro}</p>
           </div>
           {isSuperAdmin && (
             <Button onClick={() => setWizardOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              新規顧客登録
+              {t.newCustomer}
             </Button>
           )}
         </div>
@@ -118,24 +121,24 @@ export default function CustomersPage() {
         {!isSuperAdmin ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              このページは運営（lv1_super）専用です。
+              {t.operatorOnly}
             </CardContent>
           </Card>
         ) : loading ? (
           <Card>
             <CardContent className="flex items-center justify-center py-10 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />読み込み中…
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />{t.loading}
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>顧客一覧（全顧客横断）</CardTitle>
+              <CardTitle>{t.listTitle}</CardTitle>
             </CardHeader>
             <CardContent>
               {customers.length === 0 ? (
                 <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-                  顧客がありません。「新規顧客登録」から作成してください。
+                  {t.noCustomers}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -147,9 +150,9 @@ export default function CustomersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />店舗 {c.store_count}</span>
-                        <span className="flex items-center gap-1"><Package className="h-4 w-4" />マシン {c.device_count}</span>
-                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />ユーザー {c.user_count}</span>
+                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{t.stores} {c.store_count}</span>
+                        <span className="flex items-center gap-1"><Package className="h-4 w-4" />{t.machines} {c.device_count}</span>
+                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{t.users} {c.user_count}</span>
                         <Button
                           variant="outline"
                           size="sm"
@@ -161,10 +164,10 @@ export default function CustomersPage() {
                           ) : (
                             <UserCog className="h-3.5 w-3.5 mr-1" />
                           )}
-                          この顧客で操作
+                          {t.operateAs}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
-                          <Pencil className="h-3.5 w-3.5 mr-1" />編集
+                          <Pencil className="h-3.5 w-3.5 mr-1" />{t.edit}
                         </Button>
                         <Button
                           variant="outline"
@@ -172,7 +175,7 @@ export default function CustomersPage() {
                           className="text-destructive hover:text-destructive"
                           onClick={() => setDeleteTarget(c)}
                         >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />削除
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />{t.delete}
                         </Button>
                       </div>
                     </div>
@@ -217,6 +220,7 @@ function DeleteCustomerDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = usePageT(customersDict);
   const [confirmText, setConfirmText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,21 +248,21 @@ function DeleteCustomerDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>顧客を削除</DialogTitle>
+          <DialogTitle>{t.deleteTitle}</DialogTitle>
           <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <div className="space-y-1">
-              <div><strong>{target.name}</strong> を削除します。この操作は取り消せません。</div>
-              <div>付随する店舗（{target.store_count}）・管理ユーザ（{target.user_count}）も一緒に削除されます。</div>
+              <div><strong>{target.name}</strong>{t.deletePre}</div>
+              <div>{t.deleteStoresUsers(target.store_count, target.user_count)}</div>
               {hasDevices && (
-                <div>この顧客には端末が {target.device_count} 台あります。端末・売上のある顧客はサーバ側の保護により削除できません（先に端末の付け替え・削除が必要）。</div>
+                <div>{t.deleteHasDevices(target.device_count)}</div>
               )}
             </div>
           </div>
-          <Field label={`確認のため顧客名「${target.name}」を入力`}>
+          <Field label={t.confirmNameLabel(target.name)}>
             <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={target.name} />
           </Field>
           {error && (
@@ -269,9 +273,9 @@ function DeleteCustomerDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>キャンセル</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>{t.cancel}</Button>
           <Button variant="destructive" onClick={remove} disabled={!canDelete}>
-            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}削除する
+            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{t.doDelete}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -280,6 +284,7 @@ function DeleteCustomerDialog({
 }
 
 function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const t = usePageT(customersDict);
   const [step, setStep] = useState(1);
 
   // Step1 顧客
@@ -340,22 +345,22 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
   }
 
   function validate(): string | null {
-    if (!custName.trim()) return '顧客名は必須です';
+    if (!custName.trim()) return t.nameRequired;
     for (const d of devices) {
       /* === S161 onboard existing === */
       if (d.source_mode === 'existing') {
-        if (!d.existing_device_id) return '「自社ストックから選択」の端末が未選択です';
-        if (d.is_master && newDeviceCount > 0) return '新規登録の端末があるため、既存端末を master にはできません（master は新規端末から選んでください）';
+        if (!d.existing_device_id) return t.stockNotSelected;
+        if (d.is_master && newDeviceCount > 0) return t.existingCantMaster;
         continue;
       }
-      if (!d.name.trim() || !d.serial.trim()) return '全端末の名前・シリアルは必須です';
+      if (!d.name.trim() || !d.serial.trim()) return t.nameSerialRequired;
     }
     const serials = devices.filter((d) => d.source_mode === 'new').map((d) => d.serial.trim());
-    if (new Set(serials).size !== serials.length) return '端末シリアルが重複しています';
+    if (new Set(serials).size !== serials.length) return t.serialDuplicate;
     if (devices.length >= 2 && masterCount > 1)
-      return 'master 端末は1台だけ指定してください（連結しない場合はmaster無しでOK）';
-    if (!email.trim()) return '管理者メールは必須です';
-    if (password.length < 8) return 'パスワードは8文字以上です';
+      return t.oneMasterOnly;
+    if (!email.trim()) return t.adminEmailRequired;
+    if (password.length < 8) return t.passwordMin;
     return null;
   }
 
@@ -390,7 +395,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
         group: willGroup
           ? {
               id: undefined,
-              name: groupName.trim() || `${custName.trim()} 連動`,
+              name: groupName.trim() || `${custName.trim()}${t.linkedSuffix}`,
               linked: true,
               effect_enabled_default: true,
             }
@@ -423,7 +428,7 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
       setResult(res);
       onCreated();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '登録に失敗しました';
+      const msg = e instanceof Error ? e.message : t.registerFailed;
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -436,16 +441,16 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
       <Dialog open onOpenChange={onClose}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>登録完了</DialogTitle>
+            <DialogTitle>{t.registerDone}</DialogTitle>
             <DialogDescription>
-              管理者パスワードはこの画面でしか表示されません。閉じる前に控えてください。
+              {t.passwordOnceNote}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
               <div className="flex items-center gap-2 font-medium text-amber-800">
                 <AlertTriangle className="h-4 w-4" />
-                管理者パスワード
+                {t.adminPassword}
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <code className="rounded bg-white px-2 py-1 font-mono">{password}</code>
@@ -462,20 +467,20 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
                 </Button>
               </div>
               <p className="mt-2 text-xs text-amber-700">
-                先方管理者（{email}）へ安全な経路で伝達してください。
+                {t.deliverNote(email)}
               </p>
             </div>
             <dl className="grid grid-cols-[130px_1fr] gap-y-1 font-mono text-xs">
               <dt className="text-muted-foreground">customer_id</dt><dd>{result.customer_id}</dd>
               <dt className="text-muted-foreground">store_ids</dt><dd>{result.store_ids.join(', ')}</dd>
-              <dt className="text-muted-foreground">device_ids</dt><dd>{result.device_ids.join(', ') || '（なし）'}</dd>
-              <dt className="text-muted-foreground">group_id</dt><dd>{result.group_id || '（なし）'}</dd>
-              <dt className="text-muted-foreground">master</dt><dd>{result.master_device_id || '（なし）'}</dd>
+              <dt className="text-muted-foreground">device_ids</dt><dd>{result.device_ids.join(', ') || t.none}</dd>
+              <dt className="text-muted-foreground">group_id</dt><dd>{result.group_id || t.none}</dd>
+              <dt className="text-muted-foreground">master</dt><dd>{result.master_device_id || t.none}</dd>
               <dt className="text-muted-foreground">admin_user_id</dt><dd>{result.admin_user_id}</dd>
             </dl>
           </div>
           <DialogFooter>
-            <Button onClick={onClose}>閉じる</Button>
+            <Button onClick={onClose}>{t.close}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -489,16 +494,16 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            新規顧客登録（{step}/3）
+            {t.wizardTitle(step)}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           {step === 1 && (
             <section className="space-y-3">
-              <h3 className="font-medium">Step1 顧客</h3>
-              <Field label="顧客名 *">
-                <Input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="秋田県男鹿市役所" />
+              <h3 className="font-medium">{t.step1}</h3>
+              <Field label={t.custNameLabel}>
+                <Input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder={t.custNamePlaceholder} />
               </Field>
             </section>
           )}
@@ -506,15 +511,15 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
           {step === 2 && (
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Step2 端末</h3>
+                <h3 className="font-medium">{t.step2}</h3>
                 <Button variant="outline" size="sm" onClick={addDevice}>
-                  <Plus className="mr-1 h-4 w-4" />端末を追加
+                  <Plus className="mr-1 h-4 w-4" />{t.addDevice}
                 </Button>
               </div>
               {devices.map((d, i) => (
                 <div key={i} className="rounded-md border p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">端末 {i + 1}</span>
+                    <span className="text-sm font-medium">{t.deviceN(i + 1)}</span>
                     {devices.length > 1 && (
                       <Button variant="ghost" size="sm" onClick={() => removeDevice(i)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
@@ -527,33 +532,33 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
                       type="button"
                       onClick={() => setDevice(i, { source_mode: 'new' })}
                       className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'new' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
-                    >新規登録</button>
+                    >{t.newReg}</button>
                     <button
                       type="button"
                       onClick={() => setDevice(i, { source_mode: 'existing' })}
                       className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'existing' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
-                    >自社ストックから選択</button>
+                    >{t.fromStock}</button>
                   </div>
 
                   {d.source_mode === 'new' ? (
                     <>
-                      <Field label="端末ID（任意）">
+                      <Field label={t.deviceIdLabel}>
                         <Input value={d.id} onChange={(e) => setDevice(i, { id: e.target.value })} placeholder={`dev_oga_0${i + 1}`} />
                       </Field>
-                      <Field label="端末名 *">
-                        <Input value={d.name} onChange={(e) => setDevice(i, { name: e.target.value })} placeholder={`男鹿市役所 #${i + 1}`} />
+                      <Field label={t.deviceNameLabel}>
+                        <Input value={d.name} onChange={(e) => setDevice(i, { name: e.target.value })} placeholder={t.deviceNamePlaceholder(i + 1)} />
                       </Field>
-                      <Field label="シリアル *">
+                      <Field label={t.serialLabel}>
                         <Input value={d.serial} onChange={(e) => setDevice(i, { serial: e.target.value })} placeholder={`SN-OGA-0${i + 1}`} />
                       </Field>
                     </>
                   ) : (
-                    <Field label="自社ストックの端末 *">
+                    <Field label={t.stockDeviceLabel}>
                       <Select value={d.existing_device_id} onValueChange={(v) => setDevice(i, { existing_device_id: v })}>
-                        <SelectTrigger><SelectValue placeholder={stockDevices.length ? '端末を選択' : '自社ストックがありません'} /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={stockDevices.length ? t.selectDevice : t.noStock} /></SelectTrigger>
                         <SelectContent>
                           {stockDevices.map((sd) => (
-                            <SelectItem key={sd.id} value={sd.id}>{sd.name}（{sd.serial}{sd.store_name ? ` / ${sd.store_name}` : ''}）</SelectItem>
+                            <SelectItem key={sd.id} value={sd.id}>{t.stockOption(sd.name, sd.serial, sd.store_name ? ` / ${sd.store_name}` : '')}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -564,21 +569,21 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
                     <>
                       <label className="flex items-center gap-2 text-sm">
                         <Checkbox checked={d.is_master} onCheckedChange={(c) => setMaster(c === true ? i : -1)} />
-                        master（チェックした端末を基準に連動グループを自動作成）
+                        {t.masterCheckbox}
                       </label>
                       {d.source_mode === 'existing' && d.is_master && newDeviceCount > 0 && (
-                        <p className="text-[11px] text-red-500">新規端末があるため既存端末は master にできません（master は新規から選択）。</p>
+                        <p className="text-[11px] text-red-500">{t.existingCantMasterHint}</p>
                       )}
                     </>
                   )}
                 </div>
               ))}
               {devices.length >= 2 && masterCount > 1 && (
-                <p className="text-xs text-red-500">master 端末は1台だけにしてください（現在 {masterCount} 台）。連結しない場合はmaster無しでOK。</p>
+                <p className="text-xs text-red-500">{t.masterOneHint(masterCount)}</p>
               )}
               {willGroup && (
-                <Field label="連動グループ名（任意）">
-                  <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder={`${custName || '顧客'} 連動`} />
+                <Field label={t.groupNameLabel}>
+                  <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder={t.groupNamePlaceholder(custName || t.customerFallback)} />
                 </Field>
               )}
             </section>
@@ -586,15 +591,15 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
 
           {step === 3 && (
             <section className="space-y-3">
-              <h3 className="font-medium">Step3 管理者（先方・lv2_admin）</h3>
-              <Field label="メール *">
+              <h3 className="font-medium">{t.step3}</h3>
+              <Field label={t.emailLabel}>
                 <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="oga-admin@example.jp" />
               </Field>
-              <Field label="初期パスワード（8文字以上）*">
+              <Field label={t.passwordLabel}>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
               </Field>
               <p className="text-xs text-muted-foreground">
-                role は lv2_admin 固定（運営権限 lv1_super は付与しません）。
+                {t.roleNote}
               </p>
             </section>
           )}
@@ -608,13 +613,13 @@ function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated:
 
         <DialogFooter className="flex items-center justify-between">
           <Button variant="outline" onClick={() => (step > 1 ? setStep(step - 1) : onClose())}>
-            {step > 1 ? '戻る' : 'キャンセル'}
+            {step > 1 ? t.back : t.cancel}
           </Button>
           {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)}>次へ</Button>
+            <Button onClick={() => setStep(step + 1)}>{t.next}</Button>
           ) : (
             <Button onClick={submit} disabled={submitting}>
-              {submitting ? '作成中…' : 'オンボード実行'}
+              {submitting ? t.creating : t.runOnboard}
             </Button>
           )}
         </DialogFooter>
@@ -632,6 +637,7 @@ function EditCustomerDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = usePageT(customersDict);
   const [name, setName] = useState(target.name);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -655,11 +661,11 @@ function EditCustomerDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>顧客情報を編集</DialogTitle>
+          <DialogTitle>{t.editTitle}</DialogTitle>
           <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <Field label="顧客名">
+          <Field label={t.custNameLabelPlain}>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
           </Field>
           {error && (
@@ -670,9 +676,9 @@ function EditCustomerDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>キャンセル</Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>{t.cancel}</Button>
           <Button onClick={save} disabled={!canSave}>
-            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}保存
+            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{t.save}
           </Button>
         </DialogFooter>
       </DialogContent>

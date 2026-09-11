@@ -17,10 +17,15 @@ import {
 import { tokenStore, type StoredUser } from '@/lib/token-store';
 import { auth } from '@/lib/api';
 import { MobileNav } from '@/components/layout/mobile-nav';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { LocaleBootstrap } from '@/components/LocaleBootstrap';
+import { usePageT } from '@/i18n/usePageT';
+import { headerDict } from '@/i18n/ns/header';
 
 export function Header({ title, breadcrumb }: { title: string; breadcrumb?: string[] }) {
   const router = useRouter();
   const [user, setUser] = useState<StoredUser | null>(null);
+  const t = usePageT(headerDict);
 
   useEffect(() => {
     const u = tokenStore.getUser();
@@ -44,7 +49,7 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
     router.replace('/login');
   };
 
-  const displayName = user?.customer_name || user?.name || (false ? '運営 太郎' : 'ゲスト');
+  const displayName = user?.customer_name || user?.name || (false ? '運営 太郎' : t.guest);
   const initial = displayName.slice(0, 1);
 
   return (
@@ -73,13 +78,15 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
         <div className="relative hidden md:block">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="検索 (端末名、注文ID, ...)"
+            placeholder={t.searchPlaceholder}
             className="w-[280px] pl-8 h-8 text-xs bg-background/60"
           />
           <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 px-1 items-center rounded border text-[10px] text-muted-foreground bg-muted">
             ⌘K
           </kbd>
         </div>
+        <LocaleBootstrap userId={user?.id ?? null} />
+        <LanguageSwitcher />
         <AlertCenter />
 
         <DropdownMenu>
@@ -104,18 +111,18 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push('/settings')}>
               <UserIcon className="h-3.5 w-3.5 mr-2" />
-              プロフィール
+              {t.profile}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push('/settings')}>
               <SettingsIcon className="h-3.5 w-3.5 mr-2" />
-              設定
+              {t.settings}
             </DropdownMenuItem>
             {!false && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className="text-destructive">
                   <LogOut className="h-3.5 w-3.5 mr-2" />
-                  ログアウト
+                  {t.logout}
                 </DropdownMenuItem>
               </>
             )}

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, tokenStore } from '@/lib/api';
 import { UserCog, LogOut } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { impersonationBannerDict } from '@/i18n/ns/impersonationBanner';
 
 /**
  * S157: shown across every authenticated page while the operator (lv1_super)
@@ -12,13 +14,14 @@ import { UserCog, LogOut } from 'lucide-react';
  */
 export function ImpersonationBanner() {
   const router = useRouter();
+  const t = usePageT(impersonationBannerDict);
   const [name, setName] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
       if (tokenStore.isImpersonating()) {
         const u = tokenStore.getUser();
-        setName(u?.name ?? u?.email ?? '別アカウント');
+        setName(u?.name ?? u?.email ?? impersonationBannerDict.ja.otherAccount);
       } else {
         setName(null);
       }
@@ -43,7 +46,7 @@ export function ImpersonationBanner() {
       <div className="flex items-center gap-2 text-destructive">
         <UserCog className="h-4 w-4 shrink-0" />
         <span>
-          現在 <span className="font-semibold">{name}</span> として操作中です（運営による成り代わり）
+          {t.asPrefix}<span className="font-semibold">{name}</span>{t.asSuffix}
         </span>
       </div>
       <button
@@ -51,7 +54,7 @@ export function ImpersonationBanner() {
         className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
       >
         <LogOut className="h-3.5 w-3.5" />
-        運営に戻る
+        {t.returnToOperator}
       </button>
     </div>
   );

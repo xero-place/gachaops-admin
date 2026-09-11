@@ -33,6 +33,8 @@ import {
   Clock,
 } from 'lucide-react';
 import type { ApkRelease } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { apkDict } from '@/i18n/ns/apk';
 
 const CHANNEL_VARIANT: Record<string, 'ok' | 'warn' | 'muted'> = {
   Production: 'ok',
@@ -47,6 +49,7 @@ function apkVcOf(appver?: string | null): number | null {
 }
 
 export default function ApkPage() {
+  const t = usePageT(apkDict);
   // S225: OTA配信は運営(lv1_super)専用。顧客アカウントは直リンクでも閲覧不可。
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => { setRole(tokenStore.getUser()?.role ?? null); }, []);
@@ -74,11 +77,11 @@ export default function ApkPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function handleUpload() {
-    if (!upFile) { setUploadError('APKファイルを選択してください'); return; }
+    if (!upFile) { setUploadError(t.selectApkFile); return; }
     const vname = upVersionName.trim();
     const vcodeNum = parseInt(upVersionCode.trim(), 10);
-    if (!vname) { setUploadError('versionName を入力してください'); return; }
-    if (!Number.isInteger(vcodeNum) || vcodeNum < 1) { setUploadError('versionCode は1以上の整数で入力してください'); return; }
+    if (!vname) { setUploadError(t.enterVersionName); return; }
+    if (!Number.isInteger(vcodeNum) || vcodeNum < 1) { setUploadError(t.enterVersionCode); return; }
     const fd = new FormData();
     fd.append('file', upFile);
     fd.append('version_name', vname);
@@ -90,31 +93,27 @@ export default function ApkPage() {
     setUploadError(null);
     try {
       await api.post('/apk/releases/upload', fd);
-      alert(`アップロードしました（${vname} / vc${vcodeNum} / ${upChannel}）`);
+      alert(t.uploadedMsg(vname, vcodeNum, upChannel));
       window.location.reload();
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
-      setUploadError(`アップロードに失敗しました: ${msg}`);
+      setUploadError(t.uploadFailedMsg(msg));
       setUploading(false);
     }
   }
 
   async function handleRollback(apk: ApkRelease) {
-    const ok = window.confirm(
-      `「${apk.version_name}」を1つ前のバージョンに戻します。\n` +
-      `戻り先はサーバが同チャンネルの直前バージョンを自動選択します（force install）。\n` +
-      `対象端末: dev_test_101\n\n実行しますか？`
-    );
+    const ok = window.confirm(t.rollbackConfirm(apk.version_name));
     if (!ok) return;
     try {
       const res = await api.post<{ task_id: string; rollback_to_release_id: string; target_count: number }>(
         `/apk/releases/${apk.id}/rollback`,
         { target: { device_ids: ['dev_test_101'] } },
       );
-      alert(`ロールバックタスクを作成しました（対象 ${res.target_count} 台 / 戻り先 ${res.rollback_to_release_id}）`);
+      alert(t.rollbackCreated(res.target_count, res.rollback_to_release_id));
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
-      alert(`ロールバックに失敗しました: ${msg}`);
+      alert(t.rollbackFailed(msg));
     }
   }
 
@@ -125,7 +124,7 @@ export default function ApkPage() {
       target = { all: true };
     } else if (distributeMode === 'group') {
       const gid = groupIdInput.trim();
-      if (!gid) { setDistributeError('グループIDを入力してください'); return; }
+      if (!gid) { setDistributeError(t.enterGroupId); return; }
       target = { group_id: gid };
     } else if (distributeMode === 'online_outdated') {
       // オンライン かつ このAPK未適用(versionCode未満 or 不明)の端末に一括
@@ -134,10 +133,10 @@ export default function ApkPage() {
         .filter((d) => d.status === 'online')
         .filter((d) => { const vc = apkVcOf(d.app_version); return vc === null || vc < tvc; })
         .map((d) => d.id);
-      if (ids.length === 0) { setDistributeError('対象（オンラインかつ未適用）の端末がありません'); return; }
+      if (ids.length === 0) { setDistributeError(t.noOnlineOutdated); return; }
       target = { device_ids: ids };
     } else {
-      if (selectedDeviceIds.length === 0) { setDistributeError('端末を1つ以上選択してください'); return; }
+      if (selectedDeviceIds.length === 0) { setDistributeError(t.selectAtLeastOne); return; }
       target = { device_ids: selectedDeviceIds };
     }
     setDistributing(true);
@@ -147,11 +146,11 @@ export default function ApkPage() {
         `/apk/releases/${distributeTarget.id}/distribute`,
         { target },
       );
-      alert(`配信タスクを作成しました（対象 ${res.target_count} 台）`);
+      alert(t.distributeCreated(res.target_count));
       setDistributeTarget(null);
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
-      setDistributeError(`配信に失敗しました: ${msg}`);
+      setDistributeError(t.distributeFailed(msg));
     } finally {
       setDistributing(false);
     }
@@ -187,7 +186,7 @@ export default function ApkPage() {
 
   if (loading) {
     return (
-      <AppShell title="APK 配布" breadcrumb={['ホーム', 'APK']}>
+      <AppShell title={t.loadingTitle} breadcrumb={[t.home, t.apkBc]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -197,20 +196,20 @@ export default function ApkPage() {
 
   if (role !== null && !isSuper) {
     return (
-      <AppShell title="APK リリース" breadcrumb={['ホーム', 'APK']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.apkBc]}>
         <div className="py-20 text-center text-sm text-muted-foreground">
-          このページは運営（lv1_super）専用です。端末のアップデート配信は運営側で行います。
+          {t.accessDenied}
         </div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell title="APK リリース" breadcrumb={['ホーム', 'APK']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.apkBc]}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{apkReleases.length} リリース</p>
+        <p className="text-sm text-muted-foreground">{t.releaseCount(apkReleases.length)}</p>
         <Button size="sm" className="gap-1.5" onClick={() => { setUploadError(null); setUploadOpen(true); }}>
-          <Upload className="h-3.5 w-3.5" />新規アップロード
+          <Upload className="h-3.5 w-3.5" />{t.newUpload}
         </Button>
       </div>
 
@@ -230,12 +229,12 @@ export default function ApkPage() {
                       <Badge variant={CHANNEL_VARIANT[apk.channel]}>{apk.channel}</Badge>
                       {isLatest && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-violet-500/40 ring-1 ring-violet-300/50">
-                          ★ 最新
+                          {t.latestBadge}
                         </span>
                       )}
                       {apk.signed && (
                         <Badge variant="ok" className="gap-1 text-[10px]">
-                          <CheckCircle2 className="h-2.5 w-2.5" />署名済
+                          <CheckCircle2 className="h-2.5 w-2.5" />{t.signedBadge}
                         </Badge>
                       )}
                     </div>
@@ -245,11 +244,11 @@ export default function ApkPage() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDistributeTarget(apk)}>
-                      <Send className="h-3.5 w-3.5" />配信
+                      <Send className="h-3.5 w-3.5" />{t.distribute}
                     </Button>
                     {!isLatest && (
                       <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleRollback(apk)}>
-                        <RotateCcw className="h-3.5 w-3.5" />ロールバック
+                        <RotateCcw className="h-3.5 w-3.5" />{t.rollback}
                       </Button>
                     )}
                   </div>
@@ -266,34 +265,34 @@ export default function ApkPage() {
                 <div className="space-y-2 text-xs">
                   {(() => {
                     const targets = apk.delivery_targets ?? [];
-                    const done = targets.filter((t) => t.status === 'completed').length;
+                    const done = targets.filter((tg) => tg.status === 'completed').length;
                     const stMap: Record<string, { label: string; cls: string }> = {
-                      completed: { label: '完了', cls: 'bg-emerald-500/15 text-emerald-500' },
-                      installing: { label: '更新中', cls: 'bg-blue-500/15 text-blue-500' },
-                      pending: { label: '配信中', cls: 'bg-amber-500/15 text-amber-500' },
-                      failed: { label: '失敗', cls: 'bg-red-500/15 text-red-500' },
+                      completed: { label: t.stCompleted, cls: 'bg-emerald-500/15 text-emerald-500' },
+                      installing: { label: t.stInstalling, cls: 'bg-blue-500/15 text-blue-500' },
+                      pending: { label: t.stPending, cls: 'bg-amber-500/15 text-amber-500' },
+                      failed: { label: t.stFailed, cls: 'bg-red-500/15 text-red-500' },
                     };
                     return (
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">配信先</span>
+                          <span className="text-muted-foreground">{t.deliveryTargets}</span>
                           {targets.length > 0 ? (
-                            <span className="text-[10.5px] font-medium tabular-nums text-muted-foreground">{done}/{targets.length} 完了</span>
+                            <span className="text-[10.5px] font-medium tabular-nums text-muted-foreground">{t.doneCount(done, targets.length)}</span>
                           ) : (
-                            <span className="text-[10.5px] text-muted-foreground">未配信</span>
+                            <span className="text-[10.5px] text-muted-foreground">{t.notDistributed}</span>
                           )}
                         </div>
                         {targets.length > 0 && (
                           <div className="max-h-36 overflow-y-auto rounded-md border divide-y">
-                            {targets.map((t) => {
-                              const st = stMap[t.status] ?? { label: t.status, cls: 'bg-muted text-muted-foreground' };
+                            {targets.map((tg) => {
+                              const st = stMap[tg.status] ?? { label: tg.status, cls: 'bg-muted text-muted-foreground' };
                               return (
-                                <div key={t.device_id} className="flex items-center gap-1.5 px-2 py-1.5">
-                                  <span className="font-medium truncate">{t.device_name ?? t.device_id}</span>
+                                <div key={tg.device_id} className="flex items-center gap-1.5 px-2 py-1.5">
+                                  <span className="font-medium truncate">{tg.device_name ?? tg.device_id}</span>
                                   {/* S230: customer_id(cust_demo等)は不要なので非表示 */}
                                   <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${st.cls}`}>{st.label}</span>
-                                  {t.status === 'failed' && t.error_message && (
-                                    <span className="shrink-0 font-mono text-[9px] text-red-400/90 truncate max-w-[160px]" title={t.error_message}>{t.error_message}</span>
+                                  {tg.status === 'failed' && tg.error_message && (
+                                    <span className="shrink-0 font-mono text-[9px] text-red-400/90 truncate max-w-[160px]" title={tg.error_message}>{tg.error_message}</span>
                                   )}
                                 </div>
                               );
@@ -304,7 +303,7 @@ export default function ApkPage() {
                     );
                   })()}
                   <div className="flex items-center justify-between text-muted-foreground pt-1">
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />アップロード</span>
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{t.uploadLabel}</span>
                     <span>{fmtRelative(apk.uploaded_at)}</span>
                   </div>
                   <div className="text-[10.5px] text-muted-foreground">
@@ -320,9 +319,9 @@ export default function ApkPage() {
       <Dialog open={distributeTarget !== null} onOpenChange={(o) => !o && setDistributeTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>APK 配信</DialogTitle>
+            <DialogTitle>{t.distributeDialogTitle}</DialogTitle>
             <DialogDescription>
-              端末への配信タスクを作成します。実際の配信は端末のアイドル時に順次行われます。
+              {t.distributeDialogDesc}
             </DialogDescription>
           </DialogHeader>
           {distributeTarget && (
@@ -332,14 +331,14 @@ export default function ApkPage() {
                 <div className="text-muted-foreground">versionCode {distributeTarget.version_code} · {fmtBytes(distributeTarget.size)}</div>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium">配信モード</label>
+                <label className="text-xs font-medium">{t.distributeModeLabel}</label>
                 <Select value={distributeMode} onValueChange={(v) => { setDistributeMode(v); setDistributeError(null); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="device">特定端末（端末ID指定）</SelectItem>
-                    <SelectItem value="online_outdated">オンライン かつ 未適用の端末に一括</SelectItem>
-                    <SelectItem value="group">特定グループ</SelectItem>
-                    <SelectItem value="all">全端末に即時配信</SelectItem>
+                    <SelectItem value="device">{t.modeDevice}</SelectItem>
+                    <SelectItem value="online_outdated">{t.modeOnlineOutdated}</SelectItem>
+                    <SelectItem value="group">{t.modeGroup}</SelectItem>
+                    <SelectItem value="all">{t.modeAll}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -347,19 +346,19 @@ export default function ApkPage() {
               {distributeMode === 'device' && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium">配信する端末を選択</label>
+                    <label className="text-xs font-medium">{t.selectDevices}</label>
                     <div className="flex gap-2">
                       <button type="button" className="text-[10.5px] text-primary hover:underline"
-                        onClick={() => setSelectedDeviceIds(apkDevices.map((d) => d.id))}>全選択</button>
+                        onClick={() => setSelectedDeviceIds(apkDevices.map((d) => d.id))}>{t.selectAll}</button>
                       <button type="button" className="text-[10.5px] text-primary hover:underline"
-                        onClick={() => setSelectedDeviceIds(apkDevices.filter((d) => d.status === 'online').map((d) => d.id))}>オンラインのみ</button>
+                        onClick={() => setSelectedDeviceIds(apkDevices.filter((d) => d.status === 'online').map((d) => d.id))}>{t.onlineOnly}</button>
                       <button type="button" className="text-[10.5px] text-muted-foreground hover:underline"
-                        onClick={() => setSelectedDeviceIds([])}>解除</button>
+                        onClick={() => setSelectedDeviceIds([])}>{t.deselect}</button>
                     </div>
                   </div>
                   <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
                     {apkDevices.length === 0 && (
-                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">端末がありません</div>
+                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">{t.noDevices}</div>
                     )}
                     {[...apkDevices].sort((a, b) => (a.status === 'online' ? 0 : 1) - (b.status === 'online' ? 0 : 1)).map((d) => {
                       const checked = selectedDeviceIds.includes(d.id);
@@ -374,14 +373,14 @@ export default function ApkPage() {
                           <span className={online ? 'text-emerald-500' : 'text-muted-foreground'}>{online ? '●' : '○'}</span>
                           <span className="font-medium">{d.name ?? d.id}</span>
                           {outdated
-                            ? <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">要更新</span>
-                            : <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-medium">最新</span>}
+                            ? <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">{t.needsUpdate}</span>
+                            : <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-medium">{t.upToDate}</span>}
                           <span className="ml-auto font-mono text-[10px] text-muted-foreground">{d.id}</span>
                         </label>
                       );
                     })}
                   </div>
-                  <p className="text-[10.5px] text-muted-foreground">{selectedDeviceIds.length} 台選択中</p>
+                  <p className="text-[10.5px] text-muted-foreground">{t.selectedCount(selectedDeviceIds.length)}</p>
                 </div>
               )}
 
@@ -391,31 +390,31 @@ export default function ApkPage() {
                   .filter((d) => { const vc = apkVcOf(d.app_version); return distributeTarget != null && (vc === null || vc < distributeTarget.version_code); });
                 return (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium">対象: オンライン かつ このAPK未適用の端末</label>
+                    <label className="text-xs font-medium">{t.onlineOutdatedTargets}</label>
                     <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
                       {targets.length === 0 && (
-                        <div className="px-3 py-2 text-[10.5px] text-muted-foreground">対象の端末はありません（オンライン端末はすべて適用済み）</div>
+                        <div className="px-3 py-2 text-[10.5px] text-muted-foreground">{t.noOnlineOutdatedInline}</div>
                       )}
                       {targets.map((d) => (
                         <div key={d.id} className="flex items-center gap-2 px-3 py-2 text-xs">
                           <span className="text-emerald-500">●</span>
                           <span className="font-medium">{d.name ?? d.id}</span>
-                          <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">要更新</span>
+                          <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-medium">{t.needsUpdate}</span>
                           <span className="ml-auto font-mono text-[10px] text-muted-foreground">{d.id}</span>
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10.5px] text-muted-foreground">{targets.length} 台に配信します（オンラインのみ・適用済みは除外）</p>
+                    <p className="text-[10.5px] text-muted-foreground">{t.willDistributeOnline(targets.length)}</p>
                   </div>
                 );
               })()}
 
               {distributeMode === 'group' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">配信するグループを選択</label>
+                  <label className="text-xs font-medium">{t.selectGroup}</label>
                   <div className="max-h-52 overflow-y-auto rounded-md border divide-y">
                     {apkGroups.length === 0 && (
-                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">グループがありません</div>
+                      <div className="px-3 py-2 text-[10.5px] text-muted-foreground">{t.noGroups}</div>
                     )}
                     {apkGroups.map((g) => {
                       const sel = groupIdInput === g.id;
@@ -428,18 +427,18 @@ export default function ApkPage() {
                           {g.customer_id && (
                             <span className="font-mono text-[10px] text-amber-500/80">{g.customer_id}</span>
                           )}
-                          <span className="ml-auto text-[10px] text-muted-foreground">{memberCount} 台</span>
+                          <span className="ml-auto text-[10px] text-muted-foreground">{t.memberCount(memberCount)}</span>
                         </label>
                       );
                     })}
                   </div>
-                  <p className="text-[10.5px] text-muted-foreground">グループ内の全メンバー端末に配信されます</p>
+                  <p className="text-[10.5px] text-muted-foreground">{t.groupDistributeNote}</p>
                 </div>
               )}
 
               {distributeMode === 'all' && (
                 <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
-                  ⚠️ 全登録端末に即時配信されます。端末ごとの現行バージョンや稼働状況に関わらず一斉に上書きOTAが走ります。本当に全端末で良いか確認してください。
+                  {t.allWarning}
                 </div>
               )}
 
@@ -451,10 +450,10 @@ export default function ApkPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDistributeTarget(null); setDistributeError(null); }} disabled={distributing}>キャンセル</Button>
+            <Button variant="outline" onClick={() => { setDistributeTarget(null); setDistributeError(null); }} disabled={distributing}>{t.cancel}</Button>
             <Button onClick={handleDistribute} disabled={distributing} className="gap-1.5">
               {distributing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              配信タスクを作成
+              {t.createDistributeTask}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -463,14 +462,14 @@ export default function ApkPage() {
       <Dialog open={uploadOpen} onOpenChange={(o) => { if (!uploading) { setUploadOpen(o); if (!o) setUploadError(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>APK 新規アップロード</DialogTitle>
+            <DialogTitle>{t.uploadDialogTitle}</DialogTitle>
             <DialogDescription>
-              APKバイナリとメタ情報を登録します。versionCode は重複できません。
+              {t.uploadDialogDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">APKファイル</label>
+              <label className="text-xs font-medium">{t.apkFile}</label>
               <input
                 type="file"
                 accept=".apk,application/vnd.android.package-archive"
@@ -507,29 +506,29 @@ export default function ApkPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">チャンネル</label>
+              <label className="text-xs font-medium">{t.channel}</label>
               <Select value={upChannel} onValueChange={setUpChannel}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staging">staging（検証用・推奨）</SelectItem>
+                  <SelectItem value="staging">{t.chStaging}</SelectItem>
                   <SelectItem value="beta">beta</SelectItem>
-                  <SelectItem value="production">production（本番）</SelectItem>
+                  <SelectItem value="production">{t.chProduction}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">リリースノート（任意）</label>
+              <label className="text-xs font-medium">{t.releaseNotes}</label>
               <textarea
                 value={upNotes}
                 onChange={(e) => setUpNotes(e.target.value)}
                 rows={2}
-                placeholder="変更点の概要"
+                placeholder={t.notesPlaceholder}
                 className="w-full rounded-md border bg-background px-3 py-2 text-xs"
               />
             </div>
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={upSigned} onChange={(e) => setUpSigned(e.target.checked)} />
-              署名済み（signed）としてマークする
+              {t.markSigned}
             </label>
             {uploadError && (
               <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
@@ -538,10 +537,10 @@ export default function ApkPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setUploadOpen(false); setUploadError(null); }} disabled={uploading}>キャンセル</Button>
+            <Button variant="outline" onClick={() => { setUploadOpen(false); setUploadError(null); }} disabled={uploading}>{t.cancel}</Button>
             <Button onClick={handleUpload} disabled={uploading} className="gap-1.5">
               {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              アップロード
+              {t.upload}
             </Button>
           </DialogFooter>
         </DialogContent>

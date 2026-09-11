@@ -38,8 +38,11 @@ type Task = {
 };
 import { fmtDate, fmtRelative } from '@/lib/format';
 import { Search, Activity, Plus } from 'lucide-react';
+import { usePageT } from '@/i18n/usePageT';
+import { tasksDict } from '@/i18n/ns/tasks';
 
 export default function TasksPage() {
+  const t = usePageT(tasksDict);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -75,7 +78,7 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <AppShell title="APK履歴" breadcrumb={['ホーム', 'APK履歴']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -85,13 +88,13 @@ export default function TasksPage() {
 
 
   return (
-    <AppShell title="APK履歴" breadcrumb={['ホーム', 'APK履歴']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <Card className="mb-4">
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="タスク名またはペイロード名で検索..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -99,7 +102,7 @@ export default function TasksPage() {
           </div>
           <div className="ml-auto" />
           <Button size="sm" className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" />新規タスク
+            <Plus className="h-3.5 w-3.5" />{t.newTask}
           </Button>
         </CardContent>
       </Card>
@@ -108,13 +111,13 @@ export default function TasksPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>タスク</TableHead>
-              <TableHead>ペイロード</TableHead>
-              <TableHead>状態</TableHead>
-              <TableHead>進捗</TableHead>
-              <TableHead>予定/開始</TableHead>
-              <TableHead>作成者</TableHead>
-              <TableHead className="text-right">作成</TableHead>
+              <TableHead>{t.colTask}</TableHead>
+              <TableHead>{t.colPayload}</TableHead>
+              <TableHead>{t.colStatus}</TableHead>
+              <TableHead>{t.colProgress}</TableHead>
+              <TableHead>{t.colScheduled}</TableHead>
+              <TableHead>{t.colCreatedBy}</TableHead>
+              <TableHead className="text-right">{t.colCreated}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

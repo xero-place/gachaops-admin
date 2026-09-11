@@ -1348,31 +1348,34 @@ export default function DeviceDetailPage() {
                         </Button>
                       </div>
 
-                      {/* 在庫を設定・補充 */}
+                      {/* 在庫を設定・補充（S235: フリーモード中はグレーアウトして操作不可） */}
                       <div className="border-t pt-4 space-y-3">
-                        <div className="text-sm font-medium">{tp.setRefill}</div>
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className={machine.free_mode ? 'text-sm font-medium text-muted-foreground' : 'text-sm font-medium'}>{tp.setRefill}</div>
+                        <div className={machine.free_mode ? 'grid gap-3 sm:grid-cols-3 opacity-60' : 'grid gap-3 sm:grid-cols-3'}>
                           <div className="space-y-1">
                             <label htmlFor="st-total" className="text-xs text-muted-foreground">{tp.fullCount}</label>
                             <input id="st-total" type="number" inputMode="numeric" min={0} max={100}
-                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              disabled={!!machine.free_mode}
+                              className={'w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm ' + (machine.free_mode ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-transparent')}
                               value={stockTotal} onChange={(e) => setStockTotal(e.target.value)} />
                           </div>
                           <div className="space-y-1">
                             <label htmlFor="st-remain" className="text-xs text-muted-foreground">{tp.currentCount}</label>
                             <input id="st-remain" type="number" inputMode="numeric" min={0} max={100}
-                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              disabled={!!machine.free_mode}
+                              className={'w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm ' + (machine.free_mode ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-transparent')}
                               value={stockRemaining} onChange={(e) => setStockRemaining(e.target.value)} />
                           </div>
                           <div className="space-y-1">
                             <label htmlFor="st-thr" className="text-xs text-muted-foreground">{tp.lowStockLine}</label>
                             <input id="st-thr" type="number" inputMode="numeric"
-                              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+                              disabled={!!machine.free_mode}
+                              className={'w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm ' + (machine.free_mode ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-transparent')}
                               value={stockThreshold} onChange={(e) => setStockThreshold(e.target.value)} />
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" size="sm" disabled={stockSaving}
+                          <Button variant="outline" size="sm" disabled={stockSaving || !!machine.free_mode}
                             onClick={() => {
                               const t = parseInt(stockTotal, 10);
                               if (!Number.isNaN(t)) {
@@ -1382,10 +1385,13 @@ export default function DeviceDetailPage() {
                             }}>
                             {tp.fillUp}
                           </Button>
-                          <Button size="sm" disabled={stockSaving} onClick={() => saveStock()}>
+                          <Button size="sm" disabled={stockSaving || !!machine.free_mode} onClick={() => saveStock()}>
                             {stockSaving ? tp.saving : tp.saveButton}
                           </Button>
                         </div>
+                        {machine.free_mode && (
+                          <p className="text-xs text-muted-foreground">{tp.freeModeLocked}</p>
+                        )}
                         {stockMsg && (
                           <p className="text-xs text-muted-foreground">{stockMsg}</p>
                         )}

@@ -1,0 +1,28 @@
+export const powerScheduleDict = {
+  ja: {
+    loading: "読み込み中…",
+    intro: "曜日ごとに営業時間を設定します。営業時間外は自動で「営業時間外モード」（メッセージ表示／真っ暗）になり、QR決済停止・ミュートされます。チェックを外した曜日はスケジュール対象外（終日通常運転）です。",
+    weekdays: ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as string[],
+    open: "営業",
+    offMessage: "時間外: メッセージ表示",
+    offBlackout: "時間外: 真っ暗",
+    savedMsg: "✅ 営業時間スケジュールを保存しました",
+    saveFailed: (msg: string) => `❌ 保存失敗: ${msg}`,
+    unknownError: "不明",
+    saving: "保存中…",
+    saveBtn: "スケジュールを保存",
+  },
+  en: {
+    loading: "Loading…",
+    intro: "Set business hours for each day of the week. Outside business hours the device automatically enters \"after-hours mode\" (message display / blackout), with QR payment stopped and audio muted. Unchecked days are excluded from the schedule (normal operation all day).",
+    weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as string[],
+    open: "Open",
+    offMessage: "After hours: show message",
+    offBlackout: "After hours: blackout",
+    savedMsg: "✅ Business-hours schedule saved",
+    saveFailed: (msg: string) => `❌ Save failed: ${msg}`,
+    unknownError: "Unknown",
+    saving: "Saving…",
+    saveBtn: "Save schedule",
+  },
+} as const;

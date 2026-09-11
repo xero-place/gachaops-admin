@@ -22,11 +22,19 @@ export type Reservation = {
   program_name: string;
 };
 
-// "M月D日 H:MM" 形式（予約表示用）
+// "M月D日 H:MM"（日本語）/ "M/D HH:MM"（英語）形式（予約表示用）
+import { useLocale } from '@/store/useLocale';
+
 export function fmtReservation(iso: string): string {
   try {
     const d = new Date(iso);
-    return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    let en = false;
+    try { en = useLocale.getState().locale === 'en'; } catch { en = false; }
+    return en
+      ? `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`
+      : `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`;
   } catch {
     return iso;
   }

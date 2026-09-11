@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
+import { usePageT } from '@/i18n/usePageT';
+import { wsConsoleDict } from '@/i18n/ns/wsConsole';
 
 type Device = {
   id: string;
@@ -62,6 +64,7 @@ const TEMPLATES: CommandTemplate[] = [
 ];
 
 export default function WsConsolePage() {
+  const t = usePageT(wsConsoleDict);
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState('');
 
@@ -99,8 +102,8 @@ export default function WsConsolePage() {
 
   const onTemplateChange = (type: string) => {
     setCommandType(type);
-    const t = TEMPLATES.find((x) => x.type === type);
-    if (t) setPayload(JSON.stringify(t.payload, null, 2));
+    const tpl = TEMPLATES.find((x) => x.type === type);
+    if (tpl) setPayload(JSON.stringify(tpl.payload, null, 2));
   };
 
   const connect = () => {
@@ -148,7 +151,7 @@ export default function WsConsolePage() {
   const clearLogs = () => setLogs([]);
 
   return (
-    <AppShell title="WSデバッグコンソール" breadcrumb={['ホーム', 'WSデバッグコンソール']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <Card>
@@ -156,11 +159,11 @@ export default function WsConsolePage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <TerminalSquare className="h-3.5 w-3.5" />
-                  端末メッセージログ
-                  {connected && <Badge variant="ok" className="gap-1"><span className="live-dot" />接続中</Badge>}
+                  {t.messageLog}
+                  {connected && <Badge variant="ok" className="gap-1"><span className="live-dot" />{t.connected}</Badge>}
                 </CardTitle>
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={clearLogs}>
-                  <Trash2 className="h-3 w-3" />クリア
+                  <Trash2 className="h-3 w-3" />{t.clear}
                 </Button>
               </div>
             </CardHeader>
@@ -168,7 +171,7 @@ export default function WsConsolePage() {
               <div ref={logRef} className="h-[480px] overflow-y-auto p-4 font-mono text-[11px] space-y-2 bg-muted/20">
                 {logs.length === 0 && (
                   <div className="text-center text-muted-foreground py-12 font-sans">
-                    まだメッセージがありません。「接続」してコマンドを送信してください
+                    {t.noMessages}
                   </div>
                 )}
                 {logs.map((log) => (
@@ -181,10 +184,10 @@ export default function WsConsolePage() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-sm">接続</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t.connection}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-xs">対象端末</Label>
+                <Label className="text-xs">{t.targetDevice}</Label>
                 <Select value={selectedDevice} onValueChange={setSelectedDevice} disabled={connected}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -196,32 +199,32 @@ export default function WsConsolePage() {
               </div>
               {connected ? (
                 <Button variant="outline" className="w-full gap-1.5" onClick={disconnect}>
-                  <WifiOff className="h-3.5 w-3.5" />切断
+                  <WifiOff className="h-3.5 w-3.5" />{t.disconnect}
                 </Button>
               ) : (
                 <Button className="w-full gap-1.5" onClick={connect}>
-                  <Wifi className="h-3.5 w-3.5" />接続 (シミュレーション)
+                  <Wifi className="h-3.5 w-3.5" />{t.connectSim}
                 </Button>
               )}
               <p className="text-[11px] text-muted-foreground">
-                ※ ローカルシミュレーター。実 WSサーバには接続しません
+                {t.simNote}
               </p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm">コマンド送信</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t.sendCommand}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-xs">テンプレート</Label>
+                <Label className="text-xs">{t.template}</Label>
                 <Select value={commandType} onValueChange={onTemplateChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {TEMPLATES.map((t) => (
-                      <SelectItem key={t.type} value={t.type}>
+                    {TEMPLATES.map((tpl) => (
+                      <SelectItem key={tpl.type} value={tpl.type}>
                         <div>
-                          <div className="text-sm">{t.type}</div>
-                          <div className="text-[10px] text-muted-foreground">{t.description}</div>
+                          <div className="text-sm">{tpl.type}</div>
+                          <div className="text-[10px] text-muted-foreground">{t.templateDesc[tpl.type] ?? tpl.description}</div>
                         </div>
                       </SelectItem>
                     ))}
@@ -229,7 +232,7 @@ export default function WsConsolePage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs">payload (JSON)</Label>
+                <Label className="text-xs">{t.payload}</Label>
                 <textarea
                   className="w-full h-32 rounded-md border bg-background px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-ring"
                   value={payload}
@@ -237,7 +240,7 @@ export default function WsConsolePage() {
                 />
               </div>
               <Button className="w-full gap-1.5" onClick={sendCommand} disabled={!connected}>
-                <Send className="h-3.5 w-3.5" />送信
+                <Send className="h-3.5 w-3.5" />{t.send}
               </Button>
             </CardContent>
           </Card>

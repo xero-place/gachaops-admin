@@ -12,14 +12,22 @@ import type { Store, Device } from '@/types/domain';
 import { tokenStore } from '@/lib/token-store';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { usePageT } from '@/i18n/usePageT';
+import { useLocale } from '@/store/useLocale';
+import { devicesMapDict } from '@/i18n/ns/devicesMap';
 
 
 const LeafletMap = dynamic(() => import('./leaflet-map'), {
   ssr: false,
-  loading: () => <div className="h-[600px] flex items-center justify-center text-muted-foreground text-sm">地図を読み込み中…</div>,
+  loading: () => {
+    const locale = useLocale.getState().locale;
+    const msg = locale === 'en' ? devicesMapDict.en.loading : devicesMapDict.ja.loading;
+    return <div className="h-[600px] flex items-center justify-center text-muted-foreground text-sm">{msg}</div>;
+  },
 });
 
 export default function DevicesMapPage() {
+  const t = usePageT(devicesMapDict);
   const [stores, setStores] = useState<Store[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [locating, setLocating] = useState(false);
@@ -53,7 +61,7 @@ export default function DevicesMapPage() {
     setLocateMsg(null);
     try {
       const res = await api.post<{ requested: number; total: number }>('/devices/locate-all');
-      setLocateMsg(`${res.requested}台に測位指示を送信。反映を待っています…`);
+      setLocateMsg(t.locateSent(res.requested));
       // 端末がスキャン→報告するのを待ってからリフレッシュ（2回）
       setTimeout(() => { loadData(); }, 4000);
       setTimeout(() => {
@@ -64,7 +72,7 @@ export default function DevicesMapPage() {
       }, 9000);
     } catch (e) {
       console.warn('locate-all failed:', e);
-      setLocateMsg('測位指示の送信に失敗しました');
+      setLocateMsg(t.locateFailed);
     } finally {
       setLocating(false);
     }
@@ -75,10 +83,10 @@ export default function DevicesMapPage() {
   // 運営(lv1_super)専用ページ。顧客アカウント(成り代わり含む)には非表示 = 直URLでもガード。
   if (!isSuperAdmin) {
     return (
-      <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.devices, t.map]}>
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            このページは運営専用です。
+            {t.operatorOnly}
           </CardContent>
         </Card>
       </AppShell>
@@ -86,7 +94,7 @@ export default function DevicesMapPage() {
   }
 
   return (
-    <AppShell title="端末マップ" breadcrumb={['ホーム', '端末', 'マップ']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.devices, t.map]}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card>
@@ -99,12 +107,12 @@ export default function DevicesMapPage() {
                       onClick={handleLocateAll}
                       disabled={locating}
                       className="h-9 px-3 flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm text-xs font-medium disabled:opacity-60"
-                      aria-label="位置を一括取得"
+                      aria-label={t.locateAll}
                     >
                       {locating
                         ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         : <MapPin className="h-3.5 w-3.5" />}
-                      位置を一括取得
+                      {t.locateAll}
                     </button>
                     {locateMsg && (
                       <span className="text-xs text-muted-foreground">
@@ -120,13 +128,13 @@ export default function DevicesMapPage() {
                 {/* 凡例 */}
                 <div className="absolute bottom-2 left-2 z-[500] text-[11px] text-muted-foreground bg-card/90 rounded px-2 py-1.5 space-y-0.5 pointer-events-none border border-border">
                   <div className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#10b981' }} />現在地（オンライン）
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#10b981' }} />{t.legendOnline}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#f59e0b' }} />オフライン
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#f59e0b' }} />{t.legendOffline}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#9ca3af' }} />最終位置（測位が古い）
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#9ca3af' }} />{t.legendStale}
                   </div>
                 </div>
               </div>
@@ -137,7 +145,7 @@ export default function DevicesMapPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">店舗一覧</CardTitle>
+              <CardTitle className="text-sm">{t.storeList}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ul className="divide-y">
@@ -156,8 +164,8 @@ export default function DevicesMapPage() {
                           <span className="text-sm font-medium">{s.name}</span>
                           <div className="text-[11px] text-muted-foreground">{s.prefecture}</div>
                           <div className="flex gap-2 mt-1.5">
-                            <Badge variant="ok" className="text-[10px]">オン {online}</Badge>
-                            {offline > 0 && <Badge variant="destructive" className="text-[10px]">オフ {offline}</Badge>}
+                            <Badge variant="ok" className="text-[10px]">{t.on} {online}</Badge>
+                            {offline > 0 && <Badge variant="destructive" className="text-[10px]">{t.off} {offline}</Badge>}
                           </div>
                         </div>
                         <Link href={`/devices?store_id=${s.id}`} className="text-[11px] text-primary hover:underline shrink-0">
@@ -176,10 +184,10 @@ export default function DevicesMapPage() {
       <Dialog open={locateDone} onOpenChange={setLocateDone}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>位置情報を更新しました</DialogTitle>
+            <DialogTitle>{t.locateDoneTitle}</DialogTitle>
             <DialogDescription>
-              すべてのマシンの最新の位置情報が反映されました。
-              {locateDoneCount > 0 && `（${locateDoneCount}台に測位指示を送信）`}
+              {t.locateDoneDesc}
+              {locateDoneCount > 0 && t.locateDoneCount(locateDoneCount)}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

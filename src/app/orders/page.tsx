@@ -36,27 +36,23 @@ import { Loader2 } from 'lucide-react';
 import { fmtYen, fmtDate } from '@/lib/format';
 import { Search, Receipt, RotateCcw } from 'lucide-react';
 import type { Order, OrderStatus } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { ordersDict } from '@/i18n/ns/orders';
 
-const STATUSES: { value: OrderStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'すべての状態' },
-  { value: 'paid', label: '支払済' },
-  { value: 'pending', label: '未決済' },
-  { value: 'failed', label: '失敗' },
-  { value: 'refunded', label: '返金済' },
-  { value: 'cancelled', label: 'キャンセル' },
-];
+const STATUS_VALUES: (OrderStatus | 'all')[] = ['all', 'paid', 'pending', 'failed', 'refunded', 'cancelled'];
 
-// ★storegroup: 決済PSPの種別を日本語ラベル化。unset=QR表示のみで客が未選択(=未決済)。
-//   ApplePay/GooglePay は Stripe 経路のため、現時点ではまとめて「クレカ/Apple Pay等」。
-function providerLabel(p: string): string {
+type OrdersT = (typeof ordersDict)['ja'] | (typeof ordersDict)['en'];
+
+// ★storegroup: 決済PSPの種別をラベル化。unset=QR表示のみで客が未選択(=未決済)。
+function providerLabel(p: string, t: OrdersT): string {
   switch ((p || '').toLowerCase()) {
     case 'paypay': return 'PayPay';
     case 'veritrans': return 'PayPay(DGFT)';
     case 'paypal': return 'PayPal';
-    case 'stripe': return 'クレカ/Apple Pay等';
+    case 'stripe': return t.provStripe;
     case 'square': return 'Square';
-    case 'unset': return '未確定(選択待ち)';
-    default: return 'QR決済';
+    case 'unset': return t.provUnset;
+    default: return t.provQr;
   }
 }
 
@@ -66,6 +62,8 @@ function providerLabel(p: string): string {
 const AUTO_REFUNDABLE_PROVIDERS = new Set(['paypal', 'stripe']);
 
 export default function OrdersPage() {
+  const t = usePageT(ordersDict);
+  const statusLabelOf = (v: string) => (v === 'all' ? t.statusAll : v === 'paid' ? t.statusPaid : v === 'pending' ? t.statusPending : v === 'failed' ? t.statusFailed : v === 'refunded' ? t.statusRefunded : v === 'cancelled' ? t.statusCancelled : v);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -147,7 +145,7 @@ export default function OrdersPage() {
       setRefundTarget(null);
       setRefundReason('');
     } catch (e) {
-      setRefundError((e as Error)?.message || '返金に失敗しました');
+      setRefundError((e as Error)?.message || t.refundFailed);
     } finally {
       setRefunding(false);
     }
@@ -159,9 +157,9 @@ export default function OrdersPage() {
   const _isSuper = tokenStore.getUser()?.role === 'lv1_super';
   if (!_isSuper) {
     return (
-      <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
-          このページは運営専用です。
+          {t.operatorOnly}
         </div>
       </AppShell>
     );
@@ -169,7 +167,7 @@ export default function OrdersPage() {
 
   if (loading) {
     return (
-      <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -178,12 +176,12 @@ export default function OrdersPage() {
   }
 
   return (
-    <AppShell title="注文(QR)" breadcrumb={['ホーム', '注文(QR)']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <KpiCell label="表示中" value={totals.count.toString()} />
-        <KpiCell label="支払済" value={totals.paidCount.toString()} accent="ok" />
-        <KpiCell label="売上 (絞込分)" value={fmtYen(totals.revenue)} accent="primary" />
-        <KpiCell label="返金済" value={totals.refundedCount.toString()} accent="warn" />
+        <KpiCell label={t.kpiShown} value={totals.count.toString()} />
+        <KpiCell label={t.kpiPaid} value={totals.paidCount.toString()} accent="ok" />
+        <KpiCell label={t.kpiRevenue} value={fmtYen(totals.revenue)} accent="primary" />
+        <KpiCell label={t.kpiRefunded} value={totals.refundedCount.toString()} accent="warn" />
       </div>
 
       <Card className="mb-4">
@@ -191,7 +189,7 @@ export default function OrdersPage() {
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="注文ID / 端末名 / PayPay payment_id ..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -202,8 +200,8 @@ export default function OrdersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              {STATUS_VALUES.map((s) => (
+                <SelectItem key={s} value={s}>{statusLabelOf(s)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -212,9 +210,9 @@ export default function OrdersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全決済方法</SelectItem>
+              <SelectItem value="all">{t.allProviders}</SelectItem>
               <SelectItem value="paypay">PayPay</SelectItem>
-              <SelectItem value="cash">現金</SelectItem>
+              <SelectItem value="cash">{t.cash}</SelectItem>
             </SelectContent>
           </Select>
           <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
@@ -224,10 +222,10 @@ export default function OrdersPage() {
               onChange={(e) => setHidePlaceholders(e.target.checked)}
               className="h-3.5 w-3.5 accent-primary"
             />
-            QR表示のみの未決済を隠す
+            {t.hidePlaceholders}
           </label>
           <div className="text-xs text-muted-foreground">
-            {filtered.length} / {orders.length} 件
+            {t.itemCount(filtered.length, orders.length)}
           </div>
         </CardContent>
       </Card>
@@ -250,38 +248,38 @@ export default function OrdersPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                <span className="truncate">{providerLabel(o.payment_provider)}{o.paypay_payment_id ? ` · ${o.paypay_payment_id}` : ''}</span>
-                <span className="shrink-0">{o.paid_at ? fmtDate(o.paid_at) : <span>{fmtDate(o.created_at)} <span className="opacity-60">(作成)</span></span>}</span>
+                <span className="truncate">{providerLabel(o.payment_provider, t)}{o.paypay_payment_id ? ` · ${o.paypay_payment_id}` : ''}</span>
+                <span className="shrink-0">{o.paid_at ? fmtDate(o.paid_at) : <span>{fmtDate(o.created_at)} <span className="opacity-60">{t.created}</span></span>}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground truncate">{o.id}</span>
                 {o.status === 'paid' && (
                   AUTO_REFUNDABLE_PROVIDERS.has((o.payment_provider || '').toLowerCase()) ? (
                     <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs shrink-0" onClick={() => setRefundTarget(o)}>
-                      <RotateCcw className="h-3 w-3" />返金
+                      <RotateCcw className="h-3 w-3" />{t.refund}
                     </Button>
                   ) : (
-                    <span className="text-[10px] text-muted-foreground shrink-0">PSPで手動返金</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{t.manualRefund}</span>
                   )
                 )}
               </div>
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="text-center text-sm text-muted-foreground py-12">該当する注文がありません</div>
+            <div className="text-center text-sm text-muted-foreground py-12">{t.noOrders}</div>
           )}
         </div>
         <div className="hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>注文ID</TableHead>
-              <TableHead>店舗 / グループ / 端末</TableHead>
-              <TableHead className="text-right">金額</TableHead>
-              <TableHead>決済</TableHead>
-              <TableHead>状態</TableHead>
-              <TableHead>日時</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t.colOrderId}</TableHead>
+              <TableHead>{t.colStoreGroupDevice}</TableHead>
+              <TableHead className="text-right">{t.colAmount}</TableHead>
+              <TableHead>{t.colPayment}</TableHead>
+              <TableHead>{t.colStatus}</TableHead>
+              <TableHead>{t.colDatetime}</TableHead>
+              <TableHead className="text-right">{t.colAction}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -301,7 +299,7 @@ export default function OrdersPage() {
                   {fmtYen(o.amount_yen)}
                 </TableCell>
                 <TableCell className="text-xs">
-                  <div>{providerLabel(o.payment_provider)}</div>
+                  <div>{providerLabel(o.payment_provider, t)}</div>
                   {o.paypay_payment_id && (
                     <div className="font-mono text-[10px] text-muted-foreground">
                       {o.paypay_payment_id}
@@ -312,7 +310,7 @@ export default function OrdersPage() {
                 <TableCell className="text-xs text-muted-foreground">
                   {o.paid_at
                     ? fmtDate(o.paid_at)
-                    : <span>{fmtDate(o.created_at)}<span className="ml-1 text-[10px] opacity-60">(作成)</span></span>}
+                    : <span>{fmtDate(o.created_at)}<span className="ml-1 text-[10px] opacity-60">{t.created}</span></span>}
                 </TableCell>
                 <TableCell className="text-right">
                   {o.status === 'paid' && (
@@ -323,14 +321,14 @@ export default function OrdersPage() {
                         className="h-7 gap-1 text-xs"
                         onClick={() => setRefundTarget(o)}
                       >
-                        <RotateCcw className="h-3 w-3" />返金
+                        <RotateCcw className="h-3 w-3" />{t.refund}
                       </Button>
                     ) : (
                       <span
                         className="text-[10px] text-muted-foreground"
-                        title="この決済は自動返金に未対応です。PSP（決済代行）の管理画面から手動で返金してください。注文は課金済みのまま保持されます。"
+                        title={t.manualRefundTip}
                       >
-                        PSPで手動返金
+                        {t.manualRefund}
                       </span>
                     )
                   )}
@@ -340,7 +338,7 @@ export default function OrdersPage() {
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-12">
-                  該当する注文がありません
+                  {t.noOrders}
                 </TableCell>
               </TableRow>
             )}
@@ -349,7 +347,7 @@ export default function OrdersPage() {
         </div>
         {filtered.length > 50 && (
           <div className="border-t p-3 text-xs text-muted-foreground text-center">
-            最初の 50 件を表示中。実 API では cursor で続きを取得します
+            {t.first50Note}
           </div>
         )}
       </Card>
@@ -358,25 +356,25 @@ export default function OrdersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-4 w-4" />手動返金
+              <Receipt className="h-4 w-4" />{t.refundTitle}
             </DialogTitle>
             <DialogDescription>
-              決済PSP（Stripe / PayPal 等）へ返金（全額）を送信します。運営のみ・一度実行すると取り消せません。
+              {t.refundDesc}
             </DialogDescription>
           </DialogHeader>
           {refundTarget && (
             <div className="space-y-3 py-2">
               <div className="rounded-md border bg-muted/40 p-3 space-y-1 text-xs">
-                <div className="flex justify-between"><span className="text-muted-foreground">注文ID</span><span className="font-mono">{refundTarget.id}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">商品</span><span>{refundTarget.product_name}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">金額</span><span className="tabular-nums font-medium">{fmtYen(refundTarget.amount_yen)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">決済ID</span><span className="font-mono text-[10px]">{refundTarget.paypay_payment_id}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t.fieldOrderId}</span><span className="font-mono">{refundTarget.id}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t.fieldProduct}</span><span>{refundTarget.product_name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t.fieldAmount}</span><span className="tabular-nums font-medium">{fmtYen(refundTarget.amount_yen)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{t.fieldPaymentId}</span><span className="font-mono text-[10px]">{refundTarget.paypay_payment_id}</span></div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reason">返金理由 (任意・監査ログに記録)</Label>
+                <Label htmlFor="reason">{t.reasonLabel}</Label>
                 <Input
                   id="reason"
-                  placeholder="例: 商品取出し不良"
+                  placeholder={t.reasonPlaceholder}
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value)}
                 />
@@ -387,8 +385,8 @@ export default function OrdersPage() {
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{refundError}</div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRefundTarget(null)} disabled={refunding}>キャンセル</Button>
-            <Button variant="destructive" onClick={submitRefund} disabled={refunding}>{refunding ? '返金中…' : '返金する'}</Button>
+            <Button variant="outline" onClick={() => setRefundTarget(null)} disabled={refunding}>{t.cancel}</Button>
+            <Button variant="destructive" onClick={submitRefund} disabled={refunding}>{refunding ? t.refunding : t.doRefund}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

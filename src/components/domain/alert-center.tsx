@@ -4,6 +4,10 @@ import { useState, useMemo } from 'react';
 import { useAdminAlerts, type AdminAlert } from '@/lib/use-admin-alerts';
 import { Bell, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePageT } from '@/i18n/usePageT';
+import { alertCenterDict } from '@/i18n/ns/alertCenter';
+
+type AlertT = (typeof alertCenterDict)['ja'] | (typeof alertCenterDict)['en'];
 
 /**
  * Tier 2-G: Alert center - shows recent admin alerts.
@@ -14,6 +18,7 @@ import { Button } from '@/components/ui/button';
  * - Live updates via WebSocket
  */
 export function AlertCenter() {
+  const t = usePageT(alertCenterDict);
   const { alerts, connected, clear } = useAdminAlerts();
   const [open, setOpen] = useState(false);
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
@@ -45,7 +50,7 @@ export function AlertCenter() {
         size="sm"
         onClick={handleOpen}
         className="relative h-8 w-8 p-0"
-        title={connected ? 'アラートセンター (接続中)' : 'アラートセンター (切断中)'}
+        title={connected ? t.centerConnected : t.centerDisconnected}
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
@@ -66,14 +71,14 @@ export function AlertCenter() {
           <div className="flex items-center justify-between border-b px-3 py-2">
             <div className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
-              <span className="text-sm font-medium">アラート ({alerts.length})</span>
+              <span className="text-sm font-medium">{t.alerts} ({alerts.length})</span>
               {connected ? (
                 <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] text-green-700 dark:text-green-400">
-                  接続中
+                  {t.connected}
                 </span>
               ) : (
                 <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-[10px] text-yellow-700 dark:text-yellow-400">
-                  再接続中
+                  {t.reconnecting}
                 </span>
               )}
             </div>
@@ -85,7 +90,7 @@ export function AlertCenter() {
                   onClick={clear}
                   className="h-7 text-xs"
                 >
-                  クリア
+                  {t.clear}
                 </Button>
               )}
               <Button
@@ -101,10 +106,10 @@ export function AlertCenter() {
           <div className="max-h-96 overflow-y-auto">
             {sortedAlerts.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
-                アラートはありません
+                {t.none}
               </div>
             ) : (
-              sortedAlerts.map((alert) => <AlertItem key={alert.alert_id} alert={alert} />)
+              sortedAlerts.map((alert) => <AlertItem key={alert.alert_id} alert={alert} t={t} />)
             )}
           </div>
         </div>
@@ -113,7 +118,7 @@ export function AlertCenter() {
   );
 }
 
-function AlertItem({ alert }: { alert: AdminAlert }) {
+function AlertItem({ alert, t }: { alert: AdminAlert; t: AlertT }) {
   const Icon =
     alert.severity === 'critical'
       ? AlertCircle
@@ -127,9 +132,9 @@ function AlertItem({ alert }: { alert: AdminAlert }) {
       ? 'text-yellow-500'
       : 'text-blue-500';
 
-  const dateStr = new Date(alert.ts_ms).toLocaleTimeString('ja-JP');
+  const dateStr = new Date(alert.ts_ms).toLocaleTimeString(t.locale);
 
-  const description = formatAlertDescription(alert);
+  const description = formatAlertDescription(alert, t);
 
   return (
     <div className="border-b px-3 py-2 last:border-b-0">
@@ -137,7 +142,7 @@ function AlertItem({ alert }: { alert: AdminAlert }) {
         <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${iconClass}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium truncate">{kindToLabel(alert.kind)}</span>
+            <span className="text-sm font-medium truncate">{kindToLabel(alert.kind, t)}</span>
             <span className="text-[10px] text-muted-foreground flex-shrink-0">{dateStr}</span>
           </div>
           {description && (
@@ -149,22 +154,14 @@ function AlertItem({ alert }: { alert: AdminAlert }) {
   );
 }
 
-function kindToLabel(kind: string): string {
-  const map: Record<string, string> = {
-    memory_warning: 'メモリ使用量警告',
-    memory_critical: 'メモリ使用量危険',
-    force_refresh: '強制リフレッシュ実行',
-    emergency_stop: '緊急停止実行',
-    drift_detected: '同期ずれ検出',
-    drift_corrected: '同期ずれ自動修正',
-  };
-  return map[kind] ?? kind;
+function kindToLabel(kind: string, t: AlertT): string {
+  return t.kinds[kind] ?? kind;
 }
 
-function formatAlertDescription(alert: AdminAlert): string {
+function formatAlertDescription(alert: AdminAlert, t: AlertT): string {
   const p = alert.payload;
   if (alert.kind === 'memory_warning' || alert.kind === 'memory_critical') {
-    return `${p.device_id ?? '?'}: ${p.memory_mb ?? '?'}MB (閾値 ${p.threshold_mb ?? '?'}MB)`;
+    return `${p.device_id ?? '?'}: ${p.memory_mb ?? '?'}MB (${t.threshold} ${p.threshold_mb ?? '?'}MB)`;
   }
   if (p.device_id) return `${p.device_id}`;
   return '';

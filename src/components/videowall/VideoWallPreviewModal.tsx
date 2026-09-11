@@ -16,6 +16,8 @@
 //   の比率で元動画自然解像度へ写像）。実機と 1px もズレない。
 
 import { useMemo, useEffect, useState, useRef, useCallback } from "react";
+import { usePageT } from "@/i18n/usePageT";
+import { videoWallPreviewDict } from "@/i18n/ns/videoWallPreview";
 
 // 実機写真 634x880 上で測ったモニター四隅（px）
 const IMGW = 524;
@@ -88,6 +90,7 @@ export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
   sourceUrl, realBezelPx = 0,
 }: Props) {
+  const tr = usePageT(videoWallPreviewDict);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -218,18 +221,16 @@ export default function VideoWallPreviewModal({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#e8eaf0" }}>
-          実機投影プレビュー（{rows}行 × {cols}列 / {rows * cols}台）
+          {tr.title(rows, cols, rows * cols)}
         </h3>
         <button type="button" onClick={onClose}
           style={{ background: "transparent", border: "none", color: "#8b94a6", fontSize: 20, lineHeight: 1, cursor: "pointer" }}>×</button>
       </div>
       <p style={{ margin: "0 0 4px", color: "#8b94a6", fontSize: 11 }}>
-        設定した行×列ぶんの実機に、分割映像を投影した様子です。モニター部分のみ映像が流れます。
+        {tr.desc}
       </p>
       <p style={{ margin: "0 0 12px", color: useReal ? "#7cc555" : "#e0a23a", fontSize: 11 }}>
-        {useReal
-          ? `実効果プレビュー：ベゼル ${bz}px ぶん隣の映像が画面の裏に隠れ、並べると連続して見えます。`
-          : "（元動画が取得できないため、焼き済みタイルで表示中。ベゼルの実効果は分割後に反映されます。）"}
+        {useReal ? tr.realNote(bz) : tr.fallbackNote}
       </p>
 
       {/* S160: 実効果モードで全タイルが共有する唯一の再生ソース（画面外・非表示） */}

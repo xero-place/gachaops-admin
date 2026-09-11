@@ -6,52 +6,35 @@ import type {
   OrderStatus,
 } from '@/types/domain';
 import { cn } from '@/lib/utils';
-
-const DEVICE_LABELS: Record<DeviceStatus, string> = {
-  online: 'オンライン',
-  offline: 'オフライン',
-  maintenance: '保守中',
-  never_connected: '未接続',
-};
+import { usePageT } from '@/i18n/usePageT';
+import { statusBadgesDict } from '@/i18n/ns/statusBadges';
 
 export function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
+  const t = usePageT(statusBadgesDict);
   if (status === 'online') {
     return (
       <Badge variant="ok" className="gap-1.5 whitespace-nowrap">
         <span className="live-dot" />
-        {DEVICE_LABELS.online}
+        {t.device.online}
       </Badge>
     );
   }
-  if (status === 'maintenance') return <Badge variant="warn">{DEVICE_LABELS.maintenance}</Badge>;
-  if (status === 'offline') return <Badge variant="destructive">{DEVICE_LABELS.offline}</Badge>;
-  return <Badge variant="muted">{DEVICE_LABELS.never_connected}</Badge>;
+  if (status === 'maintenance') return <Badge variant="warn">{t.device.maintenance}</Badge>;
+  if (status === 'offline') return <Badge variant="destructive">{t.device.offline}</Badge>;
+  return <Badge variant="muted">{t.device.never_connected}</Badge>;
 }
 
-const PLAY_LABELS: Record<PlayMode, string> = {
-  plan: '計画配信中',
-  manual: '手動再生中',
-  idle: '待機',
-};
 export function PlayModeBadge({ mode }: { mode: PlayMode }) {
+  const t = usePageT(statusBadgesDict);
   const cls =
     mode === 'plan'
       ? 'bg-blue-500/15 text-blue-400 border-transparent'
       : mode === 'manual'
         ? 'bg-purple-500/15 text-purple-400 border-transparent'
         : 'bg-muted text-muted-foreground border-transparent';
-  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs', cls)}>{PLAY_LABELS[mode]}</span>;
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs', cls)}>{t.play[mode]}</span>;
 }
 
-const TASK_LABELS: Record<TaskStatus, string> = {
-  draft: '下書き',
-  scheduled: '予約',
-  distributing: '配信中',
-  completed: '完了',
-  partial_success: '一部成功',
-  failed: '失敗',
-  cancelled: 'キャンセル',
-};
 const TASK_VARIANT: Record<TaskStatus, 'default' | 'ok' | 'warn' | 'destructive' | 'muted' | 'secondary'> = {
   draft: 'muted',
   scheduled: 'secondary',
@@ -62,17 +45,10 @@ const TASK_VARIANT: Record<TaskStatus, 'default' | 'ok' | 'warn' | 'destructive'
   cancelled: 'muted',
 };
 export function TaskStatusBadge({ status }: { status: TaskStatus }) {
-  return <Badge variant={TASK_VARIANT[status]}>{TASK_LABELS[status]}</Badge>;
+  const t = usePageT(statusBadgesDict);
+  return <Badge variant={TASK_VARIANT[status]}>{t.task[status]}</Badge>;
 }
 
-const ORDER_LABELS: Record<OrderStatus, string> = {
-  pending: '未決済',
-  paid: '支払済',
-  failed: '失敗',
-  cancelled: 'キャンセル',
-  refunded: '返金済',
-  expired: '期限切れ',
-};
 const ORDER_VARIANT: Record<OrderStatus, 'default' | 'ok' | 'warn' | 'destructive' | 'muted' | 'secondary'> = {
   pending: 'warn',
   paid: 'ok',
@@ -82,5 +58,6 @@ const ORDER_VARIANT: Record<OrderStatus, 'default' | 'ok' | 'warn' | 'destructiv
   expired: 'muted',
 };
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  return <Badge variant={ORDER_VARIANT[status]}>{ORDER_LABELS[status]}</Badge>;
+  const t = usePageT(statusBadgesDict);
+  return <Badge variant={ORDER_VARIANT[status]}>{t.order[status]}</Badge>;
 }
