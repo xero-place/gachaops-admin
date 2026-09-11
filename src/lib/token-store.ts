@@ -20,6 +20,8 @@ export interface StoredUser {
   customer_name?: string;
   role: string;
   two_factor_enabled: boolean;
+  /** S236: 店舗限定アカウントなら店舗ID。顧客の大元アカウントは null/undefined。 */
+  store_id?: string | null;
 }
 
 function isClient(): boolean {
