@@ -466,6 +466,8 @@ export interface GachaMachine {
   draw_count: number;
   status: string;
   last_refilled_at?: string | null;
+  /** S235 フリーモード: 在庫0でも演出を流し続ける */
+  free_mode?: boolean;
 }
 
 /**

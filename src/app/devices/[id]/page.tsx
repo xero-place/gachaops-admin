@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { tokenStore } from '@/lib/token-store';
 import { useT } from '@/i18n/useT';
+import { usePageT } from '@/i18n/usePageT';
+import { deviceDetailDict } from '@/i18n/ns/deviceDetail';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DrawOrderMappingEditor } from '@/components/domain/draw-order-mapping-editor';
 import {
@@ -108,6 +110,7 @@ export default function DeviceDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { t, locale, formatPrice } = useT();
+  const tp = usePageT(deviceDetailDict);
   // S144: 端末削除(危険ゾーン)
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -159,7 +162,7 @@ export default function DeviceDetailPage() {
       );
       setProvCode(res.provisioning_code);
     } catch (e) {
-      window.alert('コード発行に失敗しました: ' + (e instanceof Error ? e.message : String(e)));
+      window.alert(tp.provIssueFailed(e instanceof Error ? e.message : String(e)));
     } finally {
       setProvIssuing(false);
     }
@@ -185,9 +188,7 @@ export default function DeviceDetailPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // orders RESTRICT 等で失敗した場合
-      setDeleteError(
-        '削除に失敗しました。この端末に売上記録がある場合は削除できません。（' + msg + '）'
-      );
+      setDeleteError(tp.deleteFailed(msg));
       setDeleting(false);
     }
   };
@@ -202,7 +203,7 @@ export default function DeviceDetailPage() {
         prev ? { ...prev, ...(type === 'set_volume' ? { volume: value } : { brightness: value }) } : prev
       );
     } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '送信に失敗しました');
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : tp.sendFailed);
     } finally {
       setSaving(false);
     }
@@ -217,7 +218,7 @@ export default function DeviceDetailPage() {
       await api.post(`/devices/${params.id}/commands`, { type: 'set_display_mode', payload: { mode } });
       setDisplayMode(mode);
     } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '送信に失敗しました');
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : tp.sendFailed);
     } finally {
       setSavingDisplayMode(false);
     }
@@ -292,7 +293,7 @@ export default function DeviceDetailPage() {
       }>(`/devices/${params.id}/reassign-preview`);
       setRePreview(pv);
     } catch (e) {
-      setReErr(e instanceof ApiError ? e.message : '取得に失敗しました');
+      setReErr(e instanceof ApiError ? e.message : tp.fetchFailed);
     }
   }, [params.id]);
 
@@ -304,7 +305,7 @@ export default function DeviceDetailPage() {
       setReDone(true);
       setTimeout(() => window.location.reload(), 800);
     } catch (e) {
-      setReErr(e instanceof ApiError ? e.message : '付け替えに失敗しました');
+      setReErr(e instanceof ApiError ? e.message : tp.reassignFailed);
     } finally {
       setReBusy(false);
     }
@@ -322,7 +323,7 @@ export default function DeviceDetailPage() {
       await api.patch(`/devices/${params.id}/qr_enabled`, { qr_enabled: next });
       setBaseDetail((prev) => (prev ? { ...prev, qr_enabled: next } : prev));
     } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : tp.saveFailed);
     } finally {
       setSavingQr(false);
     }
@@ -335,7 +336,7 @@ export default function DeviceDetailPage() {
       await api.patch(`/devices/${params.id}/qr_locale`, { qr_locale: next });
       setBaseDetail((prev) => (prev ? { ...prev, qr_locale: next } : prev));
     } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : tp.saveFailed);
     } finally {
       setSavingLocale(false);
     }
@@ -346,7 +347,7 @@ export default function DeviceDetailPage() {
     if (raw === '') return;
     const unit = parseInt(raw, 10);
     if (!Number.isFinite(unit) || unit < 1) {
-      alert('1パルス単価は1以上の整数で入力してください');
+      alert(tp.pulseUnitInvalid);
       return;
     }
     if (unit === (baseDetail?.pulse_unit_yen ?? 100)) return; // 変化なしは保存しない
@@ -355,7 +356,7 @@ export default function DeviceDetailPage() {
       await api.patch(`/devices/${params.id}/pulse_unit_yen`, { pulse_unit_yen: unit });
       setBaseDetail((prev) => (prev ? { ...prev, pulse_unit_yen: unit } : prev));
     } catch (e) {
-      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : '保存に失敗しました');
+      alert(e instanceof ApiError ? (e.problem.detail || e.problem.title) : tp.saveFailed);
     } finally {
       setSavingPulseUnit(false);
     }
@@ -403,9 +404,9 @@ export default function DeviceDetailPage() {
     setOffhoursBusy(true);
     try {
       await api.post(`/devices/${detail.id}/commands`, { type: 'enter_offhours', payload: { off_mode: mode } });
-      window.alert(mode === 'blackout' ? '🌑 真っ暗モードにしました' : '🌙 営業時間外メッセージを表示しました');
+      window.alert(mode === 'blackout' ? tp.blackoutDone : tp.offhoursMsgDone);
     } catch (e) {
-      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明'}`);
+      window.alert(tp.failPrefix(e instanceof Error ? e.message : tp.unknown));
     } finally {
       setOffhoursBusy(false);
     }
@@ -415,9 +416,9 @@ export default function DeviceDetailPage() {
     setOffhoursBusy(true);
     try {
       await api.post(`/devices/${detail.id}/commands`, { type: 'exit_offhours', payload: {} });
-      window.alert('☀️ 営業中に戻しました');
+      window.alert(tp.backToBusiness);
     } catch (e) {
-      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明'}`);
+      window.alert(tp.failPrefix(e instanceof Error ? e.message : tp.unknown));
     } finally {
       setOffhoursBusy(false);
     }
@@ -443,14 +444,7 @@ export default function DeviceDetailPage() {
   const [restarting, setRestarting] = useState(false);
   const handleRestartApp = async () => {
     if (restarting) return;
-    const ok = window.confirm(
-      `🔄 ${detail.name} のアプリを再起動しますか?\n\n` +
-      `この操作は:\n` +
-      `・端末の signage アプリだけを再起動\n` +
-      `・WebSocket 接続を貼り直す\n` +
-      `・プロビジョニング情報は保持（再セットアップ不要）\n\n` +
-      `配信や OTA が効かなくなった端末の復旧に使います。`
-    );
+    const ok = window.confirm(tp.restartConfirm(detail.name));
     if (!ok) return;
     setRestarting(true);
     try {
@@ -459,12 +453,12 @@ export default function DeviceDetailPage() {
         {}
       );
       if (res.accepted) {
-        window.alert(`✅ 再起動コマンドを送信しました\n端末が WS を貼り直します（数十秒）`);
+        window.alert(tp.restartSent);
       } else {
-        window.alert(`✅ 送信完了`);
+        window.alert(tp.sendComplete);
       }
     } catch (e) {
-      window.alert(`❌ 失敗: ${e instanceof Error ? e.message : '不明なエラー'}`);
+      window.alert(tp.failPrefix(e instanceof Error ? e.message : tp.unknownError));
     } finally {
       setRestarting(false);
     }
@@ -586,7 +580,7 @@ export default function DeviceDetailPage() {
       const r = override?.remaining ?? parseInt(stockRemaining, 10);
       const th = parseInt(stockThreshold, 10);
       if ((!Number.isNaN(t) && t > 100) || (!Number.isNaN(r) && r > 100)) {
-        setStockMsg('在庫数は100個までしか設定できません。');
+        setStockMsg(tp.stockMax100);
         setStockSaving(false);
         return;
       }
@@ -598,15 +592,40 @@ export default function DeviceDetailPage() {
         body,
       );
       await reloadMachine();
-      setStockMsg('在庫を更新しました。');
+      setStockMsg(tp.stockUpdated);
     } catch (e) {
       const msg =
         e instanceof ApiError
           ? e.problem.detail || e.problem.title
           : (e as Error).message;
-      setStockMsg(`更新に失敗しました: ${msg}`);
+      setStockMsg(tp.stockUpdateFailed(msg));
     } finally {
       setStockSaving(false);
+    }
+  };
+
+  // ── S235 フリーモード: 在庫0でも演出動画を流し続ける ──
+  const [freeModeSaving, setFreeModeSaving] = useState(false);
+  const toggleFreeMode = async () => {
+    if (!machine || freeModeSaving) return;
+    const next = !machine.free_mode;
+    setFreeModeSaving(true);
+    setStockMsg(null);
+    try {
+      await api.post<GachaMachine>(
+        `/gacha/devices/${params.id}/machine/free-mode`,
+        { enabled: next },
+      );
+      await reloadMachine();
+      setStockMsg(next ? tp.freeModeEnabled : tp.freeModeDisabled);
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.problem.detail || e.problem.title
+          : (e as Error).message;
+      setStockMsg(tp.freeModeFailed(msg));
+    } finally {
+      setFreeModeSaving(false);
     }
   };
 
@@ -617,10 +636,10 @@ export default function DeviceDetailPage() {
     try {
       await api.post<GachaMachine>(`/gacha/devices/${params.id}/machine/ensure`, {});
       await reloadMachine();
-      setSettingsMsg('この端末専用の設定を用意しました。');
+      setSettingsMsg(tp.settingsReady);
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
-      setSettingsMsg(`設定の用意に失敗しました: ${msg}`);
+      setSettingsMsg(tp.settingsReadyFailed(msg));
     } finally {
       setSettingsSaving(false);
     }
@@ -659,10 +678,10 @@ export default function DeviceDetailPage() {
           : []; // 受け付けない（無料ガチャ / QR専用）
       await api.put(`/devices/${params.id}/coin-settings`, { items });
       await reloadMachine();
-      setSettingsMsg('設定を保存しました。');
+      setSettingsMsg(tp.settingsSaved);
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : (e as Error).message;
-      setSettingsMsg(`保存に失敗しました: ${msg}`);
+      setSettingsMsg(tp.settingsSaveFailed(msg));
     } finally {
       setSettingsSaving(false);
     }
@@ -673,7 +692,7 @@ export default function DeviceDetailPage() {
 
   if (loading) {
     return (
-      <AppShell title="端末詳細" breadcrumb={['ホーム', '端末', params.id]}>
+      <AppShell title={tp.detailTitle} breadcrumb={[tp.home, tp.devices, params.id]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -686,7 +705,7 @@ export default function DeviceDetailPage() {
   const detail = applyOverridesToDevice(detailBase as unknown as Parameters<typeof applyOverridesToDevice>[0], overrides) as unknown as DeviceDetail;
 
   return (
-    <AppShell title={detail.name} breadcrumb={['ホーム', '端末', detail.id]}>
+    <AppShell title={detail.name} breadcrumb={[tp.home, tp.devices, detail.id]}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.common.back}</Link>
@@ -700,13 +719,13 @@ export default function DeviceDetailPage() {
             disabled={detail.status !== 'online'}
             onClick={() => setSheetOpen(true)}
           >
-            <Zap className="h-3.5 w-3.5" />映像を切替
+            <Zap className="h-3.5 w-3.5" />{tp.switchPlayback}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || capturing} onClick={handleScreenshot}>
-            <Camera className="h-3.5 w-3.5" />{capturing ? '取得中…' : 'スクリーンショット'}
+            <Camera className="h-3.5 w-3.5" />{capturing ? tp.capturing : tp.screenshot}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || restarting} onClick={handleRestartApp}>
-            <RefreshCcw className="h-3.5 w-3.5" />再起動
+            <RefreshCcw className="h-3.5 w-3.5" />{tp.restart}
           </Button>
         </div>
       </div>
@@ -722,14 +741,14 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="schedules">{t.device.tabs.powerSchedule}</TabsTrigger>
               <TabsTrigger value="history">{t.device.tabs.apkHistory}</TabsTrigger>
                 <TabsTrigger value="stock">{t.device.tabs.inventory}</TabsTrigger>
-              <TabsTrigger value="sales">売上</TabsTrigger>
+              <TabsTrigger value="sales">{tp.tabSales}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">現在の再生</CardTitle>
+                    <CardTitle className="text-sm">{tp.currentPlayback}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -739,7 +758,7 @@ export default function DeviceDetailPage() {
                         <button
                           type="button"
                           onClick={() => setVideoOpen(true)}
-                          title="クリックで映像を再生"
+                          title={tp.clickToPlay}
                           className="relative shrink-0 rounded overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary"
                         >
                           <CurrentThumb src={detail.current_program_thumbnail_url} />
@@ -753,7 +772,7 @@ export default function DeviceDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          コンテンツ容量: <span className="tabular-nums">{formatBytes(detail.current_program_size_bytes)}</span>
+                          {tp.contentSize}<span className="tabular-nums">{formatBytes(detail.current_program_size_bytes)}</span>
                         </div>
                         {playbackStates[detail.id] && (
                           <div className="mt-3 pt-3 border-t">
@@ -763,17 +782,17 @@ export default function DeviceDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">再生中のプログラムはありません</p>
+                    <p className="text-sm text-muted-foreground">{tp.noProgram}</p>
                   )}
                 </CardContent>
               </Card>
 
               <Card className="mt-4">
-                <CardHeader><CardTitle className="text-sm">リモート設定</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">{tp.remoteSettings}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <RemoteSliderRow
                     icon={<Volume2 className="h-4 w-4" />}
-                    label="音量"
+                    label={tp.volume}
                     value={detail.volume}
                     saving={savingVolume}
                     onCommit={(v) => void sendDeviceCommand('set_volume', v)}
@@ -793,16 +812,16 @@ export default function DeviceDetailPage() {
                     <div className="pt-2 border-t border-border">
                       <div className="flex items-center gap-2 mb-2">
                         <Sun className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">表示モード（屋外視認性）</span>
+                        <span className="text-sm">{tp.displayModeLabel}</span>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {([
-                          { key: 'normal', label: '通常' },
-                          { key: 'grayscale', label: '白黒' },
-                          { key: 'hc1', label: '高コントラスト 弱' },
-                          { key: 'hc2', label: '中' },
-                          { key: 'hc3', label: '強' },
-                          { key: 'hc4', label: '最強' },
+                          { key: 'normal', label: tp.dmNormal },
+                          { key: 'grayscale', label: tp.dmGrayscale },
+                          { key: 'hc1', label: tp.dmHc1 },
+                          { key: 'hc2', label: tp.dmHc2 },
+                          { key: 'hc3', label: tp.dmHc3 },
+                          { key: 'hc4', label: tp.dmHc4 },
                         ] as const).map((m) => (
                           <button
                             key={m.key}
@@ -819,7 +838,7 @@ export default function DeviceDetailPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1.5">
-                        屋外で見えにくい場合に白黒・高コントラストを試せます
+                        {tp.displayModeNote}
                       </p>
                     </div>
                   )}
@@ -830,27 +849,27 @@ export default function DeviceDetailPage() {
               {isSuperAdmin && (
               <Card className="mt-4">
                 <CardHeader>
-                  <CardTitle className="text-sm">プロビジョニングコード（端末登録用）</CardTitle>
+                  <CardTitle className="text-sm">{tp.provTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    什器のタブレットでアプリを起動し、このコードを1つ入力すると登録が完了します（サーバURL・シリアルの入力は不要）。
+                    {tp.provDesc}
                   </p>
                   {provCode ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-2xl font-bold tracking-widest tabular-nums select-all">{provCode}</span>
                         <Button size="sm" variant="outline" onClick={copyProvCode}>
-                          {provCopied ? '✓ コピー済' : 'コピー'}
+                          {provCopied ? tp.copied : tp.copy}
                         </Button>
                       </div>
-                      <p className="text-[11px] text-amber-400">⚠️ 再発行すると、以前のコードは無効になります。</p>
+                      <p className="text-[11px] text-amber-400">{tp.provReissueWarn}</p>
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">まだ発行していません。下のボタンで発行してください。</p>
+                    <p className="text-xs text-muted-foreground">{tp.provNotIssued}</p>
                   )}
                   <Button size="sm" onClick={issueProvCode} disabled={provIssuing}>
-                    {provIssuing ? '発行中…' : (provCode ? 'コードを再発行' : 'コードを発行')}
+                    {provIssuing ? tp.provIssuing : (provCode ? tp.provReissue : tp.provIssue)}
                   </Button>
                 </CardContent>
               </Card>
@@ -860,15 +879,14 @@ export default function DeviceDetailPage() {
               {isSuperAdmin && (
               <Card className="mt-4 border-red-500/40">
                 <CardHeader>
-                  <CardTitle className="text-sm text-red-400">危険ゾーン：端末の削除</CardTitle>
+                  <CardTitle className="text-sm text-red-400">{tp.dangerZone}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    この操作は取り消せません。端末を削除すると、什器・コイン設定・抽選履歴・コイン投入履歴も一緒に削除されます。
-                    売上記録（注文）がある端末は削除できません。
+                    {tp.deleteDesc}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    削除するには、確認のため端末ID <span className="font-mono text-red-400 select-all">{params.id}</span> を入力してください。
+                    {tp.deleteConfirmPre}<span className="font-mono text-red-400 select-all">{params.id}</span>{tp.deleteConfirmPost}
                   </p>
                   <input
                     type="text"
@@ -886,7 +904,7 @@ export default function DeviceDetailPage() {
                     onClick={handleDeleteDevice}
                     disabled={deleting || deleteConfirmText !== params.id}
                   >
-                    {deleting ? '削除中…' : 'この端末を削除する'}
+                    {deleting ? tp.deleting : tp.deleteButton}
                   </Button>
                 </CardContent>
               </Card>
@@ -896,50 +914,48 @@ export default function DeviceDetailPage() {
               {isSuperAdmin && (
                 <Card className="mt-4 border-amber-500/40">
                   <CardHeader>
-                    <CardTitle className="text-sm text-amber-400">運営専用：所属顧客を変更（付け替え）</CardTitle>
+                    <CardTitle className="text-sm text-amber-400">{tp.reassignTitle}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-xs text-muted-foreground">
-                      この端末を別の顧客・店舗へ付け替えます。運営（lv1_super）のみ表示されます。
-                      付け替え時、この端末の<span className="text-amber-400">抽選履歴・コイン投入履歴は削除</span>され、
-                      現在のグループからは外れます（価格設定と専用プールは新しい顧客へ引き継がれます）。
+                      {tp.reassignDescPre}<span className="text-amber-400">{tp.reassignDescStrong}</span>{tp.reassignDescPost}
                     </p>
 
                     {reDone ? (
-                      <p className="text-sm text-emerald-400">付け替えました。画面を更新します…</p>
+                      <p className="text-sm text-emerald-400">{tp.reassignDone}</p>
                     ) : (
                       <>
                         <div className="space-y-2">
                           <div>
-                            <label className="text-xs text-muted-foreground">移動先の顧客</label>
+                            <label className="text-xs text-muted-foreground">{tp.targetCustomer}</label>
                             <Select
                               value={reCustomerId}
                               onValueChange={(v) => { setReCustomerId(v); setReStoreId(''); setRePreview(null); }}
                             >
-                              <SelectTrigger><SelectValue placeholder="顧客を選択" /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder={tp.selectCustomer} /></SelectTrigger>
                               <SelectContent>
                                 {reCustList
                                   .filter((c) => c.id !== detail.customer_id)
                                   .map((c) => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}（{c.id}）</SelectItem>
+                                    <SelectItem key={c.id} value={c.id}>{tp.nameId(c.name, c.id)}</SelectItem>
                                   ))}
                               </SelectContent>
                             </Select>
                           </div>
 
                           <div>
-                            <label className="text-xs text-muted-foreground">移動先の店舗</label>
+                            <label className="text-xs text-muted-foreground">{tp.targetStore}</label>
                             <Select
                               value={reStoreId}
                               onValueChange={(v) => setReStoreId(v)}
                               disabled={!reCustomerId}
                             >
-                              <SelectTrigger><SelectValue placeholder={reCustomerId ? '店舗を選択' : '先に顧客を選択'} /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder={reCustomerId ? tp.selectStore : tp.selectCustomerFirst} /></SelectTrigger>
                               <SelectContent>
                                 {reStoreList
                                   .filter((st) => st.customer_id === reCustomerId)
                                   .map((st) => (
-                                    <SelectItem key={st.id} value={st.id}>{st.name}（{st.id}）</SelectItem>
+                                    <SelectItem key={st.id} value={st.id}>{tp.nameId(st.name, st.id)}</SelectItem>
                                   ))}
                               </SelectContent>
                             </Select>
@@ -948,18 +964,18 @@ export default function DeviceDetailPage() {
 
                         <div className="flex items-center gap-2">
                           <Button size="sm" variant="outline" onClick={() => void reLoadPreview()} disabled={!reStoreId}>
-                            影響を確認
+                            {tp.checkImpact}
                           </Button>
                         </div>
 
                         {rePreview && (
                           <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs space-y-1">
-                            <div className="text-amber-300 font-medium">この付け替えで起きること</div>
-                            <div>現在の顧客: <span className="font-mono">{rePreview.current_customer_name ?? detail.customer_id}</span></div>
-                            <div>削除される抽選履歴: <span className="tabular-nums">{rePreview.gacha_draw_count}</span> 件</div>
-                            <div>削除されるコイン投入履歴: <span className="tabular-nums">{rePreview.coin_insertion_event_count}</span> 件</div>
-                            <div>外れるグループ所属: <span className="tabular-nums">{rePreview.group_membership_count}</span> 件</div>
-                            <div>引き継ぐ価格設定: <span className="tabular-nums">{rePreview.coin_setting_count}</span> 件{rePreview.has_dedicated_pool ? '・専用プールあり' : ''}</div>
+                            <div className="text-amber-300 font-medium">{tp.whatHappens}</div>
+                            <div>{tp.currentCustomer}<span className="font-mono">{rePreview.current_customer_name ?? detail.customer_id}</span></div>
+                            <div>{tp.deletedDraws}<span className="tabular-nums">{rePreview.gacha_draw_count}</span>{tp.countUnit}</div>
+                            <div>{tp.deletedCoins}<span className="tabular-nums">{rePreview.coin_insertion_event_count}</span>{tp.countUnit}</div>
+                            <div>{tp.removedGroups}<span className="tabular-nums">{rePreview.group_membership_count}</span>{tp.countUnit}</div>
+                            <div>{tp.inheritedPricing}<span className="tabular-nums">{rePreview.coin_setting_count}</span>{tp.countUnit}{rePreview.has_dedicated_pool ? tp.hasDedicatedPool : ''}</div>
                           </div>
                         )}
 
@@ -971,10 +987,10 @@ export default function DeviceDetailPage() {
                           onClick={() => void reExecute()}
                           disabled={reBusy || !reStoreId || !rePreview}
                         >
-                          {reBusy ? '付け替え中…' : 'この端末を選択した顧客へ付け替える'}
+                          {reBusy ? tp.reassigning : tp.reassignButton}
                         </Button>
                         {!rePreview && reStoreId && (
-                          <p className="text-[11px] text-muted-foreground">※先に「影響を確認」を押してください。</p>
+                          <p className="text-[11px] text-muted-foreground">{tp.checkImpactFirst}</p>
                         )}
                       </>
                     )}
@@ -987,26 +1003,26 @@ export default function DeviceDetailPage() {
             <TabsContent value="screenshots">
               <Card className="mb-4">
                 <CardHeader>
-                  <CardTitle className="text-sm">ライブビュー（擬似リアルタイム）</CardTitle>
+                  <CardTitle className="text-sm">{tp.liveViewTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2 mb-3">
                     <Button size="sm" variant={liveOn ? 'destructive' : 'default'} onClick={toggleLive} disabled={detail.status !== 'online'}>
-                      {liveOn ? '■ ライブ停止' : '▶ ライブ開始'}
+                      {liveOn ? tp.liveStop : tp.liveStart}
                     </Button>
                     <Button size="sm" variant="outline" onClick={handleScreenshot} disabled={detail.status !== 'online' || liveOn || capturing}>
-                      {capturing ? '取得中…' : '1枚だけ取得'}
+                      {capturing ? tp.capturing : tp.captureOne}
                     </Button>
-                    {liveOn && <span className="text-xs text-muted-foreground">約2.5秒ごとに自動更新中…</span>}
+                    {liveOn && <span className="text-xs text-muted-foreground">{tp.autoUpdating}</span>}
                   </div>
                   {liveShot ? (
                     <div className="rounded-md border overflow-hidden" style={{ maxWidth: '240px' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={liveShot} alt="ライブビュー" className="w-full h-auto block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "visible"; }} />
+                      <img src={liveShot} alt={tp.liveViewAlt} className="w-full h-auto block" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "visible"; }} />
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
-                      まだ取得していません。上部の「スクリーンショット」ボタンを押してください。
+                      {tp.notCapturedYet}
                     </div>
                   )}
                 </CardContent>
@@ -1017,28 +1033,28 @@ export default function DeviceDetailPage() {
             <TabsContent value="schedules">
               <Card className="mb-4">
                 <CardHeader>
-                  <CardTitle className="text-sm">営業時間外モード（手動操作）</CardTitle>
+                  <CardTitle className="text-sm">{tp.offhoursTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground mb-3">
-                    今すぐ営業時間外にする／営業中に戻す手動操作です。スケジュールとは独立して使えます。
+                    {tp.offhoursDesc}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={() => enterOffHours('message')} disabled={detail.status !== 'online' || offhoursBusy}>
-                      🌙 営業時間外（メッセージ表示）
+                      {tp.offhoursMessage}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => enterOffHours('blackout')} disabled={detail.status !== 'online' || offhoursBusy}>
-                      🌑 営業時間外（真っ暗）
+                      {tp.offhoursBlackout}
                     </Button>
                     <Button size="sm" variant="default" onClick={exitOffHoursManual} disabled={detail.status !== 'online' || offhoursBusy}>
-                      ☀️ 営業中に戻す
+                      {tp.backToBusinessBtn}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">営業時間スケジュール（曜日ごと自動ON/OFF）</CardTitle>
+                  <CardTitle className="text-sm">{tp.powerScheduleTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <PowerScheduleEditor deviceId={detail.id} />
@@ -1048,14 +1064,14 @@ export default function DeviceDetailPage() {
 
             <TabsContent value="history">
               <Card>
-                <CardHeader><CardTitle className="text-sm">APK配信履歴</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">{tp.apkHistoryTitle}</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>タスク</TableHead>
-                        <TableHead>状態</TableHead>
-                        <TableHead>開始</TableHead>
+                        <TableHead>{tp.colTask}</TableHead>
+                        <TableHead>{tp.colStatus}</TableHead>
+                        <TableHead>{tp.colStarted}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1230,7 +1246,7 @@ export default function DeviceDetailPage() {
                 <CardContent className="p-0 space-y-4">
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
-                      この端末はまだ設定ができません（什器が未登録です）。
+                      {tp.effectsMachineMissing}
                     </p>
                   ) : !machine?.pool_id ? (
                     <div className="space-y-3">
@@ -1258,69 +1274,98 @@ export default function DeviceDetailPage() {
             <TabsContent value="stock">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">在庫（景品カプセル）</CardTitle>
+                  <CardTitle className="text-sm">{tp.stockTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
-                      この端末はまだ在庫設定ができません（什器が未登録です）。
+                      {tp.stockMachineMissing}
                     </p>
                   ) : !machine ? (
-                    <p className="text-sm text-muted-foreground">読み込み中...</p>
+                    <p className="text-sm text-muted-foreground">{tp.loading}</p>
                   ) : (
                     <>
                       {/* 現在の在庫 */}
                       <div className="text-center py-2">
                         <div className="text-4xl font-bold tabular-nums">
-                          <span className={
-                            machine.remaining_balls <= 0
-                              ? 'text-destructive'
-                              : machine.remaining_balls <= machine.low_stock_threshold
-                              ? 'text-warn'
-                              : 'text-emerald-500'
-                          }>{machine.remaining_balls}</span>
-                          <span className="text-xl text-muted-foreground"> / {machine.total_balls} 個</span>
+                          {machine.free_mode ? (
+                            /* S235: フリーモード中は個数のかわりに Free と表示 */
+                            <span className="text-primary">{tp.freeModeBadge}</span>
+                          ) : (
+                            <>
+                              <span className={
+                                machine.remaining_balls <= 0
+                                  ? 'text-destructive'
+                                  : machine.remaining_balls <= machine.low_stock_threshold
+                                  ? 'text-warn'
+                                  : 'text-emerald-500'
+                              }>{machine.remaining_balls}</span>
+                              <span className="text-xl text-muted-foreground"> / {machine.total_balls}{tp.pcsSuffix}</span>
+                            </>
+                          )}
                         </div>
                         <div className="mt-3 h-3 w-full max-w-md mx-auto rounded-full bg-muted overflow-hidden">
                           <div
                             className={
-                              machine.remaining_balls <= machine.low_stock_threshold
+                              machine.free_mode
+                                ? 'h-full bg-primary-grad'
+                                : machine.remaining_balls <= machine.low_stock_threshold
                                 ? 'h-full bg-destructive'
                                 : 'h-full bg-emerald-500'
                             }
                             style={{
-                              width: `${machine.total_balls > 0
-                                ? Math.min(100, Math.round((machine.remaining_balls / machine.total_balls) * 100))
-                                : 0}%`,
+                              width: machine.free_mode
+                                ? '100%'
+                                : `${machine.total_balls > 0
+                                  ? Math.min(100, Math.round((machine.remaining_balls / machine.total_balls) * 100))
+                                  : 0}%`,
                             }}
                           />
                         </div>
                         <p className="mt-2 text-xs text-muted-foreground">
-                          ※ ハンドルが回るたびに自動で1つ減ります
+                          {machine.free_mode ? tp.freeModeActive : tp.autoDecrement}
                         </p>
-                        {machine.remaining_balls <= 0 && (
-                          <Badge variant="destructive" className="mt-2">売り切れ</Badge>
+                        {!machine.free_mode && machine.remaining_balls <= 0 && (
+                          <Badge variant="destructive" className="mt-2">{tp.soldOut}</Badge>
                         )}
+                      </div>
+
+                      {/* S235 フリーモード */}
+                      <div className="border-t pt-4 space-y-2">
+                        <div className="text-sm font-medium">{tp.freeModeTitle}</div>
+                        <p className="text-xs text-muted-foreground">{tp.freeModeDesc}</p>
+                        <Button
+                          size="sm"
+                          variant={machine.free_mode ? 'outline' : 'default'}
+                          disabled={freeModeSaving}
+                          onClick={toggleFreeMode}
+                        >
+                          {freeModeSaving
+                            ? tp.freeModeSwitching
+                            : machine.free_mode
+                            ? tp.freeModeOff
+                            : tp.freeModeOn}
+                        </Button>
                       </div>
 
                       {/* 在庫を設定・補充 */}
                       <div className="border-t pt-4 space-y-3">
-                        <div className="text-sm font-medium">在庫を設定・補充</div>
+                        <div className="text-sm font-medium">{tp.setRefill}</div>
                         <div className="grid gap-3 sm:grid-cols-3">
                           <div className="space-y-1">
-                            <label htmlFor="st-total" className="text-xs text-muted-foreground">満タン時の個数</label>
+                            <label htmlFor="st-total" className="text-xs text-muted-foreground">{tp.fullCount}</label>
                             <input id="st-total" type="number" inputMode="numeric" min={0} max={100}
                               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                               value={stockTotal} onChange={(e) => setStockTotal(e.target.value)} />
                           </div>
                           <div className="space-y-1">
-                            <label htmlFor="st-remain" className="text-xs text-muted-foreground">現在の個数</label>
+                            <label htmlFor="st-remain" className="text-xs text-muted-foreground">{tp.currentCount}</label>
                             <input id="st-remain" type="number" inputMode="numeric" min={0} max={100}
                               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                               value={stockRemaining} onChange={(e) => setStockRemaining(e.target.value)} />
                           </div>
                           <div className="space-y-1">
-                            <label htmlFor="st-thr" className="text-xs text-muted-foreground">低在庫の警告ライン</label>
+                            <label htmlFor="st-thr" className="text-xs text-muted-foreground">{tp.lowStockLine}</label>
                             <input id="st-thr" type="number" inputMode="numeric"
                               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                               value={stockThreshold} onChange={(e) => setStockThreshold(e.target.value)} />
@@ -1335,10 +1380,10 @@ export default function DeviceDetailPage() {
                                 saveStock({ remaining: t });
                               }
                             }}>
-                            満タンにする
+                            {tp.fillUp}
                           </Button>
                           <Button size="sm" disabled={stockSaving} onClick={() => saveStock()}>
-                            {stockSaving ? '保存中...' : '保存する'}
+                            {stockSaving ? tp.saving : tp.saveButton}
                           </Button>
                         </div>
                         {stockMsg && (
@@ -1346,7 +1391,7 @@ export default function DeviceDetailPage() {
                         )}
                         {machine.last_refilled_at && (
                           <p className="text-xs text-muted-foreground">
-                            最終補充: {fmtDate(machine.last_refilled_at)}
+                            {tp.lastRefill}{fmtDate(machine.last_refilled_at)}
                           </p>
                         )}
                       </div>
@@ -1358,9 +1403,9 @@ export default function DeviceDetailPage() {
                           className="flex items-center gap-2 text-sm font-medium hover:opacity-80"
                         >
                           {stockHistOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          在庫変動履歴（販売・補充）
+                          {tp.stockHistTitle}
                           <span className="text-xs text-muted-foreground font-normal">
-                            {stockHistLoaded ? `${stockHist.length} 件` : 'クリックで表示'}
+                            {stockHistLoaded ? tp.countUnit2(stockHist.length) : tp.clickToShow}
                           </span>
                         </button>
                         {stockHistOpen && (
@@ -1368,21 +1413,21 @@ export default function DeviceDetailPage() {
                             {stockHistLoading ? (
                               <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                             ) : sortedStockHist.length === 0 ? (
-                              <p className="text-xs text-muted-foreground py-4">変動履歴がありません</p>
+                              <p className="text-xs text-muted-foreground py-4">{tp.noHistory}</p>
                             ) : (
                               <table className="w-full text-xs">
                                 <thead className="text-muted-foreground border-b">
                                   <tr>
                                     <th className="text-left py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('ts')}>
-                                      日時 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'ts' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                      {tp.colDatetime} <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'ts' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
                                     </th>
-                                    <th className="text-left py-1.5">種別</th>
-                                    <th className="text-right py-1.5">変動</th>
+                                    <th className="text-left py-1.5">{tp.colKind}</th>
+                                    <th className="text-right py-1.5">{tp.colDelta}</th>
                                     <th className="text-left py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('payment_method')}>
-                                      決済手段 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'payment_method' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                      {tp.colPayment} <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'payment_method' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
                                     </th>
                                     <th className="text-right py-1.5 cursor-pointer select-none" onClick={() => sortStockHist('amount')}>
-                                      金額 <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'amount' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
+                                      {tp.colAmount} <ArrowUpDown className="inline h-3 w-3" />{stockHistSort === 'amount' ? (stockHistDir === 'asc' ? '▲' : '▼') : ''}
                                     </th>
                                   </tr>
                                 </thead>
@@ -1390,9 +1435,9 @@ export default function DeviceDetailPage() {
                                   {sortedStockHist.slice(0, 500).map((m, i) => (
                                     <tr key={`${m.ts}-${i}`} className="border-b border-muted/40">
                                       <td className="py-1.5 whitespace-nowrap">{fmtDate(m.ts)}</td>
-                                      <td className="py-1.5">{m.kind === 'sale' ? '販売' : m.kind === 'replenish' ? '補充' : '調整'}</td>
+                                      <td className="py-1.5">{m.kind === 'sale' ? tp.kindSale : m.kind === 'replenish' ? tp.kindReplenish : tp.kindAdjust}</td>
                                       <td className={`py-1.5 text-right tabular-nums ${m.delta < 0 ? 'text-destructive' : 'text-emerald-600'}`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</td>
-                                      <td className="py-1.5">{m.payment_method === 'cash' ? '現金' : m.payment_method === 'qr' ? 'QR決済' : m.payment_method === 'token' ? 'トークン' : (m.payment_method ?? '—')}</td>
+                                      <td className="py-1.5">{m.payment_method === 'cash' ? tp.payCash : m.payment_method === 'qr' ? tp.payQr : m.payment_method === 'token' ? tp.payToken : (m.payment_method ?? '—')}</td>
                                       <td className="py-1.5 text-right tabular-nums">{m.amount != null ? fmtYen(m.amount) : '—'}</td>
                                     </tr>
                                   ))}
@@ -1412,48 +1457,48 @@ export default function DeviceDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm inline-flex items-center gap-2">
-                    <Coins className="h-4 w-4 text-amber-500" />この端末の売上・回転数
+                    <Coins className="h-4 w-4 text-amber-500" />{tp.salesTitle}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {salesLoading && !salesSummary ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6"><Loader2 className="h-4 w-4 animate-spin" />読み込み中…</div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6"><Loader2 className="h-4 w-4 animate-spin" />{tp.loadingDots}</div>
                   ) : !salesSummary ? (
-                    <div className="text-sm text-muted-foreground py-6">売上データがありません。</div>
+                    <div className="text-sm text-muted-foreground py-6">{tp.noSalesData}</div>
                   ) : (
                     <>
                       {/* 本日 */}
                       <div>
-                        <div className="text-xs font-medium text-muted-foreground mb-2">本日</div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{tp.today}</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="rounded-lg border p-3">
-                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />回転数（メダル投入）</div>
-                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.today.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">回</span></div>
+                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />{tp.playsMedal}</div>
+                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.today.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">{tp.timesUnit}</span></div>
                           </div>
                           <div className="rounded-lg border p-3">
-                            <div className="text-[11px] text-muted-foreground mb-1">売上</div>
+                            <div className="text-[11px] text-muted-foreground mb-1">{tp.sales}</div>
                             <div className="text-2xl font-bold tabular-nums">{fmtYen(salesSummary.today.total_yen)}</div>
                             <div className="mt-1 space-y-0.5 text-[11px]">
-                              <div className="flex justify-between"><span className="text-muted-foreground">現金</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.today.cash_yen)}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">キャッシュレス</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.today.qr_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{tp.cash}</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.today.cash_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{tp.cashless}</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.today.qr_yen)}</span></div>
                             </div>
                           </div>
                         </div>
                       </div>
                       {/* 累計 */}
                       <div>
-                        <div className="text-xs font-medium text-muted-foreground mb-2">累計（全期間）</div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{tp.cumulative}</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="rounded-lg border p-3">
-                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />累計回転数（メダル）</div>
-                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.cumulative.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">回</span></div>
+                            <div className="text-[11px] text-muted-foreground mb-1 inline-flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />{tp.cumulativePlays}</div>
+                            <div className="text-2xl font-bold tabular-nums text-amber-500">{salesSummary.cumulative.medal_count.toLocaleString()}<span className="text-base font-medium ml-1">{tp.timesUnit}</span></div>
                           </div>
                           <div className="rounded-lg border p-3">
-                            <div className="text-[11px] text-muted-foreground mb-1">累計売上</div>
+                            <div className="text-[11px] text-muted-foreground mb-1">{tp.cumulativeSales}</div>
                             <div className="text-2xl font-bold tabular-nums text-sky-500">{fmtYen(salesSummary.cumulative.total_yen)}</div>
                             <div className="mt-1 space-y-0.5 text-[11px]">
-                              <div className="flex justify-between"><span className="text-muted-foreground">現金</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.cumulative.cash_yen)}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">キャッシュレス</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.cumulative.qr_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{tp.cash}</span><span className="tabular-nums text-amber-400">{fmtYen(salesSummary.cumulative.cash_yen)}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{tp.cashless}</span><span className="tabular-nums text-emerald-400">{fmtYen(salesSummary.cumulative.qr_yen)}</span></div>
                             </div>
                           </div>
                         </div>
@@ -1461,18 +1506,18 @@ export default function DeviceDetailPage() {
                       {/* 現金投入内訳 */}
                       {salesRow && (
                         <div className="rounded-lg border p-3">
-                          <div className="text-[11px] text-muted-foreground mb-2">現金投入の内訳（累計）</div>
+                          <div className="text-[11px] text-muted-foreground mb-2">{tp.cashBreakdown}</div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                            <div><div className="text-[11px] text-muted-foreground">¥100 投入</div><div className="tabular-nums font-medium">{salesRow.yen100_count.toLocaleString()}枚 <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen100_sum)}</span></div></div>
-                            <div><div className="text-[11px] text-muted-foreground">¥500 投入</div><div className="tabular-nums font-medium">{salesRow.yen500_count.toLocaleString()}枚 <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen500_sum)}</span></div></div>
-                            <div><div className="text-[11px] text-muted-foreground">現金合計</div><div className="tabular-nums font-medium text-amber-500">{fmtYen(salesRow.cash_total)}</div></div>
-                            <div><div className="text-[11px] text-muted-foreground">残クレジット</div><div className="tabular-nums font-medium">{fmtYen(salesRow.credit_balance)}</div></div>
+                            <div><div className="text-[11px] text-muted-foreground">{tp.yen100In}</div><div className="tabular-nums font-medium">{salesRow.yen100_count.toLocaleString()}{tp.coinsUnit} <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen100_sum)}</span></div></div>
+                            <div><div className="text-[11px] text-muted-foreground">{tp.yen500In}</div><div className="tabular-nums font-medium">{salesRow.yen500_count.toLocaleString()}{tp.coinsUnit} <span className="text-[11px] text-muted-foreground">/ {fmtYen(salesRow.yen500_sum)}</span></div></div>
+                            <div><div className="text-[11px] text-muted-foreground">{tp.cashTotal}</div><div className="tabular-nums font-medium text-amber-500">{fmtYen(salesRow.cash_total)}</div></div>
+                            <div><div className="text-[11px] text-muted-foreground">{tp.creditBalance}</div><div className="tabular-nums font-medium">{fmtYen(salesRow.credit_balance)}</div></div>
                           </div>
                         </div>
                       )}
                       <div className="flex items-center justify-between">
-                        <p className="text-[11px] text-muted-foreground">※ 回転数＝メダル投入数（1枚＝1回転）。現金／QR機は売上額をご覧ください。集計は上限なしの正確値です。</p>
-                        <button onClick={() => void loadSales()} className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1 hover:bg-accent border"><RefreshCcw className="h-3.5 w-3.5" />更新</button>
+                        <p className="text-[11px] text-muted-foreground">{tp.salesNote}</p>
+                        <button onClick={() => void loadSales()} className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground rounded px-2 py-1 hover:bg-accent border"><RefreshCcw className="h-3.5 w-3.5" />{tp.refresh}</button>
                       </div>
                     </>
                   )}
@@ -1493,7 +1538,7 @@ export default function DeviceDetailPage() {
           <button
             type="button"
             onClick={() => setVideoOpen(false)}
-            aria-label="閉じる"
+            aria-label={tp.close}
             className="absolute top-4 right-4 text-white/90 hover:text-white"
           >
             <X className="h-7 w-7" />
@@ -1523,13 +1568,14 @@ export default function DeviceDetailPage() {
 
 /** 現在の再生サムネ: 現在の番組の先頭素材サムネ(動画の先頭フレーム)。無ければ(USB等/取得失敗)再生アイコン。 */
 function CurrentThumb({ src }: { src?: string | null }) {
+  const tp = usePageT(deviceDetailDict);
   const [err, setErr] = useState(false);
   if (!src || err) return <PlayCircle className="h-10 w-10 text-primary shrink-0" />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
-      alt="再生中のサムネイル"
+      alt={tp.thumbAlt}
       onError={() => setErr(true)}
       className="h-16 w-28 rounded object-cover border border-border/50 shrink-0 bg-black"
     />
@@ -1556,6 +1602,7 @@ function RemoteSliderRow({
   saving: boolean;
   onCommit: (value: number) => void;
 }) {
+  const tp = usePageT(deviceDetailDict);
   const [local, setLocal] = useState(value);
   const [dragging, setDragging] = useState(false);
 
@@ -1576,7 +1623,7 @@ function RemoteSliderRow({
         <div className="flex justify-between text-xs mb-1">
           <span>{label}</span>
           <span className="tabular-nums text-muted-foreground">
-            {saving ? '送信中...' : `${local}%`}
+            {saving ? tp.sending : `${local}%`}
           </span>
         </div>
         <input

@@ -45,10 +45,13 @@ import { fmtRelative } from '@/lib/format';
 import { getUpcomingReservation, fmtReservation, type PlanScheduleLite } from '@/lib/plan-reservation';
 import Link from 'next/link';
 import type { DeviceStatus } from '@/types/domain';
+import { usePageT } from '@/i18n/usePageT';
+import { devicesDict } from '@/i18n/ns/devices';
 
 interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 
 export default function DevicesPage() {
+  const t = usePageT(devicesDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145: 顧客名表示の出し分け
   const { states: playbackStates } = usePlaybackStream();
   const [videoDevice, setVideoDevice] = useState<Device | null>(null);
@@ -62,7 +65,7 @@ export default function DevicesPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }>>({});
+  const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean; free_mode?: boolean }>>({});
   const [latestApkCode, setLatestApkCode] = useState<number | null>(null);  // 最新APKのversionCode(最大)
 
   useEffect(() => {
@@ -73,7 +76,7 @@ export default function DevicesPage() {
           api.get<ListResponse<Device> | Device[]>('/devices?limit=200'),
           api.get<ListResponse<Store> | Store[]>('/stores?limit=200'),
           api.get<ListResponse<PlanScheduleLite> | PlanScheduleLite[]>('/plan-schedules?limit=100'),
-          api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }[]>('/gacha/machines').catch(() => []),
+          api.get<{ device_id: string; remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean; free_mode?: boolean }[]>('/gacha/machines').catch(() => []),
           api.get<{ items?: { version_code: number; uploaded_at: string }[] } | { version_code: number; uploaded_at: string }[]>('/apk/releases?limit=100').catch(() => []),
         ]);
         if (cancelled) return;
@@ -84,8 +87,8 @@ export default function DevicesPage() {
         setStores(sArr);
         setPlanSchedules(pArr);
         const mArr = Array.isArray(machR) ? machR : [];
-        const mMap: Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean }> = {};
-        for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low }; }
+        const mMap: Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean; free_mode?: boolean }> = {};
+        for (const m of mArr) { mMap[m.device_id] = { remaining_balls: m.remaining_balls, total_balls: m.total_balls, low_stock_threshold: m.low_stock_threshold, is_low: m.is_low, free_mode: m.free_mode }; }
         setStockMap(mMap);
         const apkArr = Array.isArray(apkR) ? apkR : (apkR.items ?? []);
         // 「最新」= APKページと同じ定義（最新アップロード日時のリリース）。max(version_code)だと
@@ -105,7 +108,7 @@ export default function DevicesPage() {
   async function handleRename() {
     if (!renameDevice) return;
     const newName = renameValue.trim();
-    if (!newName) { setRenameError('端末名を入力してください'); return; }
+    if (!newName) { setRenameError(t.enterName); return; }
     setRenaming(true);
     setRenameError(null);
     try {
@@ -114,7 +117,7 @@ export default function DevicesPage() {
       setRenameDevice(null);
     } catch (e) {
       const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
-      setRenameError(`変更に失敗しました: ${msg}`);
+      setRenameError(t.renameFailed(msg));
     } finally {
       setRenaming(false);
     }
@@ -255,7 +258,7 @@ export default function DevicesPage() {
 
   if (loading) {
     return (
-      <AppShell title="端末" breadcrumb={['ホーム', '端末']}>
+      <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -264,18 +267,18 @@ export default function DevicesPage() {
   }
 
   return (
-    <AppShell title="端末" breadcrumb={['ホーム', '端末']}>
+    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       {loadError && (
         <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-          データ取得エラー: {loadError}
+          {t.fetchError(loadError)}
         </div>
       )}
       {/* Stat strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCell label="全端末" value={counts.all} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-        <StatCell label="オンライン" value={counts.online} accent="ok" active={statusFilter === 'online'} onClick={() => setStatusFilter('online')} />
-        <StatCell label="オフライン" value={counts.offline} accent="destructive" active={statusFilter === 'offline'} onClick={() => setStatusFilter('offline')} />
-        <StatCell label="保守中" value={counts.maintenance} accent="warn" active={statusFilter === 'maintenance'} onClick={() => setStatusFilter('maintenance')} />
+        <StatCell label={t.statAll} value={counts.all} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+        <StatCell label={t.statOnline} value={counts.online} accent="ok" active={statusFilter === 'online'} onClick={() => setStatusFilter('online')} />
+        <StatCell label={t.statOffline} value={counts.offline} accent="destructive" active={statusFilter === 'offline'} onClick={() => setStatusFilter('offline')} />
+        <StatCell label={t.statMaintenance} value={counts.maintenance} accent="warn" active={statusFilter === 'maintenance'} onClick={() => setStatusFilter('maintenance')} />
       </div>
 
       {/* Filter bar */}
@@ -284,7 +287,7 @@ export default function DevicesPage() {
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="名前で検索..."
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -292,10 +295,10 @@ export default function DevicesPage() {
           </div>
           <Select value={storeFilter} onValueChange={setStoreFilter}>
             <SelectTrigger className="w-[200px] h-8 text-xs">
-              <SelectValue placeholder="店舗" />
+              <SelectValue placeholder={t.storePlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">すべての店舗</SelectItem>
+              <SelectItem value="all">{t.allStores}</SelectItem>
               {stores.map((s) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}
@@ -303,28 +306,28 @@ export default function DevicesPage() {
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue placeholder="ステータス" />
+              <SelectValue placeholder={t.statusPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">すべての状態</SelectItem>
-              <SelectItem value="online">オンライン</SelectItem>
-              <SelectItem value="offline">オフライン</SelectItem>
-              <SelectItem value="maintenance">保守中</SelectItem>
+              <SelectItem value="all">{t.allStatuses}</SelectItem>
+              <SelectItem value="online">{t.online}</SelectItem>
+              <SelectItem value="offline">{t.offline}</SelectItem>
+              <SelectItem value="maintenance">{t.maintenance}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={groupFilter} onValueChange={setGroupFilter}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="グループ" />
+              <SelectValue placeholder={t.groupPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">すべてのグループ</SelectItem>
+              <SelectItem value="all">{t.allGroups}</SelectItem>
               {groupOptions.map((g) => (
                 <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <div className="ml-auto text-xs text-muted-foreground">
-            {filtered.length} / {devices.length} 件
+            {t.itemCount(filtered.length, devices.length)}
           </div>
           <Button
             size="sm"
@@ -336,14 +339,14 @@ export default function DevicesPage() {
             }}
             disabled={filtered.filter((d) => d.status === 'online').length === 0}
           >
-            <Zap className="h-3.5 w-3.5" />絞込中の全端末を選択
+            <Zap className="h-3.5 w-3.5" />{t.selectFiltered}
           </Button>
           <Button
             size="sm"
             className="gap-1.5"
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="h-3.5 w-3.5" />新規端末作成
+            <Plus className="h-3.5 w-3.5" />{t.createDevice}
           </Button>
         </CardContent>
       </Card>
@@ -364,19 +367,19 @@ export default function DevicesPage() {
                         : false
                   }
                   onCheckedChange={toggleAllVisible}
-                  aria-label="表示中の全オンライン端末を選択"
+                  aria-label={t.selectAllOnlineAria}
                 />
               </TableHead>
-              <TableHead>端末</TableHead>
-              <TableHead>グループ</TableHead>
-              <TableHead>ステータス</TableHead>
+              <TableHead>{t.colDevice}</TableHead>
+              <TableHead>{t.colGroup}</TableHead>
+              <TableHead>{t.colStatus}</TableHead>
               {/* S147c: モード列は非表示。play_modeは制御モードでUSB等の映像ソース実態を表せず誤解を生むため。発送後にルート1(signage連携で実ソース取得)で「映像」列として復活。 */}
               {/* <TableHead>モード</TableHead> */}
-              <TableHead>再生中</TableHead>
-              <TableHead>音量</TableHead>
-              <TableHead>在庫</TableHead>
-              <TableHead>最終接続</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t.colPlaying}</TableHead>
+              <TableHead>{t.colVolume}</TableHead>
+              <TableHead>{t.colStock}</TableHead>
+              <TableHead>{t.colLastSeen}</TableHead>
+              <TableHead className="text-right">{t.colAction}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -387,7 +390,7 @@ export default function DevicesPage() {
                     checked={selected.has(d.id)}
                     onCheckedChange={() => toggleOne(d.id)}
                     disabled={d.status !== 'online'}
-                    aria-label={`${d.name} を選択`}
+                    aria-label={t.selectAria(d.name)}
                   />
                 </TableCell>
                 <TableCell>
@@ -400,8 +403,8 @@ export default function DevicesPage() {
                         const dvc = nums.length ? Math.max(...nums) : null;
                         if (dvc == null) return null;
                         return dvc >= latestApkCode
-                          ? <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-medium">最新</span>
-                          : <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">要更新</span>;
+                          ? <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-medium">{t.latest}</span>
+                          : <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">{t.needsUpdate}</span>;
                       })()}
                     </div>
                     {isSuperAdmin && d.customer_name && (
@@ -411,7 +414,7 @@ export default function DevicesPage() {
                 </TableCell>
                 <TableCell className="text-xs">
                   {d.group_names && d.group_names.length > 0
-                    ? d.group_names.join('、')
+                    ? d.group_names.join(t.groupSep)
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
@@ -430,7 +433,7 @@ export default function DevicesPage() {
                     return rsv ? (
                       <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-400">
                         <CalendarClock className="h-2.5 w-2.5 shrink-0" />
-                        <span>{fmtReservation(rsv.start_at)}から {rsv.program_name} を配信予定</span>
+                        <span>{t.reservationText(fmtReservation(rsv.start_at), rsv.program_name)}</span>
                       </div>
                     ) : null;
                   })()}
@@ -450,6 +453,17 @@ export default function DevicesPage() {
                   {(() => {
                     const st = stockMap[d.id];
                     if (!st) return <span className="text-muted-foreground">—</span>;
+                    // S235: フリーモード中は個数ではなく Free と表示
+                    if (st.free_mode) {
+                      return (
+                        <div className="flex flex-col gap-0.5 min-w-[64px]">
+                          <span className="font-semibold text-primary">Free</span>
+                          <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                            <div className="h-full w-full rounded-full bg-primary" />
+                          </div>
+                        </div>
+                      );
+                    }
                     // ★stock-total: 分母を「設定した総数(total_balls)」にする(旧: アラートしきい値)
                     const _denom = st.total_balls > 0 ? st.total_balls : Math.max(st.remaining_balls, 1);
                     const pct = Math.min(100, Math.round((st.remaining_balls / _denom) * 100));
@@ -459,7 +473,7 @@ export default function DevicesPage() {
                           <span className={st.is_low ? 'text-destructive font-semibold' : ''}>{st.remaining_balls}</span>
                           <span className="text-muted-foreground">/ {st.total_balls}</span>
                           {st.is_low && (
-                            <span className="px-1 py-0.5 rounded text-[9px] bg-destructive/10 text-destructive font-medium">補充</span>
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-destructive/10 text-destructive font-medium">{t.refill}</span>
                           )}
                         </div>
                         <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
@@ -477,7 +491,7 @@ export default function DevicesPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    title="端末名を変更"
+                    title={t.renameTooltip}
                     onClick={() => { setRenameDevice(d); setRenameValue(d.name); setRenameError(null); }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -488,7 +502,7 @@ export default function DevicesPage() {
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-12">
-                  条件に一致する端末がありません
+                  {t.noMatch}
                 </TableCell>
               </TableRow>
             )}
@@ -504,7 +518,7 @@ export default function DevicesPage() {
           </Button>
           <div className="text-sm">
             <span className="font-semibold tabular-nums">{selected.size}</span>
-            <span className="text-muted-foreground"> 台を選択中</span>
+            <span className="text-muted-foreground">{t.selectedSuffix}</span>
           </div>
           <div className="h-5 w-px bg-border" />
           {selectedManualCount > 0 && (
@@ -516,16 +530,16 @@ export default function DevicesPage() {
                 const ids = Array.from(selected).filter((id) => !!overrides[id]);
                 restorePlan({
                   device_ids: ids,
-                  scope_label: `選択端末 ${ids.length}台`,
+                  scope_label: t.scopeLabel(ids.length),
                   applied_by: 'admin@gachaops.example',
                 });
               }}
             >
-              <Undo2 className="h-3.5 w-3.5" />計画配信に戻す ({selectedManualCount})
+              <Undo2 className="h-3.5 w-3.5" />{t.restorePlan} ({selectedManualCount})
             </Button>
           )}
           <Button size="sm" className="gap-1.5" onClick={() => setSheetOpen(true)}>
-            <Zap className="h-3.5 w-3.5" />選択端末で映像を切替
+            <Zap className="h-3.5 w-3.5" />{t.switchSelected}
           </Button>
         </div>
       )}
@@ -537,7 +551,7 @@ export default function DevicesPage() {
           selected.size > 0
             ? {
                 device_ids: Array.from(selected),
-                label: `選択した ${selected.size} 台`,
+                label: t.scopeSelected(selected.size),
               }
             : null
         }
@@ -555,7 +569,7 @@ export default function DevicesPage() {
       <Dialog open={!!renameDevice} onOpenChange={(o) => { if (!o) setRenameDevice(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>端末名を変更</DialogTitle>
+            <DialogTitle>{t.renameTitle}</DialogTitle>
             <DialogDescription>{renameDevice?.serial}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -567,7 +581,7 @@ export default function DevicesPage() {
               maxLength={200}
               autoFocus
               className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              placeholder="端末名"
+              placeholder={t.namePlaceholder}
             />
             {renameError && (
               <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
@@ -576,10 +590,10 @@ export default function DevicesPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameDevice(null)} disabled={renaming}>キャンセル</Button>
+            <Button variant="outline" onClick={() => setRenameDevice(null)} disabled={renaming}>{t.cancel}</Button>
             <Button onClick={handleRename} disabled={renaming} className="gap-1.5">
               {renaming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              保存
+              {t.save}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -588,9 +602,9 @@ export default function DevicesPage() {
       <Dialog open={!!videoDevice} onOpenChange={(o) => { if (!o) setVideoDevice(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{videoDevice?.name ?? '端末'} の再生状態</DialogTitle>
+            <DialogTitle>{videoDevice?.name ?? t.deviceFallback}{t.playbackTitleSuffix}</DialogTitle>
             <DialogDescription>
-              実機画面のリアルタイム映像ではなく、いまこの端末が再生している動画と再生状態を表示します。
+              {t.playbackDesc}
             </DialogDescription>
           </DialogHeader>
           {videoDevice && (
@@ -599,14 +613,14 @@ export default function DevicesPage() {
                 <PlaybackStatus playback={playbackStates[videoDevice.id]} />
               </div>
               <p className="text-xs text-muted-foreground">
-                現在この端末が再生しているコンテンツの状態です。実機画面のライブ映像表示は今後対応予定です。
+                {t.playbackNote}
               </p>
               <Link
                 href={`/devices/${videoDevice.id}`}
                 className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                端末の詳細を見る
+                {t.viewDetail}
               </Link>
             </div>
           )}
