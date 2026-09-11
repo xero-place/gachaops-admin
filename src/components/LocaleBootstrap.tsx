@@ -17,7 +17,14 @@ import { useLocale } from "@/store/useLocale";
  */
 export function LocaleBootstrap({ userId }: { userId: string | null }) {
   const loadForUser = useLocale((s) => s.loadForUser);
+  const hydrateFromLast = useLocale((s) => s.hydrateFromLast);
   const locale = useLocale((s) => s.locale);
+
+  // ★S237: ヘッダーは初回レンダーで user=null のため userId が一瞬 null になる。
+  //   先に「直近の選択言語」を復元しておき、リロードのたびに日本語へ戻るのを防ぐ。
+  useEffect(() => {
+    hydrateFromLast();
+  }, [hydrateFromLast]);
 
   useEffect(() => {
     loadForUser(userId);

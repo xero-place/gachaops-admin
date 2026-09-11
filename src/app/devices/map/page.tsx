@@ -162,7 +162,13 @@ export default function DevicesMapPage() {
                         <Building2 className="h-4 w-4 mt-0.5 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <span className="text-sm font-medium">{s.name}</span>
-                          <div className="text-[11px] text-muted-foreground">{s.prefecture}</div>
+                          {/* S237: 都道府県はDBの値。未入力/プレースホルダのときだけ表示言語に合わせる */}
+                          <div className="text-[11px] text-muted-foreground">
+                            {(() => {
+                              const p = (s.prefecture ?? '').trim();
+                              return !p || p === '（未設定）' || p === '(未設定)' ? t.prefUnset : p;
+                            })()}
+                          </div>
                           <div className="flex gap-2 mt-1.5">
                             <Badge variant="ok" className="text-[10px]">{t.on} {online}</Badge>
                             {offline > 0 && <Badge variant="destructive" className="text-[10px]">{t.off} {offline}</Badge>}
