@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { api, auth, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog, CalendarX, Undo2 } from 'lucide-react';
 import { usePageT } from '@/i18n/usePageT';
 import { customersDict } from '@/i18n/ns/customers';
 
@@ -42,6 +42,10 @@ type CustomerRow = {
   store_count: number;
   device_count: number;
   user_count: number;
+  /** S243 レンタル終了 */
+  rental_ended_on?: string | null;
+  login_locked_from?: string | null;
+  login_locked?: boolean;
 };
 
 const EMPTY_DEVICE: DeviceForm = {
@@ -57,6 +61,8 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerRow | null>(null);
+  const [endRentalTarget, setEndRentalTarget] = useState<CustomerRow | null>(null);  // S243
+  const [notice, setNotice] = useState<string | null>(null);  // S243
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [impersonating, setImpersonating] = useState<string | null>(null);
@@ -103,6 +109,19 @@ export default function CustomersPage() {
     loadCustomers();
   }, [loadCustomers]);
 
+  // S243: レンタル終了の取り消し（ログイン停止の解除）
+  const onReopenRental = useCallback(async (c: CustomerRow) => {
+    if (!window.confirm(t.reopenRentalConfirm)) return;
+    try {
+      await api.post(`/customers/${c.id}/reopen-rental`, {});
+      setNotice(null);
+      await loadCustomers();
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
+      window.alert(t.reopenRentalFailed(msg));
+    }
+  }, [loadCustomers, t]);
+
   return (
     <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="space-y-6">
@@ -117,6 +136,12 @@ export default function CustomersPage() {
             </Button>
           )}
         </div>
+
+        {notice && (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-400">
+            {notice}
+          </div>
+        )}
 
         {!isSuperAdmin ? (
           <Card>
@@ -145,8 +170,26 @@ export default function CustomersPage() {
                   {customers.map((c) => (
                     <div key={c.id} className="flex items-center justify-between rounded-md border p-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{c.name}</span>
+                          {/* S243: レンタル終了の状態 */}
+                          {c.rental_ended_on && (
+                            <span className={
+                              'rounded-full px-2 py-0.5 text-[10px] font-medium ' +
+                              (c.login_locked
+                                ? 'bg-destructive/10 text-destructive'
+                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400')
+                            }>
+                              {c.login_locked
+                                ? t.rentalLockedBadge
+                                : t.rentalEndedBadge(c.rental_ended_on)}
+                            </span>
+                          )}
+                          {c.rental_ended_on && !c.login_locked && c.login_locked_from && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {t.rentalLockFrom(c.login_locked_from)}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -166,6 +209,16 @@ export default function CustomersPage() {
                           )}
                           {t.operateAs}
                         </Button>
+                        {/* S243: レンタル終了 / 取り消し */}
+                        {c.rental_ended_on ? (
+                          <Button variant="outline" size="sm" onClick={() => onReopenRental(c)}>
+                            <Undo2 className="h-3.5 w-3.5 mr-1" />{t.reopenRental}
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => setEndRentalTarget(c)}>
+                            <CalendarX className="h-3.5 w-3.5 mr-1" />{t.endRental}
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => setEditTarget(c)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />{t.edit}
                         </Button>
@@ -200,6 +253,13 @@ export default function CustomersPage() {
           onSaved={() => { setEditTarget(null); loadCustomers(); }}
         />
       )}
+      {endRentalTarget && (
+        <EndRentalDialog
+          target={endRentalTarget}
+          onClose={() => setEndRentalTarget(null)}
+          onDone={(msg) => { setEndRentalTarget(null); setNotice(msg); loadCustomers(); }}
+        />
+      )}
       {deleteTarget && (
         <DeleteCustomerDialog
           target={deleteTarget}
@@ -208,6 +268,81 @@ export default function CustomersPage() {
         />
       )}
     </AppShell>
+  );
+}
+
+// ★S243 レンタル終了ダイアログ
+function EndRentalDialog({
+  target, onClose, onDone,
+}: {
+  target: CustomerRow;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const t = usePageT(customersDict);
+  const [endOn, setEndOn] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 最終振込日の翌日（＝翌々月1日）を画面上でも先に見せる
+  const lockFrom = (() => {
+    const base = endOn ? new Date(`${endOn}T00:00:00`) : new Date();
+    if (Number.isNaN(base.getTime())) return '';
+    const d = new Date(base.getFullYear(), base.getMonth() + 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  })();
+
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ returned_count: number; login_locked_from: string }>(
+        `/customers/${target.id}/end-rental`,
+        endOn ? { end_on: endOn } : {},
+      );
+      onDone(t.endRentalDone(res.returned_count ?? 0, res.login_locked_from || lockFrom));
+    } catch (e) {
+      const msg = e instanceof ApiError ? (e.problem.detail || e.problem.title) : String(e);
+      setError(t.endRentalFailed(msg));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t.endRentalTitle}</DialogTitle>
+          <DialogDescription>{target.name}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-xs text-muted-foreground">{t.endRentalDesc}</p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">{t.endRentalDate}</label>
+            <input type="date" value={endOn} onChange={(e) => setEndOn(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-xs" />
+            <div className="text-[10.5px] text-muted-foreground">{t.endRentalDateNote}</div>
+          </div>
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 space-y-1 text-xs">
+            <div>{t.endRentalReturn(target.device_count ?? 0)}</div>
+            {lockFrom && <div>{t.endRentalLock(lockFrom)}</div>}
+            <div className="text-[10.5px] text-muted-foreground">{t.endRentalLockNote}</div>
+          </div>
+          {error && (
+            <div className="rounded-md border border-red-500/50 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+              {error}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>{t.cancel}</Button>
+          <Button onClick={run} disabled={busy} className="gap-1.5">
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{t.endRentalDo}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

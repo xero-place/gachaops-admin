@@ -8,7 +8,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+
+/** S238: サーバーが返した理由をそのまま画面に出す（失敗が握りつぶされないように） */
+function apiMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiError) return e.problem.detail || e.problem.title || fallback;
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 import { Loader2, Layers3, ChevronRight, Plus, Link2, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
 import VideoWallPreviewModal from '@/components/videowall/VideoWallPreviewModal';
 import { usePageT } from '@/i18n/usePageT';
@@ -528,7 +534,7 @@ function EditGroupDialog({
       onSaved();
     } catch (e) {
       console.error('[device-groups] save failed:', e);
-      setError(t.saveFailed);
+      setError(apiMessage(e, t.saveFailed));
     } finally {
       setSaving(false);
     }
@@ -784,7 +790,7 @@ function CreateGroupDialog({
       onSaved();
     } catch (e) {
       console.error('[device-groups] create failed:', e);
-      setError(t.createFailed);
+      setError(apiMessage(e, t.createFailed));
     } finally {
       setSaving(false);
     }
@@ -894,7 +900,7 @@ function DeleteGroupDialog({
       onDeleted();
     } catch (e) {
       console.error('[device-groups] delete failed:', e);
-      setError(t.deleteFailed);
+      setError(apiMessage(e, t.deleteFailed));
       setDeleting(false);
     }
   };
