@@ -612,22 +612,13 @@ function EditGroupDialog({
                     >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
-                    <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <input
-                        type="radio"
-                        name="master"
-                        disabled={!isMember}
-                        checked={masterId === d.id}
-                        onChange={() => setMasterId(d.id)}
-                      />
-                      <Crown className="h-3 w-3" />master
-                    </label>
+                    {/* ★S248: master 選択UIは廃止。連動ONなら backend が自動で1台を master にする */}
                   </div>
                 );
               })}
             </div>
             <p className="text-[10px] text-muted-foreground">
-              {t.masterNote}
+              {t.masterAutoNote}
             </p>
           </div>
 
@@ -847,16 +838,7 @@ function CreateGroupDialog({
                     >{online ? '●' : '○'}</span>
                     <span className="text-xs">{d.name || d.id}</span>
                     <span className="text-[10px] text-muted-foreground">{d.id}</span>
-                    <label className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <input
-                        type="radio"
-                        name="new-master"
-                        disabled={!isMember}
-                        checked={masterId === d.id}
-                        onChange={() => setMasterId(d.id)}
-                      />
-                      <Crown className="h-3 w-3" />master
-                    </label>
+                    {/* ★S248: master 選択UIは廃止 */}
                   </div>
                 );
               })}
