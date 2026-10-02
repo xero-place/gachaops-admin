@@ -55,6 +55,7 @@ export const ja = {
       none: {
         label: "受け付けない",
         description: "無料ガチャ、またはQR決済のみで運用します。",
+        note: "*マシンの現金/メダル投入口を封鎖してください。",
       },
     },
     pricePerPlay: {
@@ -144,6 +145,7 @@ export const en: Dictionary = {
       none: {
         label: "None",
         description: "Free play, or QR payment only.",
+        note: "*Please seal the machine's cash/medal slot.",
       },
     },
     pricePerPlay: {

@@ -1168,6 +1168,9 @@ export default function DeviceDetailPage() {
                             <span className="block text-xs text-muted-foreground">
                               {t.pricing.acceptMethod.none.description}
                             </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {t.pricing.acceptMethod.none.note}
+                            </span>
                           </span>
                         </label>
                       </div>
