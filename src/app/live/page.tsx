@@ -30,6 +30,7 @@ type LiveStream = {
   targets: Target[];
 };
 type DeviceLite = { id: string; name: string; app_version?: string | null };
+type GroupLite = { id: string; name: string; members?: { device_id: string }[] };
 type ListResponse<T> = { items?: T[] };
 
 const GRID = [1, 2, 3, 4, 5, 6];
@@ -42,6 +43,7 @@ export default function LivePage() {
   const t = usePageT(liveDict);
   const [streams, setStreams] = useState<LiveStream[]>([]);
   const [devices, setDevices] = useState<DeviceLite[]>([]);
+  const [groups, setGroups] = useState<GroupLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [isNew, setIsNew] = useState(false);
@@ -66,10 +68,14 @@ export default function LivePage() {
 
   const reload = useCallback(async () => {
     try {
-      const [s, d] = await Promise.all([
+      const [s, d, g] = await Promise.all([
         api.get<LiveStream[]>('/live/streams'),
         api.get<ListResponse<DeviceLite> | DeviceLite[]>('/devices?limit=500'),
+        api.get<ListResponse<GroupLite> | GroupLite[]>('/device-groups?limit=200').catch(() => [] as GroupLite[]),
       ]);
+      const gArr = Array.isArray(g) ? g : (g.items ?? []);
+      setGroups(gArr.filter((x) => (x.members ?? []).length > 0)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true })));
       setStreams(s);
       const dArr = Array.isArray(d) ? d : (d.items ?? []);
       setDevices([...dArr].sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true })));
@@ -208,6 +214,31 @@ export default function LivePage() {
 
   const usedInWall = new Set(Object.values(cells).filter(Boolean));
 
+  // グループのメンバーを、マシン番号（名前）順に並べて返す
+  const groupMembers = (gid: string): string[] => {
+    const g = groups.find((x) => x.id === gid);
+    if (!g) return [];
+    const ids = new Set((g.members ?? []).map((m) => m.device_id));
+    return devices.filter((d) => ids.has(d.id)).map((d) => d.id);
+  };
+  const addGroup = (gid: string) => {
+    const ids = groupMembers(gid);
+    setPicked((prev) => { const n = new Set(prev); ids.forEach((i) => n.add(i)); return n; });
+  };
+  // 連結：グループのメンバーを左上から右へ、行ごとに順に枠へ入れる
+  const fillWallFromGroup = (gid: string) => {
+    const ids = groupMembers(gid);
+    const next: Record<string, string> = {};
+    let i = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        next[`${r}-${c}`] = ids[i] ?? '';
+        i++;
+      }
+    }
+    setCells(next);
+  };
+
   if (loading) {
     return (
       <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
@@ -333,9 +364,22 @@ export default function LivePage() {
 
                   {mode === 'each' ? (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Select value="none" onValueChange={(v) => { if (v !== 'none') addGroup(v); }}>
+                          <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue placeholder={t.fromGroup} /></SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="none">{t.fromGroup}</SelectItem>
+                            {groups.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>{t.groupOption(g.name, (g.members ?? []).length)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Input className="h-8 max-w-xs text-xs" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.searchDevice} />
                         <span className="text-xs text-muted-foreground">{t.selectedCount(picked.size)}</span>
+                        {picked.size > 0 && (
+                          <button type="button" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            onClick={() => setPicked(new Set())}>{t.clearSelection}</button>
+                        )}
                       </div>
                       <div className="grid gap-1 sm:grid-cols-3 lg:grid-cols-4 max-h-72 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 p-2">
                         {filtered.map((d) => (
@@ -376,6 +420,18 @@ export default function LivePage() {
                         </div>
                       </div>
                       <p className="text-[11px] text-muted-foreground">{t.bezelNote}</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Select value="none" onValueChange={(v) => { if (v !== 'none') fillWallFromGroup(v); }}>
+                          <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue placeholder={t.fillFromGroup} /></SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="none">{t.fillFromGroup}</SelectItem>
+                            {groups.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>{t.groupOption(g.name, (g.members ?? []).length)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[11px] text-muted-foreground">{t.fillNote}</span>
+                      </div>
                       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
                         {Array.from({ length: rows }).flatMap((_, r) => Array.from({ length: cols }).map((__, c) => {
                           const key = `${r}-${c}`;
