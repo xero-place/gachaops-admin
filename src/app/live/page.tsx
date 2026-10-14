@@ -4,7 +4,8 @@
 //   リンクを登録 → サーバーが受信して HLS に → 選んだマシンで同期再生。
 //   「1台ずつ」と「連結（複数台で1つの映像）」の2通り。既存の番組・素材には触れない。
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,11 +25,14 @@ type Target = {
   rows: number; cols: number; row: number; col: number; bezel_px: number;
 };
 type LiveStream = {
-  id: string; customer_id: string; name: string; source_url: string; has_cookies: boolean;
+  id: string; customer_id: string; name: string; kind?: Kind; source_url: string; has_cookies: boolean;
   desired_state: 'running' | 'stopped'; delay_ms: number; hls_url: string;
   relay: { state: string; message: string; updated_at_ms: number | null };
   targets: Target[];
 };
+// S253: 種類（ライブ配信 / 動画URL＝素材に取り込み / YouTube＝マシンが直接再生）
+type Kind = 'live' | 'video' | 'youtube';
+type ImportJob = { job_id: string; state: string; message?: string | null; asset_id?: string | null };
 type DeviceLite = { id: string; name: string; app_version?: string | null };
 type GroupLite = { id: string; name: string; members?: { device_id: string }[] };
 type ListResponse<T> = { items?: T[] };
@@ -51,6 +55,9 @@ export default function LivePage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   // 登録フォーム
+  const [kind, setKind] = useState<Kind>('live');
+  const [job, setJob] = useState<ImportJob | null>(null);
+  const jobTimer = useRef<number | null>(null);
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [delaySec, setDelaySec] = useState('15');
@@ -98,6 +105,24 @@ export default function LivePage() {
   }, []);
 
   const stream = useMemo(() => streams.find((s) => s.id === selectedId), [streams, selectedId]);
+  const streamKind: Kind = (stream?.kind as Kind) || 'live';
+  const formKind: Kind = isNew ? kind : streamKind;
+
+  // 取り込みの進み具合を数秒おきに確認
+  useEffect(() => () => { if (jobTimer.current) window.clearInterval(jobTimer.current); }, []);
+  const watchJob = (jobId: string) => {
+    if (jobTimer.current) window.clearInterval(jobTimer.current);
+    jobTimer.current = window.setInterval(async () => {
+      try {
+        const j = await api.get<ImportJob>(`/live/import/${jobId}`);
+        setJob(j);
+        if (j.state === 'done' || j.state === 'error') {
+          if (jobTimer.current) window.clearInterval(jobTimer.current);
+          jobTimer.current = null;
+        }
+      } catch { /* 次回に再試行 */ }
+    }, 3000);
+  };
 
   useEffect(() => {
     if (isNew || !stream) return;
@@ -109,15 +134,34 @@ export default function LivePage() {
 
   const startNew = () => {
     setIsNew(true); setSelectedId(''); setName(''); setUrl(''); setDelaySec('15'); setCookies(''); setMsg(null);
+    setKind('live'); setJob(null);
+  };
+
+  // 動画URL：素材として取り込む（配信の登録はしない）
+  const startImport = async () => {
+    if (!url.trim()) { setMsg(t.enterNameUrl); return; }
+    setBusy(true); setMsg(null); setJob(null);
+    try {
+      const j = await api.post<ImportJob>('/live/import', { url: url.trim(), name: name.trim() });
+      setJob(j);
+      watchJob(j.job_id);
+    } catch (e) {
+      setMsg(t.failed(errMsg(e)));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const save = async () => {
+    if (isNew && kind === 'video') { await startImport(); return; }
     if (!name.trim() || !url.trim()) { setMsg(t.enterNameUrl); return; }
     setBusy(true); setMsg(null);
-    const body: Record<string, unknown> = {
-      name: name.trim(), source_url: url.trim(), delay_ms: Math.round(Number(delaySec || '15') * 1000),
-    };
-    if (cookies.trim()) body.cookies_txt = cookies;
+    const body: Record<string, unknown> = { name: name.trim(), source_url: url.trim() };
+    if (formKind === 'live') {
+      body.delay_ms = Math.round(Number(delaySec || '15') * 1000);
+      if (cookies.trim()) body.cookies_txt = cookies;
+    }
+    if (isNew) body.kind = kind;
     try {
       if (isNew) {
         const s = await api.post<LiveStream>('/live/streams', body);
@@ -165,8 +209,8 @@ export default function LivePage() {
   const play = async () => {
     if (!stream) return;
     setBusy(true); setPlayMsg(null);
-    const body = mode === 'each'
-      ? { mode, device_ids: Array.from(picked) }
+    const body = (mode === 'each' || streamKind === 'youtube')
+      ? { mode: 'each', device_ids: Array.from(picked) }
       : {
         mode, rows, cols, bezel_px: Math.max(0, Math.round(Number(bezel || '0'))),
         tiles: Object.entries(cells)
@@ -263,7 +307,11 @@ export default function LivePage() {
             <SelectValue placeholder={t.selectStream} />
           </SelectTrigger>
           <SelectContent>
-            {streams.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            {streams.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}{(s.kind || 'live') !== 'live' ? `（${t.kindLabel[s.kind || 'live']}）` : ''}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="ml-auto">
@@ -283,22 +331,38 @@ export default function LivePage() {
           <Card>
             <CardHeader><CardTitle className="text-sm">{isNew ? t.newStream : stream?.name}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-[1fr_2fr_120px]">
+              <div className="space-y-1 max-w-xs">
+                <Label className="text-xs">{t.kind}</Label>
+                <Select value={formKind} disabled={!isNew}
+                  onValueChange={(v) => { setKind(v as Kind); setJob(null); setMsg(null); }}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(['live', 'video', 'youtube'] as const).map((k) => (
+                      <SelectItem key={k} value={k}>{t.kindLabel[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[11px] text-muted-foreground">{t.kindNote[formKind]}</p>
+              <div className={`grid gap-4 ${formKind === 'live' ? 'sm:grid-cols-[1fr_2fr_120px]' : 'sm:grid-cols-[1fr_2fr]'}`}>
                 <div className="space-y-1">
                   <Label className="text-xs">{t.name}</Label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.namePlaceholder} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">{t.url}</Label>
-                  <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t.urlPlaceholder} />
+                  <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t.urlPlaceholderKind[formKind]} />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">{t.delay}</Label>
-                  <Input type="number" min={6} max={60} value={delaySec} onChange={(e) => setDelaySec(e.target.value)} />
-                </div>
+                {formKind === 'live' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{t.delay}</Label>
+                    <Input type="number" min={6} max={60} value={delaySec} onChange={(e) => setDelaySec(e.target.value)} />
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-muted-foreground">{t.delayNote}</p>
+              {formKind === 'live' && <p className="text-[11px] text-muted-foreground">{t.delayNote}</p>}
 
+              {formKind === 'live' && (
               <details className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2">
                 <summary className="text-xs cursor-pointer select-none">
                   {t.cookies}{stream?.has_cookies ? `（${t.cookiesSet}）` : ''}
@@ -311,20 +375,48 @@ export default function LivePage() {
                   className="mt-2 w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs font-mono"
                 />
               </details>
+              )}
 
               <div className="flex items-center gap-2">
-                <Button size="sm" disabled={busy} onClick={save}>{busy ? t.saving : (isNew ? t.create : t.save)}</Button>
+                <Button size="sm" disabled={busy || (isNew && kind === 'video' && !!job && job.state !== 'done' && job.state !== 'error')} onClick={save}>
+                  {isNew && kind === 'video'
+                    ? (busy ? t.importing : t.importBtn)
+                    : (busy ? t.saving : (isNew ? t.create : t.save))}
+                </Button>
                 {!isNew && stream && (
                   <Button variant="outline" size="sm" disabled={busy} onClick={remove} className="text-destructive">{t.delete}</Button>
                 )}
                 {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
               </div>
+
+              {isNew && kind === 'video' && job && (
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    {job.state !== 'done' && job.state !== 'error' && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    )}
+                    <span className={job.state === 'error' ? 'text-destructive font-medium' : job.state === 'done' ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'font-medium'}>
+                      {t.importState[job.state] ?? job.state}
+                    </span>
+                  </div>
+                  {job.state === 'error' && job.message && (
+                    <p className="text-muted-foreground break-all">{job.message}</p>
+                  )}
+                  {job.state === 'done' && (
+                    <p className="text-muted-foreground">
+                      {t.importDoneNote}{' '}
+                      <Link href="/assets" className="underline underline-offset-2 hover:text-foreground">{t.openAssets}</Link>
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {!isNew && stream && (
             <>
-              {/* 受信の状態 */}
+              {/* 受信の状態（ライブ配信のみ） */}
+              {streamKind === 'live' && (
               <Card>
                 <CardHeader><CardTitle className="text-sm">{t.relayTitle}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
@@ -344,11 +436,15 @@ export default function LivePage() {
                   <p className="text-[11px] text-muted-foreground break-all">{t.hlsNote}：{stream.hls_url}</p>
                 </CardContent>
               </Card>
+              )}
 
               {/* マシンで流す */}
               <Card>
                 <CardHeader><CardTitle className="text-sm">{t.playTitle}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
+                  {streamKind === 'youtube' ? (
+                    <p className="text-xs text-muted-foreground">{t.youtubeEachOnly}</p>
+                  ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {(['each', 'wall'] as const).map((m) => (
                       <label key={m}
@@ -361,8 +457,9 @@ export default function LivePage() {
                       </label>
                     ))}
                   </div>
+                  )}
 
-                  {mode === 'each' ? (
+                  {(mode === 'each' || streamKind === 'youtube') ? (
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-3">
                         <Select value="none" onValueChange={(v) => { if (v !== 'none') addGroup(v); }}>
