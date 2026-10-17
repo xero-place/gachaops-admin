@@ -66,7 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/programs', label: 'プログラム', icon: ClipboardList },
       { href: '/assets', label: '素材', icon: PackageSearch },
       { href: '/plan-schedules', label: '計画配信', icon: CalendarRange },
-      { href: '/live', label: 'ライブ配信', icon: Radio },  // S251: ライブ配信のリンク再生
+      { href: '/live', label: 'リンク再生', icon: Radio },  // S251: ライブ配信のリンク再生
     ],
   },
   {
@@ -105,7 +105,7 @@ export const NAV_LABELS_EN: Record<string, string> = {
   'プログラム': 'Programs',
   '素材': 'Assets',
   '計画配信': 'Scheduled delivery',
-  'ライブ配信': 'Live streaming',
+  'リンク再生': 'Link playback',
   '顧客': 'Customers',
   '店舗': 'Stores',
   'アップデート': 'Updates',
