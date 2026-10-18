@@ -20,6 +20,7 @@ import {
   Stepper,
   WizardCard,
   WizardFooter,
+  sortMachinesOnlineFirst,
 } from '@/components/domain/wizard';
 import { api } from '@/lib/api';
 import { friendlyError } from '@/lib/signup-admin';
@@ -68,8 +69,8 @@ function QrPick() {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((m) => [m.name, m.serial, m.customer_name ?? '', m.store_name ?? ''].some((v) => v.toLowerCase().includes(s)));
+    const list = !s ? rows : rows.filter((m) => [m.name, m.serial, m.customer_name ?? '', m.store_name ?? ''].some((v) => v.toLowerCase().includes(s)));
+    return sortMachinesOnlineFirst(list);
   }, [rows, q]);
 
   const open = () => {

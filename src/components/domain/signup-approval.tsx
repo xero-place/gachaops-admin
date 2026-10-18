@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { sortMachinesOnlineFirst } from '@/components/domain/wizard';
 import {
   fmtDate,
   fmtDateTime,
@@ -76,10 +77,10 @@ export function StockDevicePicker({
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return devices;
-    return devices.filter(
-      (d) => d.name.toLowerCase().includes(q) || (d.serial ?? '').toLowerCase().includes(q),
-    );
+    const list = !q
+      ? devices
+      : devices.filter((d) => d.name.toLowerCase().includes(q) || (d.serial ?? '').toLowerCase().includes(q));
+    return sortMachinesOnlineFirst(list);
   }, [devices, query]);
   const toggle = (id: string) =>
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);

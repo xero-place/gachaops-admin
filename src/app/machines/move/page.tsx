@@ -25,6 +25,8 @@ import {
   Stepper,
   WizardCard,
   WizardFooter,
+  buildCustomerOptions,
+  sortMachinesOnlineFirst,
 } from '@/components/domain/wizard';
 import { api, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
@@ -158,8 +160,8 @@ function MoveWizard() {
   useEffect(() => { load(); }, [load]);
 
   const custName = useCallback(
-    (id: string) => (id === ownId ? '弊社の在庫' : (customers.find((c) => c.id === id)?.name ?? '')),
-    [customers, ownId],
+    (id: string) => (id === ownId ? '弊社の在庫' : (customers.find((c) => c.id === id)?.name ?? machines.find((m) => m.customer_id === id)?.customer_name ?? '')),
+    [customers, machines, ownId],
   );
   const ownerLabel = useCallback(
     (m: MachineRow) => (m.customer_id === ownId ? '弊社の在庫' : (m.customer_name || custName(m.customer_id))),
@@ -167,25 +169,16 @@ function MoveWizard() {
   );
 
   // 顧客の選択肢：弊社の在庫を先頭に、マシンを持っている顧客
-  const ownerOptions = useMemo(() => {
-    const withMachines = new Set(machines.map((m) => m.customer_id));
-    const list = customers.filter((c) => withMachines.has(c.id));
-    const own = list.filter((c) => c.id === ownId);
-    const others = list.filter((c) => c.id !== ownId).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-    return [...own, ...others].map((c) => ({
-      id: c.id,
-      label: c.id === ownId ? '弊社の在庫' : c.name,
-      count: machines.filter((m) => m.customer_id === c.id).length,
-    }));
-  }, [customers, machines, ownId]);
+  // S262s: GET /customers とマシン自身の顧客情報の両方から作る（片方が欠けても空にならない）
+  const ownerOptions = useMemo(() => buildCustomerOptions(customers, machines, ownId), [customers, machines, ownId]);
 
   const visible = useMemo(() => {
     const q = mq.trim().toLowerCase();
-    return machines.filter((m) => {
+    return sortMachinesOnlineFirst(machines.filter((m) => {
       if (owner && m.customer_id !== owner) return false;
       if (!q) return true;
       return [m.name, m.serial, ownerLabel(m), m.store_name ?? ''].some((v) => (v ?? '').toLowerCase().includes(q));
-    });
+    }));
   }, [machines, owner, mq, ownerLabel]);
 
   const selectedOwner = selected.length > 0 ? machines.find((m) => m.id === selected[0])?.customer_id ?? null : null;
@@ -351,7 +344,7 @@ function MoveWizard() {
                     <option value="">すべての顧客から探す</option>
                     {ownerOptions.map((o) => (
                       <option key={o.id} value={o.id}>
-                        {o.label}（{o.count}台）
+                        {o.label}
                       </option>
                     ))}
                   </select>

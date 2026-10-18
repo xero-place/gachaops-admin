@@ -27,7 +27,7 @@
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Loader2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,11 +39,13 @@ import {
   ListScroll,
   Loading,
   STATUS_TEXT,
-  SearchBox,
   StepTitle,
   Stepper,
   WizardCard,
   WizardFooter,
+  CustomerSelect,
+  buildCustomerOptions,
+  sortMachinesOnlineFirst,
 } from '@/components/domain/wizard';
 import { api, ApiError } from '@/lib/api';
 import { useCurrentUser } from '@/lib/use-current-user';
@@ -56,6 +58,7 @@ interface Machine {
   serial?: string;
   status: string;
   customer_id: string;
+  customer_name?: string;
   store_name?: string;
   current_program_id?: string | null;
   current_program_name?: string | null;
@@ -134,7 +137,6 @@ function PlayWizard() {
 
   const [stepIdx, setStepIdx] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [cq, setCq] = useState('');
   const [mode, setMode] = useState<Mode | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   // B
@@ -155,6 +157,7 @@ function PlayWizard() {
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
+  const [showOffline, setShowOffline] = useState(false);
   const [madeGroup, setMadeGroup] = useState<{ id: string; name: string; reused: boolean } | null>(null);
 
   const load = useCallback(async () => {
@@ -188,14 +191,16 @@ function PlayWizard() {
     (id: string | null) => {
       if (!id) return '';
       if (isStaff && id === ownId) return '弊社';
-      return customers.find((c) => c.id === id)?.name ?? user?.customer_name ?? '';
+      return customers.find((c) => c.id === id)?.name ?? machines.find((m) => m.customer_id === id)?.customer_name ?? user?.customer_name ?? '';
     },
-    [customers, isStaff, ownId, user],
+    [customers, machines, isStaff, ownId, user],
   );
   const isOwnTenant = customerId !== null && customerId === ownId;
+  // S262s: GET /customers とマシン自身の顧客情報の両方から作る（片方が欠けても空にならない）
+  const customerOptions = useMemo(() => buildCustomerOptions(customers, machines, ownId), [customers, machines, ownId]);
 
   const custMachines = useMemo(
-    () => machines.filter((m) => m.customer_id === customerId).sort((a, b) => a.name.localeCompare(b.name, 'ja')),
+    () => sortMachinesOnlineFirst(machines.filter((m) => m.customer_id === customerId)),
     [machines, customerId],
   );
   const onlineIds = custMachines.filter((m) => m.status === 'online').map((m) => m.id);
@@ -432,6 +437,47 @@ function PlayWizard() {
     load();
   };
 
+  // S262t: オンラインのマシンを先に。オフライン・未接続・メンテナンス中はたたんで表示（選べない）
+  const onlineMachines = custMachines.filter((m) => m.status === 'online');
+  const otherMachines = custMachines.filter((m) => m.status !== 'online');
+  const renderMachine = (m: Machine) => {
+                  const online = m.status === 'online';
+                  const on = picked.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={!online}
+                      onClick={() => togglePick(m.id)}
+                      aria-pressed={on}
+                      className={cn(
+                        'flex min-h-[60px] w-full shrink-0 items-center gap-3.5 rounded-[10px] px-4 py-3.5 text-left transition-colors',
+                        on ? 'border border-primary bg-primary/5 ring-1 ring-inset ring-primary' : 'border bg-card hover:bg-accent',
+                        !online && 'cursor-not-allowed opacity-55 hover:bg-card',
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
+                          on ? 'bg-primary text-primary-foreground' : 'border-2 border-[#9CA3AF] bg-card',
+                        )}
+                      >
+                        {on && <Check className="h-4 w-4" strokeWidth={3} />}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="break-words text-base font-bold">{m.name}</span>
+                        <span className="break-words text-[13px] text-muted-foreground">
+                          {STATUS_TEXT[m.status] ?? ''}
+                          {m.current_program_name ? `・いま：${m.current_program_name}` : ''}
+                          {!online && '・選べません'}
+                        </span>
+                        {dupGroups.has(m.id) && <span className="text-[12px] font-bold text-warn">複数のグループ</span>}
+                      </span>
+                    </button>
+                  );
+  };
+
   if (!ready || loading) return <Loading />;
   if (loadError) {
     return (
@@ -460,25 +506,17 @@ function PlayWizard() {
         {step === 'customer' && (
           <>
             <StepTitle title="どの顧客のマシンですか？" lead="弊社（在庫・自社）のマシンも選べます。" />
-            <SearchBox value={cq} onChange={setCq} placeholder="顧客の名前で探す" />
-            <ListScroll>
-              {[...customers]
-                .filter((c) => machines.some((m) => m.customer_id === c.id))
-                .sort((a, b) => (a.id === ownId ? -1 : b.id === ownId ? 1 : a.name.localeCompare(b.name, 'ja')))
-                .filter((c) => !cq.trim() || (c.id === ownId ? '弊社 在庫 自社' : c.name).toLowerCase().includes(cq.trim().toLowerCase()))
-                .map((c) => {
-                  const ms = machines.filter((m) => m.customer_id === c.id);
-                  return (
-                    <ChoiceRow
-                      key={c.id}
-                      selected={customerId === c.id}
-                      onClick={() => chooseCustomer(c.id)}
-                      title={c.id === ownId ? '弊社（在庫・自社）' : c.name}
-                      sub={`マシン ${ms.length}台（オンライン ${ms.filter((m) => m.status === 'online').length}台）`}
-                    />
-                  );
-                })}
-            </ListScroll>
+            {customerOptions.length === 0 ? (
+              <EmptyBox>マシンが見つかりませんでした。マシンの一覧を確かめてください。</EmptyBox>
+            ) : (
+              <CustomerSelect
+                id="play-customer"
+                label="顧客"
+                value={customerId ?? ''}
+                onChange={(v) => { if (v) chooseCustomer(v); else setCustomerId(null); }}
+                options={customerOptions}
+              />
+            )}
             <WizardFooter onNext={next} nextLabel="次へ" nextDisabled={!customerId} />
           </>
         )}
@@ -536,45 +574,27 @@ function PlayWizard() {
             {custMachines.length === 0 ? (
               <EmptyBox>この顧客のマシンはまだありません。</EmptyBox>
             ) : (
-              <ListScroll>
-                {custMachines.map((m) => {
-                  const online = m.status === 'online';
-                  const on = picked.includes(m.id);
-                  return (
+              <>
+                {onlineMachines.length === 0 ? (
+                  <EmptyBox>いまオンラインのマシンはありません。</EmptyBox>
+                ) : (
+                  <ListScroll>{onlineMachines.map(renderMachine)}</ListScroll>
+                )}
+                {otherMachines.length > 0 && (
+                  <div className="flex flex-col gap-2">
                     <button
-                      key={m.id}
                       type="button"
-                      disabled={!online}
-                      onClick={() => togglePick(m.id)}
-                      aria-pressed={on}
-                      className={cn(
-                        'flex min-h-[60px] w-full shrink-0 items-center gap-3.5 rounded-[10px] px-4 py-3.5 text-left transition-colors',
-                        on ? 'border border-primary bg-primary/5 ring-1 ring-inset ring-primary' : 'border bg-card hover:bg-accent',
-                        !online && 'cursor-not-allowed opacity-55 hover:bg-card',
-                      )}
+                      aria-expanded={showOffline}
+                      onClick={() => setShowOffline((v) => !v)}
+                      className="flex min-h-[44px] items-center gap-2 self-start rounded-[10px] px-1 text-sm font-bold text-muted-foreground hover:text-foreground"
                     >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
-                          on ? 'bg-primary text-primary-foreground' : 'border-2 border-[#9CA3AF] bg-card',
-                        )}
-                      >
-                        {on && <Check className="h-4 w-4" strokeWidth={3} />}
-                      </span>
-                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="break-words text-base font-bold">{m.name}</span>
-                        <span className="break-words text-[13px] text-muted-foreground">
-                          {STATUS_TEXT[m.status] ?? ''}
-                          {m.current_program_name ? `・いま：${m.current_program_name}` : ''}
-                          {!online && '・オフラインのため選べません'}
-                        </span>
-                        {dupGroups.has(m.id) && <span className="text-[12px] font-bold text-warn">複数のグループ</span>}
-                      </span>
+                      <ChevronDown className={cn('h-4 w-4 transition-transform', showOffline && 'rotate-180')} aria-hidden="true" />
+                      オフラインのマシン（{otherMachines.length}台・選べません）
                     </button>
-                  );
-                })}
-              </ListScroll>
+                    {showOffline && <div className="flex flex-col gap-2">{otherMachines.map(renderMachine)}</div>}
+                  </div>
+                )}
+              </>
             )}
             {mode === 'wall' && picked.length > 0 && picked.length < 2 && <ErrorBox>ビデオウォールには2台以上を選んでください。</ErrorBox>}
             <WizardFooter

@@ -12,17 +12,15 @@ import { DoneMark } from '@/components/public/public-frame';
 import { StockDevicePicker } from '@/components/domain/signup-approval';
 import { OwnershipNotice, PrepareButton } from '@/components/domain/customer-prep';
 import {
-  ChoiceRow,
   ConfirmTable,
   EmptyBox,
   ErrorBox,
-  ListScroll,
   Loading,
-  SearchBox,
   StepTitle,
   Stepper,
   WizardCard,
   WizardFooter,
+  CustomerSelect,
 } from '@/components/domain/wizard';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
@@ -54,7 +52,6 @@ function AssignWizard() {
   const [customers, setCustomers] = useState<CustomerChoice[]>([]);
   const [custLoading, setCustLoading] = useState(true);
   const [custError, setCustError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [customer, setCustomer] = useState<CustomerChoice | null>(null);
 
   // step 2
@@ -122,10 +119,14 @@ function AssignWizard() {
     loadDevices();
   }, [loadCustomers, loadDevices]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? customers.filter((c) => c.name.toLowerCase().includes(q)) : customers;
-  }, [customers, query]);
+  // S262s: プルダウンの選択肢（名前順。登録待ちは名前の後ろに明記）
+  const customerOptions = useMemo(
+    () =>
+      [...customers]
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+        .map((c) => ({ id: c.id, name: c.name, machineCount: 0, onlineCount: 0, label: `${c.name}${c.pending ? '（登録待ち）' : ''}${c.sub ? ` — ${c.sub}` : ''}` })),
+    [customers],
+  );
 
   const pickedNames = devices.filter((d) => picked.includes(d.id)).map((d) => d.name);
 
@@ -159,7 +160,6 @@ function AssignWizard() {
         {step === 1 && (
           <>
             <StepTitle title="どの顧客にマシンを渡しますか？" lead="登録待ちの顧客（まだ本人が使い始めていない顧客）も選べます。" />
-            <SearchBox value={query} onChange={setQuery} placeholder="顧客の名前で探す" />
             {custLoading ? (
               <Loading />
             ) : custError ? (
@@ -167,21 +167,19 @@ function AssignWizard() {
                 <ErrorBox>{custError}</ErrorBox>
                 <Button variant="outline" onClick={loadCustomers}>もう一度読み込む</Button>
               </div>
-            ) : filtered.length === 0 ? (
-              <EmptyBox>{query ? `「${query}」に当てはまる顧客はいません。` : '顧客がまだいません。'}</EmptyBox>
+            ) : customers.length === 0 ? (
+              <EmptyBox>顧客がまだいません。</EmptyBox>
             ) : (
-              <ListScroll>
-                {filtered.map((c) => (
-                  <ChoiceRow
-                    key={c.id}
-                    selected={customer?.id === c.id}
-                    onClick={() => setCustomer(c)}
-                    title={c.name}
-                    sub={c.sub}
-                    right={c.pending ? <span className="text-muted-foreground">登録待ち</span> : undefined}
-                  />
-                ))}
-              </ListScroll>
+              <>
+                <CustomerSelect
+                  id="assign-customer"
+                  label="顧客"
+                  value={customer?.id ?? ''}
+                  onChange={(v) => setCustomer(customers.find((c) => c.id === v) ?? null)}
+                  options={customerOptions}
+                />
+                {customer && <p className="text-sm text-muted-foreground">{customer.sub}</p>}
+              </>
             )}
             <WizardFooter
               onNext={() => setStep(2)}

@@ -179,3 +179,83 @@ export const STATUS_TEXT: Record<string, string> = {
   maintenance: 'メンテナンス中',
   never_connected: '未接続',
 };
+
+/** S262s: 顧客を選ぶプルダウンの選択肢。
+ *  GET /customers の結果と、マシン自身が持つ customer_id / customer_name の両方から作る
+ *  （どちらか一方が欠けても、マシンがある限り空にならない）。弊社（在庫・自社）を先頭、ほかは名前順。 */
+export interface CustomerOption {
+  id: string;
+  label: string;
+  name: string;
+  machineCount: number;
+  onlineCount: number;
+}
+
+export function buildCustomerOptions(
+  customers: { id: string; name: string }[],
+  machines: { customer_id: string; customer_name?: string; status?: string }[],
+  ownId: string | null,
+  opts: { includeOwn?: boolean; onlyWithMachines?: boolean; suffix?: (id: string) => string } = {},
+): CustomerOption[] {
+  const { includeOwn = true, onlyWithMachines = true, suffix } = opts;
+  const names = new Map<string, string>();
+  for (const c of customers) if (c.id) names.set(c.id, c.name);
+  for (const m of machines) if (m.customer_id && !names.has(m.customer_id)) names.set(m.customer_id, m.customer_name || '（名前不明の顧客）');
+  const out: CustomerOption[] = [];
+  for (const [id, name] of Array.from(names.entries())) {
+    if (!includeOwn && id === ownId) continue;
+    const ms = machines.filter((m) => m.customer_id === id);
+    if (onlyWithMachines && ms.length === 0) continue;
+    const on = ms.filter((m) => m.status === 'online').length;
+    const label =
+      id === ownId
+        ? `弊社（在庫・自社）— マシン ${ms.length}台`
+        : `${name} — マシン ${ms.length}台（オンライン ${on}台）${suffix ? suffix(id) : ''}`;
+    out.push({ id, label, name, machineCount: ms.length, onlineCount: on });
+  }
+  return out.sort((a, b) => (a.id === ownId ? -1 : b.id === ownId ? 1 : a.name.localeCompare(b.name, 'ja')));
+}
+
+export function CustomerSelect({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = '顧客を選んでください',
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: CustomerOption[];
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-bold">{label}</label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-12 w-full rounded-[10px] border border-input bg-card px-3 text-base"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** S262t: マシンの並び順。オンライン → 未接続 → メンテナンス中 → オフライン、同じ状態の中は名前順（数字は数として：99 < 102）。 */
+const STATUS_ORDER: Record<string, number> = { online: 0, never_connected: 1, maintenance: 2, offline: 3 };
+export function sortMachinesOnlineFirst<T extends { name?: string | null; status?: string | null }>(list: T[]): T[] {
+  return [...list].sort((a, b) => {
+    const sa = STATUS_ORDER[a.status ?? ''] ?? 4;
+    const sb = STATUS_ORDER[b.status ?? ''] ?? 4;
+    if (sa !== sb) return sa - sb;
+    return (a.name ?? '').localeCompare(b.name ?? '', 'ja', { numeric: true });
+  });
+}
