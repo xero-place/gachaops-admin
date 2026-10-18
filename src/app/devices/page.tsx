@@ -53,6 +53,7 @@ interface ListResponse<T> { items?: T[]; data?: T[]; total?: number }
 export default function DevicesPage() {
   const t = usePageT(devicesDict);
   const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145: 顧客名表示の出し分け
+  const myCustomerId = tokenStore.getUser()?.customer_id ?? '';  // S262f: 弊社(在庫)の会社ID
   const { states: playbackStates } = usePlaybackStream();
   const [videoDevice, setVideoDevice] = useState<Device | null>(null);
   // S146: 端末名変更
@@ -132,6 +133,9 @@ export default function DevicesPage() {
   // value is never overwritten by the initial defaults.
   // S262c: ホームの「売り切れのマシン」から ?soldout=1 で来たときだけ、在庫0のマシンに絞る（表示だけの絞り込み）
   const [soldOutOnly, setSoldOutOnly] = useState(false);
+  // S262f: ホームの数字から来たときは、ホームの台数と同じく「お客様のマシン」だけに絞る（弊社の在庫を除く）
+  const [customersOnly, setCustomersOnly] = useState(false);
+  const [fromHomeOffline, setFromHomeOffline] = useState(false);
   const filtersHydrated = useRef(false);
   useEffect(() => {
     try {
@@ -160,6 +164,8 @@ export default function DevicesPage() {
         setGroupFilter('all');
         setSearch('');
       }
+      if (usp.get('scope') === 'customers') setCustomersOnly(true);
+      if (st === 'offline' && usp.get('scope') === 'customers') { setFromHomeOffline(true); setStatusFilter('all'); }
       if (usp.get('soldout') === '1') {
         setSoldOutOnly(true);
         setStatusFilter('all');
@@ -228,6 +234,9 @@ export default function DevicesPage() {
   const filtered = useMemo(() => {
     return effectiveDevices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
+      if (customersOnly && myCustomerId && d.customer_id === myCustomerId) return false;
+      // S262f: ホームの「つながっていないマシン」と同じ数え方（オンライン以外＝未接続・メンテナンス中も含む）
+      if (fromHomeOffline && d.status === 'online') return false;
       if (soldOutOnly) {
         const st = stockMap[d.id];
         if (!st || st.free_mode || st.remaining_balls > 0) return false;
@@ -240,7 +249,7 @@ export default function DevicesPage() {
       }
       return true;
     });
-  }, [search, statusFilter, storeFilter, groupFilter, effectiveDevices, soldOutOnly, stockMap]);
+  }, [search, statusFilter, storeFilter, groupFilter, effectiveDevices, soldOutOnly, stockMap, customersOnly, myCustomerId, fromHomeOffline]);
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -295,10 +304,12 @@ export default function DevicesPage() {
           {t.fetchError(loadError)}
         </div>
       )}
-      {soldOutOnly && (
+      {(soldOutOnly || fromHomeOffline) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border bg-card px-4 py-3 text-sm">
-          <span className="font-bold">売り切れ（残り0個）のマシンだけを表示しています。</span>
-          <Button variant="outline" size="sm" onClick={() => setSoldOutOnly(false)}>すべてのマシンを表示</Button>
+          <span className="font-bold">
+            {soldOutOnly ? '売り切れ（残り0個）' : 'つながっていない'}マシンだけを表示しています{customersOnly ? '（お客様のマシンのみ・弊社の在庫を除く）' : ''}：{filtered.length}台
+          </span>
+          <Button variant="outline" size="sm" onClick={() => { setSoldOutOnly(false); setCustomersOnly(false); setFromHomeOffline(false); setStatusFilter('all'); }}>すべてのマシンを表示</Button>
         </div>
       )}
       {/* Stat strip */}

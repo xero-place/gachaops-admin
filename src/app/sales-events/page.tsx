@@ -188,6 +188,10 @@ export default function SalesEventsPage() {
   const [byDeviceOpen, setByDeviceOpen] = useState(false);  // S225/S229: 端末別内訳は既定で折りたたみ
   const [undispensed, setUndispensed] = useState<{ count: number; yen: number }>({ count: 0, yen: 0 });  // ★P1: 未排出アラート
   const [onlyUndispensed, setOnlyUndispensed] = useState(false);  // ★rankSR1: 未排出のみ表示(バナークリック)
+  // S262f: ホームの「排出を確認してほしい注文」から ?undispensed=1 で来たら、未排出だけを表示
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get('undispensed') === '1') setOnlyUndispensed(true); } catch { /* noop */ }
+  }, []);
   const [refreshTick, setRefreshTick] = useState(0);              // ★rankSR1: 対応済み後の再取得トリガ
   const [resolving, setResolving] = useState<string | null>(null); // ★rankSR1: 対応中の注文ID
 

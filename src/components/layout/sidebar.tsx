@@ -53,12 +53,15 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-end px-3 pb-5 pt-1 text-xl font-bold text-white">
-        {/* S262d: 正式ロゴ（白） */}
+      <div className="flex items-center px-3 pb-5 pt-1 text-white">
+        {/* S262d: 正式ロゴ（白） / S262f: 「運営」はロゴの縦中央に区切り線つきで揃える */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/gtchax-logo-white.png" alt="GTCHA X" className="h-[22px] w-auto" />
+        <img src="/brand/gtchax-logo-white.png" alt="GTCHA X" className="h-[20px] w-auto" />
         {ready && isStaff && (
-          <span className="ml-1.5 text-[13px] font-normal text-[#9CA3AF]">運営</span>
+          <>
+            <span aria-hidden="true" className="mx-3 h-4 w-px bg-white/25" />
+            <span className="text-[12px] font-medium leading-none tracking-[0.12em] text-[#9CA3AF]">運営</span>
+          </>
         )}
       </div>
       {ready && (
