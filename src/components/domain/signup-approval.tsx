@@ -60,6 +60,7 @@ export function StockDevicePicker({
   onChange,
   title = 'お渡しするマシンを選ぶ',
   description = 'まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずに承認して、後から追加することもできます。',
+  alwaysSearch = false,
 }: {
   devices: StockDevice[];
   loading: boolean;
@@ -69,6 +70,8 @@ export function StockDevicePicker({
   onChange: (ids: string[]) => void;
   title?: string;
   description?: string;
+  /** 台数が少なくても検索欄を出す */
+  alwaysSearch?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -88,7 +91,7 @@ export function StockDevicePicker({
         <div className="text-[15px] font-bold">{title}</div>
         <div className="mt-1 text-[13px] text-muted-foreground">{description}</div>
       </div>
-      {devices.length > 6 && (
+      {(devices.length > 6 || alwaysSearch) && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

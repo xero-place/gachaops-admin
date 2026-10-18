@@ -47,7 +47,7 @@ export function StaffHome() {
           cta="はじめる →"
         />
         <ActionCard
-          href="/devices"
+          href="/machines/move"
           icon={ICONS.move}
           title="マシンを別のお客様へ移す"
           desc="売上の記録は残したまま、マシンの持ち主を変えます。"
@@ -61,7 +61,7 @@ export function StaffHome() {
           cta="はじめる →"
         />
         <ActionCard
-          href="/devices"
+          href="/machines/qr"
           icon={ICONS.card}
           title="キャッシュレス決済をON / OFFする"
           desc="マシンごとに、QRで払えるようにするかを切り替えます。"
@@ -78,8 +78,8 @@ export function StaffHome() {
 
       <Panel title="いま確認が必要なこと">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
-          <StatTile label="つながっていないマシン" value={n(summary?.offline_devices)} unit="台" href="/devices" />
-          <StatTile label="売り切れのマシン" value={n(summary?.sold_out_devices)} unit="台" href="/devices" />
+          <StatTile label="つながっていないマシン" value={n(summary?.offline_devices)} unit="台" href="/devices?status=offline" />
+          <StatTile label="売り切れのマシン" value={n(summary?.sold_out_devices)} unit="台" href="/devices?soldout=1" />
           <StatTile label="排出を確認してほしい注文" value={n(summary?.unconfirmed_dispense_7d)} unit="件" href="/sales-events" />
           <StatTile label="承認待ちのお客様" value={n(summary?.pending_signups)} unit="件" href="/customers/approvals" />
         </div>

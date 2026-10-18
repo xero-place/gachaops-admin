@@ -130,6 +130,8 @@ export default function DevicesPage() {
   // S200: remember list filters across navigation (device detail → back).
   // Restore after mount (hydration-safe); skip the first persist so the saved
   // value is never overwritten by the initial defaults.
+  // S262c: ホームの「売り切れのマシン」から ?soldout=1 で来たときだけ、在庫0のマシンに絞る（表示だけの絞り込み）
+  const [soldOutOnly, setSoldOutOnly] = useState(false);
   const filtersHydrated = useRef(false);
   useEffect(() => {
     try {
@@ -149,6 +151,22 @@ export default function DevicesPage() {
   // sessionStorage 復元(上の effect)より後に実行されるため URL 指定が優先される。
   useEffect(() => {
     try {
+      // S262c: ホームの「つながっていないマシン」「売り切れのマシン」から来たときの絞り込み
+      const usp = new URLSearchParams(window.location.search);
+      const st = usp.get('status');
+      if (st && ['online', 'offline', 'maintenance', 'never_connected'].includes(st)) {
+        setStatusFilter(st);
+        setStoreFilter('all');
+        setGroupFilter('all');
+        setSearch('');
+      }
+      if (usp.get('soldout') === '1') {
+        setSoldOutOnly(true);
+        setStatusFilter('all');
+        setStoreFilter('all');
+        setGroupFilter('all');
+        setSearch('');
+      }
       const sid = new URLSearchParams(window.location.search).get('store_id');
       if (sid) {
         setStoreFilter(sid);
@@ -210,6 +228,10 @@ export default function DevicesPage() {
   const filtered = useMemo(() => {
     return effectiveDevices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
+      if (soldOutOnly) {
+        const st = stockMap[d.id];
+        if (!st || st.free_mode || st.remaining_balls > 0) return false;
+      }
       if (storeFilter !== 'all' && d.store_id !== storeFilter) return false;
       if (groupFilter !== 'all' && !(d.group_ids ?? []).includes(groupFilter)) return false;
       if (search) {
@@ -218,7 +240,7 @@ export default function DevicesPage() {
       }
       return true;
     });
-  }, [search, statusFilter, storeFilter, groupFilter, effectiveDevices]);
+  }, [search, statusFilter, storeFilter, groupFilter, effectiveDevices, soldOutOnly, stockMap]);
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -271,6 +293,12 @@ export default function DevicesPage() {
       {loadError && (
         <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-sm text-destructive">
           {t.fetchError(loadError)}
+        </div>
+      )}
+      {soldOutOnly && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border bg-card px-4 py-3 text-sm">
+          <span className="font-bold">売り切れ（残り0個）のマシンだけを表示しています。</span>
+          <Button variant="outline" size="sm" onClick={() => setSoldOutOnly(false)}>すべてのマシンを表示</Button>
         </div>
       )}
       {/* Stat strip */}

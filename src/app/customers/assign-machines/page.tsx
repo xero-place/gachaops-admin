@@ -1,46 +1,76 @@
 'use client';
 
-// S262b: お客様にマシンを追加する（ホームの「お客様にマシンを追加する」から）。
-// 1. お客様を選ぶ（登録待ちのお客様も含む） → 2. 在庫のマシンを選んで移す（確認の説明つき）
+// S262c: お客様にマシンを追加する（4ステップ）。
+// 1. お客様を選ぶ → 2. お渡しするマシンを選ぶ → 3. 確認 → 4. 完了
+// 在庫（弊社）のマシンだけを移せる。POST /admin/customers/{id}/assign-devices。
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { StaffOnly } from '@/components/domain/staff-only';
-import { AssignDevicesDialog } from '@/components/domain/customer-prep';
+import { DoneMark } from '@/components/public/public-frame';
+import { StockDevicePicker } from '@/components/domain/signup-approval';
+import { OwnershipNotice, PrepareButton } from '@/components/domain/customer-prep';
+import {
+  ChoiceRow,
+  ConfirmTable,
+  EmptyBox,
+  ErrorBox,
+  ListScroll,
+  Loading,
+  SearchBox,
+  StepTitle,
+  Stepper,
+  WizardCard,
+  WizardFooter,
+} from '@/components/domain/wizard';
 import { api } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { friendlyError, signupAdmin, type PendingCustomer } from '@/lib/signup-admin';
+import { friendlyError, signupAdmin, type PendingCustomer, type StockDevice } from '@/lib/signup-admin';
 
-interface Row {
+interface CustomerChoice {
   id: string;
   name: string;
+  pending: boolean;
   sub: string;
 }
+
+const STEPS = ['お客様を選ぶ', 'お渡しするマシンを選ぶ', '確認', '完了'];
 
 export default function AssignMachinesPage() {
   return (
     <AppShell title="お客様にマシンを追加する" back={{ href: '/', label: 'ホームに戻る' }}>
       <StaffOnly>
-        <AssignMachines />
+        <AssignWizard />
       </StaffOnly>
     </AppShell>
   );
 }
 
-function AssignMachines() {
-  const [pending, setPending] = useState<Row[]>([]);
-  const [active, setActive] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [target, setTarget] = useState<Row | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+function AssignWizard() {
+  const [step, setStep] = useState(1);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // step 1
+  const [customers, setCustomers] = useState<CustomerChoice[]>([]);
+  const [custLoading, setCustLoading] = useState(true);
+  const [custError, setCustError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [customer, setCustomer] = useState<CustomerChoice | null>(null);
+
+  // step 2
+  const [devices, setDevices] = useState<StockDevice[]>([]);
+  const [devLoading, setDevLoading] = useState(false);
+  const [devError, setDevError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+
+  // step 3
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [doneCount, setDoneCount] = useState(0);
+
+  const loadCustomers = useCallback(async () => {
+    setCustLoading(true);
+    setCustError(null);
     try {
       const [pc, cs] = await Promise.all([
         signupAdmin.pendingCustomers().catch(() => [] as PendingCustomer[]),
@@ -49,101 +79,185 @@ function AssignMachines() {
         ),
       ]);
       const pendingIds = new Set(pc.map((c) => c.customer_id));
-      setPending(pc.map((c) => ({ id: c.customer_id, name: c.name, sub: `マシン ${c.device_count}台・${c.signup_request?.status === 'pending_approval' ? '登録済み・承認待ち' : 'まだ登録していません'}` })));
-      const list = Array.isArray(cs) ? cs : (cs.items ?? []);
       // 弊社（在庫）の会社自身は移し先にできない（サーバーも 409 stock_tenant で拒否する）
       const ownId = tokenStore.getUser()?.customer_id;
-      setActive(
-        list
+      const list = Array.isArray(cs) ? cs : (cs.items ?? []);
+      setCustomers([
+        ...pc.map((c) => ({
+          id: c.customer_id,
+          name: c.name,
+          pending: true,
+          sub: `マシン ${c.device_count}台・${c.signup_request?.status === 'pending_approval' ? '登録済み（承認待ち）' : 'まだ登録していません'}`,
+        })),
+        ...list
           .filter((c) => !pendingIds.has(c.id) && c.id !== ownId)
-          .map((c) => ({ id: c.id, name: c.name, sub: typeof c.device_count === 'number' ? `マシン ${c.device_count}台` : '' })),
-      );
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            pending: false,
+            sub: typeof c.device_count === 'number' ? `マシン ${c.device_count}台` : '',
+          })),
+      ]);
     } catch (e) {
-      setError(friendlyError(e, 'load'));
+      setCustError(friendlyError(e, 'load'));
     } finally {
-      setLoading(false);
+      setCustLoading(false);
     }
   }, []);
-  useEffect(() => { load(); }, [load]);
 
-  const match = useCallback(
-    (r: Row) => !query.trim() || r.name.toLowerCase().includes(query.trim().toLowerCase()),
-    [query],
-  );
-  const fp = useMemo(() => pending.filter(match), [pending, match]);
-  const fa = useMemo(() => active.filter(match), [active, match]);
+  const loadDevices = useCallback(async () => {
+    setDevLoading(true);
+    setDevError(null);
+    try {
+      setDevices(await signupAdmin.stockDevices());
+    } catch (e) {
+      setDevError('在庫のマシンを読み込めませんでした。' + friendlyError(e, 'load'));
+    } finally {
+      setDevLoading(false);
+    }
+  }, []);
 
-  const group = (title: string, rows: Row[]) => (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-[15px] font-bold">{title}</h2>
-      {rows.length === 0 ? (
-        <div className="rounded-[10px] bg-secondary px-4 py-3 text-sm text-foreground/80">該当するお客様はいません。</div>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((r) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                onClick={() => { setNotice(null); setTarget(r); }}
-                className="flex min-h-[60px] w-full items-center justify-between gap-3 rounded-[12px] border bg-card px-5 py-3.5 text-left transition-colors hover:bg-accent"
-              >
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-base font-bold">{r.name}</span>
-                  {r.sub && <span className="text-[13px] text-muted-foreground">{r.sub}</span>}
-                </span>
-                <span className="shrink-0 text-sm font-bold">選ぶ →</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
+  useEffect(() => {
+    loadCustomers();
+    loadDevices();
+  }, [loadCustomers, loadDevices]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? customers.filter((c) => c.name.toLowerCase().includes(q)) : customers;
+  }, [customers, query]);
+
+  const pickedNames = devices.filter((d) => picked.includes(d.id)).map((d) => d.name);
+
+  const assign = async () => {
+    if (!customer || picked.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await signupAdmin.assignDevices(customer.id, picked);
+      setDoneCount(r?.assigned_device_ids?.length ?? picked.length);
+      setStep(4);
+    } catch (e) {
+      setError(friendlyError(e, 'assign'));
+      loadDevices();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const again = () => {
+    setPicked([]);
+    setError(null);
+    setStep(2);
+    loadDevices();
+  };
 
   return (
-    <div className="flex w-full max-w-[760px] flex-col gap-5">
-      <p className="text-[15px] text-muted-foreground">
-        マシンを渡すお客様を選んでください。次の画面で、在庫のマシンから選びます。
-      </p>
-      {notice && (
-        <div role="status" className="rounded-[10px] border border-ok/30 bg-ok/5 px-4 py-3 text-sm text-ok">
-          {notice}
-        </div>
-      )}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="お客様の名前で探す" className="pl-10" aria-label="お客様を探す" />
-      </div>
-      {loading ? (
-        <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          読み込んでいます…
-        </div>
-      ) : error ? (
-        <div className="flex flex-col items-start gap-3">
-          <div role="alert" className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-bold text-destructive">
-            {error}
+    <div className="flex w-full max-w-[960px] flex-col gap-6">
+      <Stepper labels={STEPS} step={step} />
+      <WizardCard>
+        {step === 1 && (
+          <>
+            <StepTitle title="どのお客様にマシンを渡しますか？" lead="登録待ちのお客様（まだ本人が使い始めていないお客様）も選べます。" />
+            <SearchBox value={query} onChange={setQuery} placeholder="お客様の名前で探す" />
+            {custLoading ? (
+              <Loading />
+            ) : custError ? (
+              <div className="flex flex-col items-start gap-3">
+                <ErrorBox>{custError}</ErrorBox>
+                <Button variant="outline" onClick={loadCustomers}>もう一度読み込む</Button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <EmptyBox>{query ? `「${query}」に当てはまるお客様はいません。` : 'お客様がまだいません。'}</EmptyBox>
+            ) : (
+              <ListScroll>
+                {filtered.map((c) => (
+                  <ChoiceRow
+                    key={c.id}
+                    selected={customer?.id === c.id}
+                    onClick={() => setCustomer(c)}
+                    title={c.name}
+                    sub={c.sub}
+                    right={c.pending ? <span className="text-muted-foreground">登録待ち</span> : undefined}
+                  />
+                ))}
+              </ListScroll>
+            )}
+            <WizardFooter
+              onNext={() => setStep(2)}
+              nextLabel="次へ"
+              nextDisabled={!customer}
+            />
+          </>
+        )}
+
+        {step === 2 && customer && (
+          <>
+            <StepTitle title={`${customer.name} にお渡しするマシンを選んでください`} lead="弊社の在庫にあるマシンだけを表示しています。何台でも選べます。" />
+            <StockDevicePicker
+              devices={devices}
+              loading={devLoading}
+              error={devError}
+              onReload={loadDevices}
+              selected={picked}
+              onChange={setPicked}
+              title="お渡しするマシン"
+              description="名前や番号で探せます。"
+              alwaysSearch
+            />
+            <WizardFooter
+              onBack={() => setStep(1)}
+              onNext={() => setStep(3)}
+              nextLabel={picked.length > 0 ? `${picked.length}台を選んで次へ` : 'マシンを選んでください'}
+              nextDisabled={picked.length === 0}
+            />
+          </>
+        )}
+
+        {step === 3 && customer && (
+          <>
+            <StepTitle title="この内容でマシンを渡します" lead="内容を確かめて、よければ「マシンを渡す」を押してください。" />
+            <ConfirmTable
+              rows={[
+                { k: 'お客様', v: <>{customer.name}{customer.pending && <span className="ml-2 text-sm font-normal text-muted-foreground">登録待ち</span>}</> },
+                { k: 'お渡しするマシン', v: `${picked.length}台（${pickedNames.join('、')}）` },
+              ]}
+            />
+            <OwnershipNotice />
+            {error && <ErrorBox>{error}</ErrorBox>}
+            <WizardFooter
+              onBack={() => setStep(2)}
+              onNext={assign}
+              nextLabel="マシンを渡す"
+              busy={busy}
+            />
+          </>
+        )}
+
+        {step === 4 && customer && (
+          <div className="flex flex-col items-start gap-[18px]">
+            <DoneMark />
+            <h2 className="text-[22px] font-bold">{customer.name} に{doneCount}台のマシンを渡しました</h2>
+            <p className="text-[15px] leading-[1.8] text-foreground/80">
+              {pickedNames.join('、')}
+              <br />
+              これからの売上は {customer.name} の分になります。
+              {customer.pending && '登録の前に、このお客様として映像や価格を準備しておけます。'}
+            </p>
+            <div className="flex flex-wrap gap-2.5">
+              {customer.pending && (
+                <PrepareButton customerId={customer.id} customerName={customer.name} variant="default" className="h-12 px-6 text-[15px]" />
+              )}
+              <Button variant="outline" className="h-12 px-6 text-[15px]" onClick={again}>
+                続けて別のマシンを追加する
+              </Button>
+              <Button asChild variant="outline" className="h-12 px-6 text-[15px]">
+                <Link href="/">ホームに戻る</Link>
+              </Button>
+            </div>
           </div>
-          <Button variant="outline" onClick={load}>もう一度読み込む</Button>
-        </div>
-      ) : (
-        <>
-          {group('登録待ちのお客様', fp)}
-          {group('ご利用中のお客様', fa)}
-        </>
-      )}
-      {target && (
-        <AssignDevicesDialog
-          customerId={target.id}
-          customerName={target.name}
-          onClose={() => setTarget(null)}
-          onAssigned={(n) => {
-            setNotice(`${target.name} に${n}台のマシンをお渡ししました。`);
-            setTarget(null);
-            load();
-          }}
-        />
-      )}
+        )}
+      </WizardCard>
     </div>
   );
 }
