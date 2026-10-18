@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePageT } from '@/i18n/usePageT';
 import { settingsPageDict } from '@/i18n/ns/settingsPage';
+import { MembersSection } from '@/components/domain/members-section';
+import { roleLabel as memberRoleLabel } from '@/lib/signup-admin';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 const HEALTH_URL = API_BASE.replace(/\/v1\/?$/, '') + '/health';
@@ -139,10 +141,13 @@ export default function SettingsPage() {
     }
   };
 
+  const isStaff = user?.role === 'lv1_super';
+  const canManageMembers = isStaff || (user?.role === 'lv2_admin' && !user?.store_id);
+
   const roleLabel = (r?: string) => {
     if (!r) return '—';
     if (r.includes('super')) return t.superAdmin;
-    return r;
+    return memberRoleLabel(r);
   };
 
   const themeOptions: { value: ThemeOption; label: string; desc: string; icon: typeof Sun }[] = [
@@ -155,6 +160,9 @@ export default function SettingsPage() {
     <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+          {/* S262: メンバー（お客様の管理者・弊社スタッフのみ） */}
+          {canManageMembers && <MembersSection isStaff={isStaff} />}
+
           {/* Theme */}
           <Card>
             <CardHeader>
@@ -248,7 +256,8 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* API endpoint */}
+          {/* API endpoint（S262: 弊社スタッフのみ表示） */}
+          {isStaff && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2"><Globe className="h-3.5 w-3.5" />{t.apiEndpoint}</CardTitle>
@@ -278,6 +287,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -288,13 +298,14 @@ export default function SettingsPage() {
             <CardContent className="space-y-3 text-xs">
               <KV label={t.kvUser} value={user?.name ?? '—'} />
               <KV label={t.kvEmail} value={user?.email ?? '—'} />
-              <KV label={t.kvRole} value={<Badge variant="destructive">{roleLabel(user?.role)}</Badge>} />
+              <KV label={t.kvRole} value={<span className="font-bold">{roleLabel(user?.role)}</span>} />
               <KV label={t.kv2fa} value={user?.two_factor_enabled ? <Badge variant="ok">{t.enabled}</Badge> : <Badge variant="outline">{t.disabled}</Badge>} />
               <KV label={t.kvTokenExpiry} value={remainLabel} />
               <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleLogout}>{t.logout}</Button>
             </CardContent>
           </Card>
 
+          {isStaff && (
           <Card>
             <CardHeader><CardTitle className="text-sm">{t.buildInfo}</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-xs font-mono text-muted-foreground">
@@ -304,6 +315,7 @@ export default function SettingsPage() {
               <div>Next.js 14.2 / React 18</div>
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
     </AppShell>

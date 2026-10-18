@@ -1,11 +1,12 @@
 'use client';
 
+// S262: 白いヘッダー。左にページ名（必要なら「← 戻る」リンク）、右に利用者名とメニュー。
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, ChevronDown, LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
+import { ChevronDown, Languages, LogOut, Settings as SettingsIcon, UserRound } from 'lucide-react';
+import { useLocale } from '@/store/useLocale';
 import { AlertCenter } from '@/components/domain/alert-center';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,10 +23,19 @@ import { LocaleBootstrap } from '@/components/LocaleBootstrap';
 import { usePageT } from '@/i18n/usePageT';
 import { headerDict } from '@/i18n/ns/header';
 
-export function Header({ title, breadcrumb }: { title: string; breadcrumb?: string[] }) {
+export interface HeaderProps {
+  title: string;
+  /** 互換のため受け取るが、S262 では表示しない（戻り先は back で示す） */
+  breadcrumb?: string[];
+  back?: { href: string; label: string };
+}
+
+export function Header({ title, back }: HeaderProps) {
   const router = useRouter();
   const [user, setUser] = useState<StoredUser | null>(null);
   const t = usePageT(headerDict);
+  const locale = useLocale((s) => s.locale);
+  const setLocale = useLocale((s) => s.setLocale);
 
   useEffect(() => {
     const u = tokenStore.getUser();
@@ -49,83 +59,64 @@ export function Header({ title, breadcrumb }: { title: string; breadcrumb?: stri
     router.replace('/login');
   };
 
-  const displayName = user?.customer_name || user?.name || (false ? '運営 太郎' : t.guest);
-  const initial = displayName.slice(0, 1);
+  const isStaff = user?.role === 'lv1_super';
+  const personName = user?.name || user?.email || t.guest;
+  const displayName =
+    !isStaff && user?.customer_name && user.customer_name !== personName
+      ? `${user.customer_name}　${personName}`
+      : personName;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card/70 backdrop-blur px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-[64px] items-center gap-3 border-b bg-card px-4 py-2.5 lg:min-h-[68px] lg:px-8 lg:py-3">
       <MobileNav />
-      <div className="flex flex-col min-w-0">
-        <h1 className="text-base font-semibold leading-tight">{title}</h1>
-        {breadcrumb && breadcrumb.length > 0 && (
-          <div className="text-[11px] text-muted-foreground">
-            {breadcrumb.join(' / ')}
-          </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {back && (
+          <Link href={back.href} className="text-[13px] text-muted-foreground hover:text-primary">
+            ← {back.label}
+          </Link>
         )}
+        <h1 className="line-clamp-2 text-base font-bold leading-snug sm:truncate sm:text-lg lg:text-xl">{title}</h1>
       </div>
-      <div className="ml-auto flex items-center gap-2">
-        {!false && (
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-ok/15 text-ok">
-            <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-            LIVE API
-          </span>
-        )}
-        {false && (
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-warn/15 text-warn">
-            MOCK
-          </span>
-        )}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder={t.searchPlaceholder}
-            className="w-[280px] pl-8 h-8 text-xs bg-background/60"
-          />
-          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:inline-flex h-5 px-1 items-center rounded border text-[10px] text-muted-foreground bg-muted">
-            ⌘K
-          </kbd>
-        </div>
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
         <LocaleBootstrap userId={user?.id ?? null} />
-        <LanguageSwitcher />
+        <div className="hidden sm:block">
+          <LanguageSwitcher />
+        </div>
         <AlertCenter />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 px-2 gap-2">
-              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary to-primary/40 flex items-center justify-center text-[10px] font-bold text-primary-foreground">
-                {initial}
-              </div>
-              <span className="text-xs hidden sm:inline">{displayName}</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
-            </Button>
+            <button
+              type="button"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-[10px] px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <span className="hidden max-w-[260px] truncate sm:inline">{displayName}</span>
+              <UserRound className="h-5 w-5 sm:hidden" aria-label={displayName} />
+              <ChevronDown className="hidden h-4 w-4 opacity-60 sm:block" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>
-              <div className="text-xs">{displayName}</div>
+              <div className="text-sm">{displayName}</div>
               {user && (
-                <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
-                  {user.email} · {user.role}
-                </div>
+                <div className="mt-0.5 text-xs font-normal text-muted-foreground">{user.email}</div>
               )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push('/settings')}>
-              <UserIcon className="h-3.5 w-3.5 mr-2" />
-              {t.profile}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/settings')}>
-              <SettingsIcon className="h-3.5 w-3.5 mr-2" />
+              <SettingsIcon className="mr-2 h-4 w-4" />
               {t.settings}
             </DropdownMenuItem>
-            {!false && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onLogout} className="text-destructive">
-                  <LogOut className="h-3.5 w-3.5 mr-2" />
-                  {t.logout}
-                </DropdownMenuItem>
-              </>
-            )}
+            {/* スマホではヘッダーに言語切り替えを置かないので、ここから切り替える */}
+            <DropdownMenuItem className="sm:hidden" onClick={() => setLocale(locale === 'ja' ? 'en' : 'ja')}>
+              <Languages className="mr-2 h-4 w-4" />
+              {locale === 'ja' ? 'English' : '日本語'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onLogout} className="text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              {t.logout}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

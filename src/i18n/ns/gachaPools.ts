@@ -7,7 +7,7 @@ export const gachaPoolsDict = {
     intro: "店舗・グループ単位で演出を分けるための抽選プールを管理します。プールを作成し、什器を割り当て、各プールに演出を設定してください。",
     reload: "再読み込み",
     newPool: "新規プール",
-    paymentCoin: "コイン",
+    paymentCoin: "現金",
     paymentQr: "QR 決済",
     loadFailed: (msg: string) => `抽選プール取得失敗: ${msg}`,
     enterName: "プール名を入力してください。",

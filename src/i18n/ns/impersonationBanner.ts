@@ -2,13 +2,13 @@ export const impersonationBannerDict = {
   ja: {
     otherAccount: "別アカウント",
     asPrefix: "現在 ",
-    asSuffix: " として操作中です（運営による成り代わり）",
-    returnToOperator: "運営に戻る",
+    asSuffix: " として操作しています（弊社スタッフによる代理操作）",
+    returnToOperator: "スタッフの画面に戻る",
   },
   en: {
     otherAccount: "another account",
     asPrefix: "Operating as ",
-    asSuffix: " (impersonated by operator)",
-    returnToOperator: "Return to operator",
+    asSuffix: " (staff acting on behalf)",
+    returnToOperator: "Back to staff view",
   },
 } as const;

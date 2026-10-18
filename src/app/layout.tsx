@@ -3,8 +3,8 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'GTCHAXAPP 管理画面',
-  description: 'GTCHAXAPP - サイネージ統合管理プラットフォーム',
+  title: 'GTCHA X 管理画面',
+  description: 'GTCHA X 管理画面',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-background font-sans">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >

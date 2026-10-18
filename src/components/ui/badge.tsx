@@ -3,20 +3,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  // S262: 装飾的なピル型バッジは使わない方針。API はそのまま、見た目は「色付きの文字」にする。
+  'inline-flex items-center gap-1 text-xs font-bold leading-normal focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
-        default:
-          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
+        default: 'text-primary',
+        secondary: 'text-muted-foreground',
+        destructive: 'text-destructive',
         outline: 'text-foreground',
-        ok: 'border-transparent bg-ok/15 text-ok',
-        warn: 'border-transparent bg-warn/15 text-warn',
-        muted: 'border-transparent bg-muted text-muted-foreground',
+        ok: 'text-ok',
+        warn: 'text-warn',
+        muted: 'text-muted-foreground font-medium',
       },
     },
     defaultVariants: { variant: 'default' },

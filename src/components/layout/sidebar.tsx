@@ -1,205 +1,105 @@
 'use client';
 
-import Image from 'next/image';
+// S262: 黒いサイドバー（#111111）。メニューはロール別（nav-config.ts）。
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import {
-  LayoutDashboard,
-  Monitor,
-  MapPinned,
-  CalendarRange,
-  Radio,
-  ClipboardList,
-  Layers3,
-  PackageSearch,
-  Coins,
-  Receipt,
-  Smartphone,
-  ShieldCheck,
-  TerminalSquare,
-  Building2,
-  Briefcase,
-  Settings,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { tokenStore } from '@/lib/token-store';
 import { useLocale } from '@/store/useLocale';
+import { ManualButton } from '@/components/domain/manual-button';
+import { useCurrentUser } from '@/lib/use-current-user';
+import {
+  SHELL_NAV_EN,
+  activeHref,
+  navFor,
+  type ShellNavItem,
+} from '@/components/layout/nav-config';
 
-export interface NavItem {
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  badge?: string;
-  superOnly?: boolean;  // S224: lv1_super(運営)のみ表示。顧客アカウントでは非表示。
-}
-
-export interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-export const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'コア',
-    items: [
-      { href: '/', label: 'ダッシュボード', icon: LayoutDashboard },
-      // S233: ライブ操作は端末タブ(マシンごと)に一本化のため非表示。ページ(/live-control)は温存。
-      // { href: '/live-control', label: 'ライブ操作', icon: Zap, badge: 'NEW' },
-      // ガチャ演出(/gacha/draw-effects)は端末詳細の「演出」タブに一本化したため非表示。ページは温存。
-      // S226: 演出パック管理は演出タブ(端末詳細)へ集約。ナビからは非表示(運営含む)。ページ・機能は温存。
-      // { href: '/gacha/effect-packs', label: '演出パック', icon: Sparkles, badge: 'NEW' },
-      // デフォルト演出(/gacha/account-default)はL2フォールバック(cust_demo向け)で運営が日常的に触らないため非表示。ページは温存。
-      // 抽選プール(/gacha/pools)は1端末1専用プール化により表から不要。端末詳細(価格/演出タブ)に集約。ページ・engine.pyは温存。
-      { href: '/devices', label: '端末', icon: Monitor },
-      { href: '/devices/map', label: '端末マップ', icon: MapPinned, superOnly: true },  // 運営(lv1_super)のみ。顧客アカウントには非表示。
-      { href: '/device-groups', label: 'グループ', icon: Layers3 },
-      // 注文ページ(返金含む)は運営(lv1_super)のみ表示。顧客アカウントには非表示。
-      { href: '/orders', label: '注文(QR)', icon: Receipt, superOnly: true },
-      { href: '/sales-events', label: '売上管理', icon: Coins },
-      // 在庫(/inventories)は系統B(空箱・engine.py非参照)のため非表示。実在庫は端末詳細の在庫タブ(系統A)。
-    ],
-  },
-  {
-    label: 'コンテンツ配信',
-    items: [
-      { href: '/programs', label: 'プログラム', icon: ClipboardList },
-      { href: '/assets', label: '素材', icon: PackageSearch },
-      { href: '/plan-schedules', label: '計画配信', icon: CalendarRange },
-      { href: '/live', label: 'ライブ配信', icon: Radio },  // S251: ライブ配信のリンク再生
-    ],
-  },
-  {
-    label: '設定',
-    items: [
-      { href: '/customers', label: '顧客', icon: Briefcase, superOnly: true },
-      { href: '/stores', label: '店舗', icon: Building2 },
-      { href: '/apk', label: 'アップデート', icon: Smartphone, superOnly: true },  // S225: OTA配信は運営(lv1_super)のみ。顧客アカウントには非表示。
-    ],
-  },
-  {
-    label: 'システム',
-    items: [
-      { href: '/audit-logs', label: '監査ログ', icon: ShieldCheck, superOnly: true },
-      { href: '/ws-console', label: 'WSデバッグコンソール', icon: TerminalSquare, superOnly: true },
-      { href: '/settings', label: '環境設定', icon: Settings },
-    ],
-  },
-];
-
-
-// ★i18n: ナビ表示ラベルの英語対応（キー=日本語ラベル）。値・hrefは不変。
-export const NAV_LABELS_EN: Record<string, string> = {
-  'コア': 'Core',
-  'コンテンツ配信': 'Content delivery',
-  '設定': 'Settings',
-  'システム': 'System',
-  'ダッシュボード': 'Dashboard',
-  'ライブ操作': 'Live control',
-  '演出パック': 'Effect packs',
-  '端末': 'Devices',
-  '端末マップ': 'Device map',
-  'グループ': 'Groups',
-  '注文(QR)': 'Orders (QR)',
-  '売上管理': 'Sales',
-  'プログラム': 'Programs',
-  '素材': 'Assets',
-  '計画配信': 'Scheduled delivery',
-  'ライブ配信': 'Live streaming',
-  '顧客': 'Customers',
-  '店舗': 'Stores',
-  'アップデート': 'Updates',
-  '監査ログ': 'Audit logs',
-  'WSデバッグコンソール': 'WS debug console',
-  '環境設定': 'Preferences',
-};
-const SIDEBAR_FOOTER_EN = {
-  live: 'Live API mode (production)',
-  mock: 'Mock mode (NEXT_PUBLIC_API_BASE_URL not set)',
-};
-
-export function Sidebar() {
+export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  // S224: 運営(lv1_super)以外＝顧客アカウントでは superOnly 項目を非表示。
-  // マウント後にロール確定（SSRとのhydration不一致を避けるため、初期はnull→superOnlyは隠す）。
-  const [role, setRole] = useState<string | null>(null);
+  const { ready, isStaff } = useCurrentUser();
   const locale = useLocale((s) => s.locale);
-  const tr = (ja: string) => (locale === 'en' ? (NAV_LABELS_EN[ja] ?? ja) : ja);
-  useEffect(() => { setRole(tokenStore.getUser()?.role ?? null); }, []);
-  const isSuper = role === 'lv1_super';
+  const tr = (ja: string) => (locale === 'en' ? (SHELL_NAV_EN[ja] ?? ja) : ja);
+  const nav = navFor(isStaff);
+  const current = activeHref(nav, pathname);
+  const moreActive = !!current && nav.more.some((i) => i.href === current);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (moreActive) setMoreOpen(true);
+  }, [moreActive]);
+
+  const item = (it: ShellNavItem, small = false) => {
+    const active = it.href === current;
+    return (
+      <li key={it.href}>
+        <Link
+          href={it.href}
+          onClick={onNavigate}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            'block rounded-lg px-3 transition-colors',
+            small ? 'py-2 text-[13px]' : 'py-[11px] text-sm',
+            active
+              ? 'bg-[#2A2A2A] font-semibold text-white'
+              : 'text-[#D1D5DB] hover:bg-[#1C1C1C] hover:text-white',
+          )}
+        >
+          {tr(it.label)}
+        </Link>
+      </li>
+    );
+  };
 
   return (
-    <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r bg-card/40">
-      <div className="flex h-14 items-center px-5 border-b">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white">
-            <Image
-              src="/logo-gtchax.png"
-              alt="GTCHAXAPP"
-              width={28}
-              height={28}
-              className="object-contain"
-              priority
-            />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">GTCHAXAPP</div>
-            <div className="text-[10px] text-muted-foreground tracking-wider uppercase">
-              admin · v0.1
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col">
+      <div className="px-3 pb-5 pt-1 text-xl font-bold text-white">
+        GTCHA X
+        {ready && isStaff && (
+          <span className="ml-1.5 text-[13px] font-normal text-[#9CA3AF]">運営</span>
+        )}
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {NAV_GROUPS.map((group) => {
-          const items = group.items.filter((item) => !item.superOnly || isSuper);
-          if (items.length === 0) return null;
-          return (
-          <div key={group.label} className="mb-5">
-            <div className="px-3 mb-1.5 text-[10px] font-semibold text-muted-foreground/70 tracking-widest uppercase">
-              {tr(group.label)}
+      {ready && (
+        <nav aria-label="メインメニュー" className="flex flex-col">
+          <ul className="flex flex-col gap-1">{nav.main.map((it) => item(it))}</ul>
+          <div className="my-3 h-px bg-[#2A2A2A]" />
+          <ul className="flex flex-col gap-1">{nav.bottom.map((it) => item(it))}</ul>
+          {nav.more.length > 0 && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={moreOpen}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[13px] text-[#9CA3AF] hover:text-white"
+              >
+                {tr('その他')}
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', moreOpen && 'rotate-180')}
+                />
+              </button>
+              {moreOpen && (
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {nav.more.map((it) => item(it, true))}
+                </ul>
+              )}
             </div>
-            <ul className="space-y-0.5">
-              {items.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== '/' && pathname?.startsWith(item.href));
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                        active
-                          ? 'bg-primary/15 text-primary font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" strokeWidth={2} />
-                      <span>{tr(item.label)}</span>
-                      {item.badge && (
-                        <span className="ml-auto text-[10px] rounded-full bg-primary/20 text-primary px-1.5 py-0.5">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          );
-        })}
-      </nav>
-      <div className="border-t p-3 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span className="live-dot" />
-          <span>
-            {process.env.NEXT_PUBLIC_API_BASE_URL
-              ? (locale === 'en' ? SIDEBAR_FOOTER_EN.live : '実 API モード (本番)')
-              : (locale === 'en' ? SIDEBAR_FOOTER_EN.mock : 'モックモード (NEXT_PUBLIC_API_BASE_URL 未設定)')}
-          </span>
-        </div>
+          )}
+        </nav>
+      )}
+      {/* S262: WEBマニュアル（スタッフ・お客様とも） */}
+      <div className="mt-6 border-t border-[#2A2A2A] pt-4">
+        <ManualButton tone="dark" className="w-full" />
+      </div>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  return (
+    // 黒い帯はページの高さいっぱいに伸ばし、メニュー自体は画面上部に固定する
+    <aside className="hidden w-[232px] shrink-0 bg-[#111111] lg:block">
+      <div className="sticky top-0 h-screen overflow-y-auto px-3 py-5">
+        <SidebarNav />
       </div>
     </aside>
   );

@@ -16,6 +16,7 @@ import { useT } from '@/i18n/useT';
 import { usePageT } from '@/i18n/usePageT';
 import { deviceDetailDict } from '@/i18n/ns/deviceDetail';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PriceBodyGuide, StockBodyGuide } from '@/components/domain/MachineBodyGuide';
 import { DrawOrderMappingEditor } from '@/components/domain/draw-order-mapping-editor';
 import {
   Table,
@@ -120,6 +121,11 @@ export default function DeviceDetailPage() {
   const [fetchFailed, setFetchFailed] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
   const [tab, setTab] = useState('overview');
+  // S262: ?tab=settings / ?tab=stock で開いたときは、そのタブを最初に表示する（ホームの「1回の価格を変える」など）
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('tab');
+    if (q && ['overview', 'settings', 'effects', 'screenshots', 'schedules', 'history', 'stock', 'sales'].includes(q)) setTab(q);
+  }, []);
 
   // S231: この端末の売上・回転数（本日/累計）。売上タブで表示。既存API(summary/by-device)を device_id で絞込。
   type SalesBucket = { cash_yen: number; qr_yen: number; total_yen: number; medal_count: number };
@@ -1096,6 +1102,8 @@ export default function DeviceDetailPage() {
                   <CardTitle className="text-sm">{t.pricing.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* S262: マシン本体の価格設定の案内（表示のみ。保存処理とは無関係） */}
+                  <PriceBodyGuide />
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
                       {t.pricing.machineMissing}
@@ -1280,6 +1288,8 @@ export default function DeviceDetailPage() {
                   <CardTitle className="text-sm">{tp.stockTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* S262: マシン本体の在庫設定の案内（表示のみ） */}
+                  <StockBodyGuide />
                   {machineMissing ? (
                     <p className="text-sm text-muted-foreground">
                       {tp.stockMachineMissing}

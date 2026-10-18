@@ -1,17 +1,13 @@
 'use client';
 
-// ★mobilenav(portal fix): ドロワーは fixed だが、ヘッダーが backdrop-blur(backdrop-filter) で
-//   包含ブロックを作るため、ヘッダー内に置くと inset-0 が 56px のヘッダー基準になり全画面に
-//   ならない(クリックしても何も出ない現象)。createPortal で document.body 直下に描画して回避。
-import Image from 'next/image';
-import Link from 'next/link';
+// ★mobilenav(portal fix): ドロワーは fixed だが、ヘッダー内に置くと包含ブロックの影響を受けるため、
+//   createPortal で document.body 直下に描画する。
+// S262: 中身はサイドバーと同じ SidebarNav（ロール別メニュー）。
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { tokenStore } from '@/lib/token-store';
-import { NAV_GROUPS, NAV_LABELS_EN } from '@/components/layout/sidebar';
+import { SidebarNav } from '@/components/layout/sidebar';
 import { useLocale } from '@/store/useLocale';
 
 const MOBILE_NAV_LABELS = {
@@ -22,17 +18,13 @@ const MOBILE_NAV_LABELS = {
 export function MobileNav() {
   const pathname = usePathname();
   const locale = useLocale((s) => s.locale);
-  const tr = (ja: string) => (locale === 'en' ? (NAV_LABELS_EN[ja] ?? ja) : ja);
   const nl = locale === 'en' ? MOBILE_NAV_LABELS.en : MOBILE_NAV_LABELS.ja;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    setRole(tokenStore.getUser()?.role ?? null);
   }, []);
-  const isSuper = role === 'lv1_super';
 
   // ルート遷移で閉じる
   useEffect(() => {
@@ -57,72 +49,16 @@ export function MobileNav() {
         onClick={() => setOpen(false)}
         aria-hidden="true"
       />
-      <aside className="absolute left-0 top-0 flex h-full w-64 max-w-[85vw] flex-col border-r bg-card shadow-xl">
-        <div className="flex h-14 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white">
-              <Image
-                src="/logo-gtchax.png"
-                alt="GTCHAXAPP"
-                width={28}
-                height={28}
-                className="object-contain"
-              />
-            </div>
-            <div className="text-sm font-semibold">GTCHAXAPP</div>
-          </div>
-          <button
-            type="button"
-            aria-label={nl.close}
-            onClick={() => setOpen(false)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {NAV_GROUPS.map((group) => {
-            const items = group.items.filter((item) => !item.superOnly || isSuper);
-            if (items.length === 0) return null;
-            return (
-              <div key={group.label} className="mb-5">
-                <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                  {tr(group.label)}
-                </div>
-                <ul className="space-y-0.5">
-                  {items.map((item) => {
-                    const active =
-                      pathname === item.href ||
-                      (item.href !== '/' && pathname?.startsWith(item.href));
-                    const Icon = item.icon;
-                    return (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-                            active
-                              ? 'bg-primary/15 font-medium text-primary'
-                              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                          )}
-                        >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{tr(item.label)}</span>
-                          {item.badge && (
-                            <span className="ml-auto rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                              {item.badge}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
-        </nav>
+      <aside className="absolute left-0 top-0 h-full w-[260px] max-w-[85vw] overflow-y-auto bg-[#111111] px-3 py-5">
+        <button
+          type="button"
+          aria-label={nl.close}
+          onClick={() => setOpen(false)}
+          className="absolute right-3 top-4 inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#D1D5DB] hover:bg-[#2A2A2A] hover:text-white"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <SidebarNav onNavigate={() => setOpen(false)} />
       </aside>
     </div>
   );
@@ -133,7 +69,7 @@ export function MobileNav() {
         type="button"
         aria-label={nl.open}
         onClick={() => setOpen(true)}
-        className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-accent lg:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>

@@ -21,7 +21,9 @@ export function ImpersonationBanner() {
     const sync = () => {
       if (tokenStore.isImpersonating()) {
         const u = tokenStore.getUser();
-        setName(u?.name ?? u?.email ?? impersonationBannerDict.ja.otherAccount);
+        const person = u?.name ?? u?.email ?? impersonationBannerDict.ja.otherAccount;
+        // S262: どのお客様の画面かがすぐ分かるよう、会社名を先に出す
+        setName(u?.customer_name && u.customer_name !== person ? `${u.customer_name}（${person}）` : person);
       } else {
         setName(null);
       }
@@ -42,7 +44,7 @@ export function ImpersonationBanner() {
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 px-6 py-2 bg-destructive/15 border-b border-destructive/30 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm lg:px-8">
       <div className="flex items-center gap-2 text-destructive">
         <UserCog className="h-4 w-4 shrink-0" />
         <span>
@@ -51,7 +53,7 @@ export function ImpersonationBanner() {
       </div>
       <button
         onClick={onReturn}
-        className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-[10px] border border-destructive/40 bg-card px-3.5 text-sm font-bold text-destructive hover:bg-destructive/10"
       >
         <LogOut className="h-3.5 w-3.5" />
         {t.returnToOperator}

@@ -53,12 +53,21 @@ module.exports = {
         'card-soft': '0 1px 2px hsl(222 30% 10% / 0.05), 0 6px 18px hsl(222 30% 10% / 0.07)',
       },
       borderRadius: {
+        card: '14px',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      // S262: 指定フォントを先頭に固定（中華フォントへのフォールバックを防ぐ）
       fontFamily: {
-        sans: ['var(--font-sans)', 'sans-serif'],
+        sans: [
+          'Hiragino Kaku Gothic ProN',
+          'ヒラギノ角ゴ ProN W3',
+          'Hiragino Sans',
+          'Yu Gothic UI',
+          'Meiryo',
+          'sans-serif',
+        ],
         mono: ['var(--font-mono)', 'monospace'],
       },
       keyframes: {

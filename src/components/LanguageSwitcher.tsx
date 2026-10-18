@@ -19,7 +19,7 @@ export function LanguageSwitcher() {
     <div
       role="group"
       aria-label="Language"
-      className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+      className="inline-flex items-center gap-0.5 rounded-[10px] border border-input bg-card p-0.5"
     >
       {LOCALES.map((lc) => {
         const active = lc === locale;
@@ -31,9 +31,9 @@ export function LanguageSwitcher() {
             aria-pressed={active}
             title={FULL[lc]}
             className={
-              'rounded-full px-2.5 py-1 text-xs font-medium transition-colors ' +
+              'rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ' +
               (active
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-foreground text-background'
                 : 'text-muted-foreground hover:text-foreground')
             }
           >

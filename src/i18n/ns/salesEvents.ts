@@ -88,11 +88,11 @@ export const salesEventsDict = {
     next: "次へ",
     // reset dialog
     resetTitle: "売上リセット（運営専用）",
-    resetDesc: "選択した対象の売上データ（抽選履歴・注文・投入コイン）を完全に削除し、マシンの回転数・クレジット残を0にします。在庫（残ボール数）は戻しません。この操作は元に戻せません。",
+    resetDesc: "選択した対象の売上データ（抽選履歴・注文・現金の投入記録）を完全に削除し、マシンの回転数・クレジット残を0にします。在庫（残ボール数）は戻しません。この操作は元に戻せません。",
     resetDone: "リセットが完了しました。",
     deletedDraws: "削除した抽選",
     deletedOrders: "削除した注文",
-    deletedCoins: "削除した投入コイン",
+    deletedCoins: "削除した現金の投入記録",
     resetMachines: "初期化したマシン",
     countUnit: " 件",
     unitMachines: " 台",

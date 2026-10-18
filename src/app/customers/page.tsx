@@ -1,14 +1,14 @@
 'use client';
 
 // src/app/customers/page.tsx
-// 運営（lv1_super）専用「顧客」ページ。新規顧客登録・ウィザード。
+// 運営（lv1_super）専用「お客様」ページ。
+// S262: 旧「新規顧客登録」ウィザード（端末の新規登録を含む）は廃止。新しいお客様は /customers/invite の登録リンクから。
 // device-groups/page.tsx と同じ作法（AppShell + Card + @/components/ui + tokenStore ガード）。
 
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -16,24 +16,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, auth, ApiError } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Trash2, AlertTriangle, Copy, Check, UserPlus, Loader2, Store as StoreIcon, Package, Users2, Pencil, UserCog, CalendarX, Undo2 } from 'lucide-react';
+import Link from 'next/link';
+import { Trash2, AlertTriangle, Loader2, Pencil, UserCog, CalendarX, Undo2 } from 'lucide-react';
 import { usePageT } from '@/i18n/usePageT';
 import { customersDict } from '@/i18n/ns/customers';
 
-type DeviceForm = {
-  id: string; name: string; serial: string; store_index: number; is_master: boolean;
-  /* === S161 onboard existing === */
-  source_mode: 'new' | 'existing'; existing_device_id: string;
-};
-type OnboardResult = {
-  customer_id: string;
-  store_ids: string[];
-  device_ids: string[];
-  group_id: string | null;
-  master_device_id: string | null;
-  admin_user_id: string;
-};
 type CustomerRow = {
   id: string;
   name: string;
@@ -48,16 +35,10 @@ type CustomerRow = {
   login_locked?: boolean;
 };
 
-const EMPTY_DEVICE: DeviceForm = {
-  id: '', name: '', serial: '', store_index: 0, is_master: false,
-  source_mode: 'new', existing_device_id: '',
-};
-
 export default function CustomersPage() {
   const t = usePageT(customersDict);
   const role = tokenStore.getUser()?.role;
   const isSuperAdmin = role === 'lv1_super';
-  const [wizardOpen, setWizardOpen] = useState(false);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [editTarget, setEditTarget] = useState<CustomerRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerRow | null>(null);
@@ -125,15 +106,19 @@ export default function CustomersPage() {
   return (
     <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm text-muted-foreground">{t.intro}</p>
+            <p className="text-[15px] text-muted-foreground">{t.intro}</p>
           </div>
           {isSuperAdmin && (
-            <Button onClick={() => setWizardOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {t.newCustomer}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/customers/approvals">{t.approvalsLink}</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/customers/invite">{t.newCustomer}</Link>
+              </Button>
+            </div>
           )}
         </div>
 
@@ -168,17 +153,17 @@ export default function CustomersPage() {
               ) : (
                 <div className="space-y-2">
                   {customers.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between rounded-md border p-3">
+                    <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-4">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">{c.name}</span>
+                          <span className="text-base font-bold">{c.name}</span>
                           {/* S243: レンタル終了の状態 */}
                           {c.rental_ended_on && (
                             <span className={
-                              'rounded-full px-2 py-0.5 text-[10px] font-medium ' +
+                              'text-[13px] font-bold ' +
                               (c.login_locked
-                                ? 'bg-destructive/10 text-destructive'
-                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400')
+                                ? 'text-destructive'
+                                : 'text-warn')
                             }>
                               {c.login_locked
                                 ? t.rentalLockedBadge
@@ -186,19 +171,20 @@ export default function CustomersPage() {
                             </span>
                           )}
                           {c.rental_ended_on && !c.login_locked && c.login_locked_from && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[13px] text-muted-foreground">
                               {t.rentalLockFrom(c.login_locked_from)}
                             </span>
                           )}
                         </div>
+                        <div className="mt-1 text-[13px] text-muted-foreground">
+                          {t.stores} {c.store_count}・{t.machines} {c.device_count}台・{t.users} {c.user_count}人
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1"><StoreIcon className="h-4 w-4" />{t.stores} {c.store_count}</span>
-                        <span className="flex items-center gap-1"><Package className="h-4 w-4" />{t.machines} {c.device_count}</span>
-                        <span className="flex items-center gap-1"><Users2 className="h-4 w-4" />{t.users} {c.user_count}</span>
+                      <div className="grid w-full grid-cols-2 gap-2 text-sm text-muted-foreground sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="col-span-2"
                           onClick={() => onOperateAs(c.id)}
                           disabled={impersonating === c.id}
                         >
@@ -211,11 +197,11 @@ export default function CustomersPage() {
                         </Button>
                         {/* S243: レンタル終了 / 取り消し */}
                         {c.rental_ended_on ? (
-                          <Button variant="outline" size="sm" onClick={() => onReopenRental(c)}>
+                          <Button variant="outline" size="sm" className="col-span-2" onClick={() => onReopenRental(c)}>
                             <Undo2 className="h-3.5 w-3.5 mr-1" />{t.reopenRental}
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => setEndRentalTarget(c)}>
+                          <Button variant="outline" size="sm" className="col-span-2" onClick={() => setEndRentalTarget(c)}>
                             <CalendarX className="h-3.5 w-3.5 mr-1" />{t.endRental}
                           </Button>
                         )}
@@ -240,12 +226,6 @@ export default function CustomersPage() {
         )}
       </div>
 
-      {wizardOpen && (
-        <OnboardWizard
-          onClose={() => setWizardOpen(false)}
-          onCreated={loadCustomers}
-        />
-      )}
       {editTarget && (
         <EditCustomerDialog
           target={editTarget}
@@ -384,7 +364,7 @@ function DeleteCustomerDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t.deleteTitle}</DialogTitle>
-          <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
+          <DialogDescription>{target.name}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -412,351 +392,6 @@ function DeleteCustomerDialog({
           <Button variant="destructive" onClick={remove} disabled={!canDelete}>
             {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{t.doDelete}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function OnboardWizard({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const t = usePageT(customersDict);
-  const [step, setStep] = useState(1);
-
-  // Step1 顧客
-  const [custName, setCustName] = useState('');
-
-  // 端末
-  const [devices, setDevices] = useState<DeviceForm[]>([
-    { ...EMPTY_DEVICE },
-    { ...EMPTY_DEVICE },
-  ]);
-
-  // 連動グループ名（2台以上でmaster指定時のみ）
-  const [groupName, setGroupName] = useState('');
-
-  // 管理者
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  // 送信
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<OnboardResult | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const masterCount = devices.filter((d) => d.is_master).length;
-  const willGroup = devices.length >= 2 && masterCount === 1;
-
-  /* === S161 onboard existing: 自社ストック端末 === */
-  const [stockDevices, setStockDevices] = useState<{ id: string; name: string; serial: string; store_name?: string }[]>([]);
-  useEffect(() => {
-    const myCid = tokenStore.getUser()?.customer_id;
-    const isSuper = tokenStore.getUser()?.role === 'lv1_super';
-    if (!isSuper || !myCid) return;
-    void (async () => {
-      try {
-        const res = await api.get<{ items?: { id: string; name: string; serial: string; customer_id: string; store_name?: string }[] } | { id: string; name: string; serial: string; customer_id: string; store_name?: string }[]>('/devices?limit=200');
-        const arr = Array.isArray(res) ? res : (res.items ?? []);
-        // 案X: 自社(cust_demo=自分のcustomer_id)所属のみをストックとして提示
-        setStockDevices(arr.filter((d) => d.customer_id === myCid).map((d) => ({ id: d.id, name: d.name, serial: d.serial, store_name: d.store_name })));
-      } catch {
-        /* 取得失敗時はストック選択を出さない（新規登録のみで運用可能） */
-      }
-    })();
-  }, []);
-  const newDeviceCount = devices.filter((d) => d.source_mode === 'new').length;
-
-  function setDevice(i: number, patch: Partial<DeviceForm>) {
-    setDevices((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
-  }
-  function setMaster(i: number) {
-    setDevices((prev) => prev.map((d, idx) => ({ ...d, is_master: idx === i })));
-  }
-  function addDevice() {
-    setDevices((prev) => [...prev, { ...EMPTY_DEVICE }]);
-  }
-  function removeDevice(i: number) {
-    setDevices((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  function validate(): string | null {
-    if (!custName.trim()) return t.nameRequired;
-    for (const d of devices) {
-      /* === S161 onboard existing === */
-      if (d.source_mode === 'existing') {
-        if (!d.existing_device_id) return t.stockNotSelected;
-        if (d.is_master && newDeviceCount > 0) return t.existingCantMaster;
-        continue;
-      }
-      if (!d.name.trim() || !d.serial.trim()) return t.nameSerialRequired;
-    }
-    const serials = devices.filter((d) => d.source_mode === 'new').map((d) => d.serial.trim());
-    if (new Set(serials).size !== serials.length) return t.serialDuplicate;
-    if (devices.length >= 2 && masterCount > 1)
-      return t.oneMasterOnly;
-    if (!email.trim()) return t.adminEmailRequired;
-    if (password.length < 8) return t.passwordMin;
-    return null;
-  }
-
-  async function submit() {
-    const v = validate();
-    if (v) { setError(v); return; }
-    setError(null);
-    setSubmitting(true);
-    try {
-      const payload = {
-        customer: {
-          id: undefined,
-          name: custName.trim(),
-          plan: 'standard',
-        },
-        // Step2(店舗)は廃止。会社名の既定店舗を1つ自動作成（顧客が後から本当の店舗を追加）。
-        stores: [{
-          id: undefined,
-          name: custName.trim(),
-          address: '（未設定）',
-          prefecture: '（未設定）',
-          postal_code: null,
-          phone: null,
-        }],
-        devices: devices.filter((d) => d.source_mode === 'new').map((d) => ({
-          id: d.id.trim() || undefined,
-          name: d.name.trim(),
-          serial: d.serial.trim(),
-          store_index: 0,
-          is_master: d.is_master,
-        })),
-        group: willGroup
-          ? {
-              id: undefined,
-              name: groupName.trim() || `${custName.trim()}${t.linkedSuffix}`,
-              linked: true,
-              effect_enabled_default: true,
-            }
-          : null,
-        admin_user: {
-          email: email.trim(),
-          name: custName.trim(),
-          password,
-          role: 'lv2_admin',
-        },
-      };
-      const res = await api.post<OnboardResult>('/customers/onboard', payload);
-
-      /* === S161 onboard existing: 既存端末を新顧客へ付け替え + グループ追加 === */
-      const existing = devices.filter((d) => d.source_mode === 'existing' && d.existing_device_id);
-      for (const d of existing) {
-        const targetStoreId = res.store_ids[d.store_index];
-        if (!targetStoreId) continue;
-        await api.post(`/devices/${d.existing_device_id}/reassign`, { target_store_id: targetStoreId });
-      }
-      if (res.group_id && existing.length > 0) {
-        const addIds = existing.map((d) => d.existing_device_id);
-        const existingMaster = existing.find((d) => d.is_master)?.existing_device_id;
-        const body: { add_device_ids: string[]; master_device_id?: string } = { add_device_ids: addIds };
-        // 既存端末を master にできるのは新規0台時のみ（validateで担保済）
-        if (existingMaster && newDeviceCount === 0) body.master_device_id = existingMaster;
-        await api.patch(`/device-groups/${res.group_id}`, body);
-      }
-
-      setResult(res);
-      onCreated();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : t.registerFailed;
-      setError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  // ---- 成功画面（パスワード1回表示） ----
-  if (result) {
-    return (
-      <Dialog open onOpenChange={onClose}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t.registerDone}</DialogTitle>
-            <DialogDescription>
-              {t.passwordOnceNote}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
-              <div className="flex items-center gap-2 font-medium text-amber-800">
-                <AlertTriangle className="h-4 w-4" />
-                {t.adminPassword}
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <code className="rounded bg-white px-2 py-1 font-mono">{password}</code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(password);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  }}
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-amber-700">
-                {t.deliverNote(email)}
-              </p>
-            </div>
-            <dl className="grid grid-cols-[130px_1fr] gap-y-1 font-mono text-xs">
-              <dt className="text-muted-foreground">customer_id</dt><dd>{result.customer_id}</dd>
-              <dt className="text-muted-foreground">store_ids</dt><dd>{result.store_ids.join(', ')}</dd>
-              <dt className="text-muted-foreground">device_ids</dt><dd>{result.device_ids.join(', ') || t.none}</dd>
-              <dt className="text-muted-foreground">group_id</dt><dd>{result.group_id || t.none}</dd>
-              <dt className="text-muted-foreground">master</dt><dd>{result.master_device_id || t.none}</dd>
-              <dt className="text-muted-foreground">admin_user_id</dt><dd>{result.admin_user_id}</dd>
-            </dl>
-          </div>
-          <DialogFooter>
-            <Button onClick={onClose}>{t.close}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // ---- ウィザード本体 ----
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            {t.wizardTitle(step)}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {step === 1 && (
-            <section className="space-y-3">
-              <h3 className="font-medium">{t.step1}</h3>
-              <Field label={t.custNameLabel}>
-                <Input value={custName} onChange={(e) => setCustName(e.target.value)} placeholder={t.custNamePlaceholder} />
-              </Field>
-            </section>
-          )}
-
-          {step === 2 && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium">{t.step2}</h3>
-                <Button variant="outline" size="sm" onClick={addDevice}>
-                  <Plus className="mr-1 h-4 w-4" />{t.addDevice}
-                </Button>
-              </div>
-              {devices.map((d, i) => (
-                <div key={i} className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{t.deviceN(i + 1)}</span>
-                    {devices.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removeDevice(i)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    )}
-                  </div>
-                  {/* === S161 onboard existing: 登録方法トグル === */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDevice(i, { source_mode: 'new' })}
-                      className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'new' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
-                    >{t.newReg}</button>
-                    <button
-                      type="button"
-                      onClick={() => setDevice(i, { source_mode: 'existing' })}
-                      className={`flex-1 h-8 rounded-md text-xs font-medium border transition-colors ${d.source_mode === 'existing' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-accent'}`}
-                    >{t.fromStock}</button>
-                  </div>
-
-                  {d.source_mode === 'new' ? (
-                    <>
-                      <Field label={t.deviceIdLabel}>
-                        <Input value={d.id} onChange={(e) => setDevice(i, { id: e.target.value })} placeholder={`dev_oga_0${i + 1}`} />
-                      </Field>
-                      <Field label={t.deviceNameLabel}>
-                        <Input value={d.name} onChange={(e) => setDevice(i, { name: e.target.value })} placeholder={t.deviceNamePlaceholder(i + 1)} />
-                      </Field>
-                      <Field label={t.serialLabel}>
-                        <Input value={d.serial} onChange={(e) => setDevice(i, { serial: e.target.value })} placeholder={`SN-OGA-0${i + 1}`} />
-                      </Field>
-                    </>
-                  ) : (
-                    <Field label={t.stockDeviceLabel}>
-                      <Select value={d.existing_device_id} onValueChange={(v) => setDevice(i, { existing_device_id: v })}>
-                        <SelectTrigger><SelectValue placeholder={stockDevices.length ? t.selectDevice : t.noStock} /></SelectTrigger>
-                        <SelectContent>
-                          {stockDevices.map((sd) => (
-                            <SelectItem key={sd.id} value={sd.id}>{t.stockOption(sd.name, sd.serial, sd.store_name ? ` / ${sd.store_name}` : '')}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  )}
-
-                  {devices.length >= 2 && (
-                    <>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={d.is_master} onCheckedChange={(c) => setMaster(c === true ? i : -1)} />
-                        {t.masterCheckbox}
-                      </label>
-                      {d.source_mode === 'existing' && d.is_master && newDeviceCount > 0 && (
-                        <p className="text-[11px] text-red-500">{t.existingCantMasterHint}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-              {devices.length >= 2 && masterCount > 1 && (
-                <p className="text-xs text-red-500">{t.masterOneHint(masterCount)}</p>
-              )}
-              {willGroup && (
-                <Field label={t.groupNameLabel}>
-                  <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder={t.groupNamePlaceholder(custName || t.customerFallback)} />
-                </Field>
-              )}
-            </section>
-          )}
-
-          {step === 3 && (
-            <section className="space-y-3">
-              <h3 className="font-medium">{t.step3}</h3>
-              <Field label={t.emailLabel}>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="oga-admin@example.jp" />
-              </Field>
-              <Field label={t.passwordLabel}>
-                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </Field>
-              <p className="text-xs text-muted-foreground">
-                {t.roleNote}
-              </p>
-            </section>
-          )}
-
-          {error && (
-            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => (step > 1 ? setStep(step - 1) : onClose())}>
-            {step > 1 ? t.back : t.cancel}
-          </Button>
-          {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)}>{t.next}</Button>
-          ) : (
-            <Button onClick={submit} disabled={submitting}>
-              {submitting ? t.creating : t.runOnboard}
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -797,7 +432,7 @@ function EditCustomerDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t.editTitle}</DialogTitle>
-          <DialogDescription className="font-mono text-xs">{target.id}</DialogDescription>
+          <DialogDescription>{target.name}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <Field label={t.custNameLabelPlain}>

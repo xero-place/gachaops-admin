@@ -341,6 +341,8 @@ export default function DevicesPage() {
           >
             <Zap className="h-3.5 w-3.5" />{t.selectFiltered}
           </Button>
+          {/* S262: マシンの登録は弊社スタッフのみ（お客様には割り当てて渡す） */}
+          {isSuperAdmin && (
           <Button
             size="sm"
             className="gap-1.5"
@@ -348,12 +350,13 @@ export default function DevicesPage() {
           >
             <Plus className="h-3.5 w-3.5" />{t.createDevice}
           </Button>
+          )}
         </CardContent>
       </Card>
 
       {/* Device table */}
       <Card>
-        <Table>
+        <Table className="min-w-[880px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -403,12 +406,12 @@ export default function DevicesPage() {
                         const dvc = nums.length ? Math.max(...nums) : null;
                         if (dvc == null) return null;
                         return dvc >= latestApkCode
-                          ? <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-medium">{t.latest}</span>
-                          : <span className="inline-flex items-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium">{t.needsUpdate}</span>;
+                          ? <span className="text-[11px] text-muted-foreground">{t.latest}</span>
+                          : <span className="text-[11px] font-bold text-warn">{t.needsUpdate}</span>;
                       })()}
                     </div>
                     {isSuperAdmin && d.customer_name && (
-                      <div className="text-[10.5px] text-amber-500/90">{d.customer_name}</div>
+                      <div className="text-xs text-muted-foreground">{d.customer_name}</div>
                     )}
                   </Link>
                 </TableCell>
@@ -457,7 +460,7 @@ export default function DevicesPage() {
                     if (st.free_mode) {
                       return (
                         <div className="flex flex-col gap-0.5 min-w-[64px]">
-                          <span className="font-semibold text-primary">Free</span>
+                          <span className="font-semibold text-primary">{t.freeMode}</span>
                           <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
                             <div className="h-full w-full rounded-full bg-primary" />
                           </div>
@@ -473,7 +476,7 @@ export default function DevicesPage() {
                           <span className={st.is_low ? 'text-destructive font-semibold' : ''}>{st.remaining_balls}</span>
                           <span className="text-muted-foreground">/ {st.total_balls}</span>
                           {st.is_low && (
-                            <span className="px-1 py-0.5 rounded text-[9px] bg-destructive/10 text-destructive font-medium">{t.refill}</span>
+                            <span className="text-[11px] font-bold text-destructive">{t.refill}</span>
                           )}
                         </div>
                         <div className="h-1 w-full rounded-full bg-muted overflow-hidden">

@@ -13,52 +13,58 @@
  *   --ok    : healthy device / online / completed
  *   --warn  : maintenance / low-stock / scheduled
  *
- * Two themes (light/dark). Dark is the default for an ops console — operators
- * watch this dashboard at 2 AM and dark surfaces tire the eyes less.
+ * Two themes (light/dark). S262: light is the default (see layout.tsx);
+ * dark remains selectable from 設定.
  */
 @layer base {
   :root {
-    /* Light theme (used for printing, daytime ops) */
-    --background: 0 0% 99%;
-    --foreground: 222 30% 10%;
+    /* S262 light theme (default). Gray page #F3F4F6, white cards, border #E5E7EB,
+       text #111827 / #4B5563, accent vermilion #C8381B for the primary action only. */
+    --background: 220 14% 96%;
+    --foreground: 221 39% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 10%;
+    --card-foreground: 221 39% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 10%;
+    --popover-foreground: 221 39% 11%;
 
-    --primary: 7 78% 49%;
+    --primary: 10 76% 45%;
+    /* 主ボタンの赤グラデーションは S262 以前のものに戻す（オーナー指示） */
     --grad-from: 8 82% 62%;
     --grad-to: 6 74% 51%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 222 30% 14%;
+    --secondary: 210 20% 98%;
+    --secondary-foreground: 221 39% 11%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 222 10% 42%;
+    --muted: 210 20% 98%;
+    --muted-foreground: 215 14% 34%;
 
-    --accent: 0 0% 94%;
-    --accent-foreground: 222 30% 14%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 221 39% 11%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 7 78% 49%;
+    --border: 220 13% 91%;
+    --input: 216 12% 84%;
+    --ring: 10 76% 45%;
 
-    --ok: 145 55% 38%;
+    --ok: 142 72% 29%;
     --ok-foreground: 0 0% 100%;
-    --warn: 35 95% 50%;
+    --warn: 32 95% 40%;
     --warn-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
-    --font-sans: ui-sans-serif, system-ui, "Hiragino Sans", "Yu Gothic UI",
-      sans-serif;
+    --font-sans: 'Hiragino Kaku Gothic ProN', 'ヒラギノ角ゴ ProN W3', 'Hiragino Sans',
+      'Yu Gothic UI', 'Meiryo', sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    /* S262 shell */
+    --sidebar: #111111;
+    --sidebar-active: #2A2A2A;
   }
 
   .dark {
@@ -106,7 +112,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'cv11', 'ss01';
+    font-family: var(--font-sans);
   }
   /* Numerals tabular by default — admin tables look better aligned */
   table, .tabular {
