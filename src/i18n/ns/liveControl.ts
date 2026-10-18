@@ -3,7 +3,7 @@ export const liveControlDict = {
     title: "ライブ操作",
     home: "ホーム",
     // KPIs
-    kpiOnline: "稼働中",
+    kpiOnline: "オンライン",
     kpiOnlineSub: (total: number) => `/ 全${total}台`,
     kpiManual: "手動再生中",
     kpiManualSubReady: "計画配信へ復帰可能",

@@ -16,7 +16,7 @@ interface Overview {
 }
 
 const FIRST_STEPS = [
-  { href: '/assets', label: '流したい映像を登録する' },
+  { href: '/programs', label: '流したい映像を登録する' },
   { href: '/devices', label: 'マシンで映像を流す' },
   { href: '/choose-machine?tab=settings', label: '1回の価格を確認する' },
 ];
@@ -72,8 +72,8 @@ export function CustomerHome() {
       </section>
 
       <section aria-label="やりたいこと" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4">
-        <ActionCard href="/devices" icon={ICONS.play} title="マシンで映像を流す・止める" desc="流すマシンと映像を選ぶだけ。複数のマシンをそろえて流すこともできます。" />
-        <ActionCard href="/assets" icon={ICONS.upload} title="映像を追加する" desc="パソコンの動画ファイルを登録します。" />
+        <ActionCard href="/play" icon={ICONS.play} title="マシンで映像を流す・止める" desc="流すマシンと映像を選ぶだけ。複数のマシンをそろえて流すこともできます。" />
+        <ActionCard href="/programs" icon={ICONS.upload} title="映像を追加する" desc="パソコンの動画ファイルを追加して、マシンで流せるようにします。" />
         <ActionCard href="/plan-schedules" icon={ICONS.calendar} title="日時を決めて映像を流す" desc="期間や時間帯を決めて、自動で切り替えます。" />
         <ActionCard href="/choose-machine?tab=settings" icon={ICONS.tag} title="1回の価格を変える" desc="マシンごとに、1回いくらで遊べるかを決めます。マシン本体での設定方法も確認できます。" />
         <ActionCard href="/sales-events" icon={ICONS.chart} title="売上を見る" desc="今日・今月の売上と、マシンごとの明細を確認します。" />
@@ -85,7 +85,7 @@ export function CustomerHome() {
         <Panel title="マシンの様子">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,200px),1fr))] gap-3">
             <StatTile label="動いているマシン" value={online} unit="台" href="/devices" />
-            <StatTile label="つながっていないマシン" value={offline} unit="台" href="/devices" />
+            <StatTile label="オフラインのマシン" value={offline} unit="台" href="/devices" />
             <StatTile label="今日の売上" value={revenue} unit="円" href="/sales-events" />
           </div>
         </Panel>

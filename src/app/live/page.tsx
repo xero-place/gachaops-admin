@@ -19,6 +19,7 @@ import { api, ApiError } from '@/lib/api';
 import { ChevronLeft, Loader2, Plus } from 'lucide-react';
 import { usePageT } from '@/i18n/usePageT';
 import { liveDict } from '@/i18n/ns/live';
+import { useCurrentUser } from '@/lib/use-current-user';
 
 type Target = {
   device_id: string; device_name: string | null; mode: 'each' | 'wall';
@@ -33,7 +34,7 @@ type LiveStream = {
 // S253: 種類（ライブ配信 / 動画URL＝素材に取り込み / YouTube＝マシンが直接再生）
 type Kind = 'live' | 'video' | 'youtube';
 type ImportJob = { job_id: string; state: string; message?: string | null; asset_id?: string | null };
-type DeviceLite = { id: string; name: string; app_version?: string | null };
+type DeviceLite = { id: string; name: string; app_version?: string | null; customer_name?: string; group_names?: string[] };
 type GroupLite = { id: string; name: string; members?: { device_id: string }[] };
 type ListResponse<T> = { items?: T[] };
 
@@ -94,6 +95,20 @@ export default function LivePage() {
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // S262p: 一覧の「流しているマシン」に、マシン名・顧客名（スタッフのみ）・グループ名を出す（表示だけ）
+  const { isStaff } = useCurrentUser();
+  const targetsLabel = (st: LiveStream): string => {
+    if (st.targets.length === 0) return t.targetsCount(0);
+    const ds = st.targets.map((tg) => ({ tg, d: devices.find((x) => x.id === tg.device_id) }));
+    const names = ds.map(({ tg, d }) => d?.name ?? tg.device_name ?? tg.device_id).join('・');
+    const custs = Array.from(new Set(ds.map(({ d }) => d?.customer_name).filter((x): x is string => !!x)));
+    const grps = Array.from(new Set(ds.flatMap(({ d }) => d?.group_names ?? [])));
+    const extra: string[] = [];
+    if (isStaff && custs.length > 0) extra.push(custs.join('、'));
+    if (grps.length > 0) extra.push(`グループ：${grps.join('、')}`);
+    return extra.length > 0 ? `${names}（${extra.join('／')}）` : names;
+  };
 
   // 受信状態は数秒おきに更新
   useEffect(() => {
@@ -353,11 +368,11 @@ export default function LivePage() {
                           <td className="py-2.5 pr-4 whitespace-nowrap text-muted-foreground">{t.kindLabel[k]}</td>
                           <td className="py-2.5 pr-4 font-medium">{s.name}</td>
                           <td className="py-2.5 pr-4 text-xs text-muted-foreground max-w-[360px] truncate">{s.source_url}</td>
-                          <td className="py-2.5 pr-4 whitespace-nowrap">{t.targetsCount(s.targets.length)}</td>
+                          <td className="py-2.5 pr-4 text-sm">{targetsLabel(s)}</td>
                           <td className="py-2.5 pr-4 whitespace-nowrap text-xs text-muted-foreground">
                             {k === 'live' ? (t.relayState[s.relay.state] ?? s.relay.state) : '—'}
                           </td>
-                          <td className="py-2.5 text-right">
+                          <td className="py-2.5 text-right whitespace-nowrap">
                             <span className="text-xs text-muted-foreground underline underline-offset-2">{t.openRow}</span>
                           </td>
                         </tr>
@@ -451,7 +466,7 @@ export default function LivePage() {
                     {job.state === 'done' && (
                       <p className="text-muted-foreground">
                         {t.importDoneNote}{' '}
-                        <Link href="/assets" className="underline underline-offset-2 hover:text-foreground">{t.openAssets}</Link>
+                        <Link href="/programs" className="underline underline-offset-2 hover:text-foreground">{t.openAssets}</Link>
                       </p>
                     )}
                   </div>
@@ -720,7 +735,7 @@ export default function LivePage() {
                   {job.state === 'done' && (
                     <p className="text-muted-foreground">
                       {t.importDoneNote}{' '}
-                      <Link href="/assets" className="underline underline-offset-2 hover:text-foreground">{t.openAssets}</Link>
+                      <Link href="/programs" className="underline underline-offset-2 hover:text-foreground">{t.openAssets}</Link>
                     </p>
                   )}
                 </div>

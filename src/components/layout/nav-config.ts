@@ -34,7 +34,6 @@ export const STAFF_NAV: ShellNav = {
   more: [
     { href: '/dashboard', label: '数字のまとめ' },
     { href: '/devices/map', label: 'マシンの地図' },
-    { href: '/assets', label: '映像の素材' },
     { href: '/plan-schedules', label: '日時を決めて流す' },
     { href: '/live', label: 'リンク再生' },
     { href: '/stores', label: '店舗' },
@@ -57,7 +56,6 @@ export const CUSTOMER_NAV: ShellNav = {
   ],
   more: [
     { href: '/dashboard', label: '数字のまとめ' },
-    { href: '/assets', label: '映像の素材' },
     { href: '/plan-schedules', label: '日時を決めて流す' },
     { href: '/live', label: 'リンク再生' },
     { href: '/stores', label: '店舗' },

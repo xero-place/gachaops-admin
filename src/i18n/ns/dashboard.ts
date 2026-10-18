@@ -25,7 +25,7 @@ export const dashboardDict = {
     salesTrendSub: (rev: string, orders: number) => `総売上：${rev} / 回転数：${orders}回`,
     toOrders: "決済履歴一覧へ →",
     noData: "データがまだありません",
-    offlineDevices: "つながっていないマシン",
+    offlineDevices: "オフラインのマシン",
     lastConnected: "最終接続",
   },
   en: {

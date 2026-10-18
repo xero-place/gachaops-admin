@@ -41,7 +41,7 @@ export const liveDict = {
       error: "取り込めませんでした",
     } as Record<string, string>,
     importDoneNote: "「素材」に追加しました。プログラムに入れると、通常の映像と同じように流せます。",
-    openAssets: "素材を開く",
+    openAssets: "映像を開く",
     youtubeEachOnly: "YouTube は1台ずつの再生のみです（連結はできません）。",
     selectStream: "ライブを選択",
     newBtn: "新規",

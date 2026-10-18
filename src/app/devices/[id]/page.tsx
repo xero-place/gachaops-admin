@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DeviceStatusBadge, TaskStatusBadge } from '@/components/domain/status-badges';
+import { PaySummaryText, usePaySummary } from '@/components/domain/pay-summary';
 import { LiveControlSheet } from '@/components/domain/live-control-sheet';
 import { useLiveStore, applyOverridesToDevice } from '@/stores/live-control-store';
 import { fmtDate, fmtRelative, fmtYen } from '@/lib/format';
@@ -121,6 +122,8 @@ export default function DeviceDetailPage() {
   const [fetchFailed, setFetchFailed] = useState(false);
   const overrides = useLiveStore((s) => s.overrides);
   const [tab, setTab] = useState('overview');
+  // S262r: 見出しの横に出す料金・支払いの短い表示（表示のみ・取れなければ出さない）
+  const paySummary = usePaySummary();
   // S262: ?tab=settings / ?tab=stock で開いたときは、そのタブを最初に表示する（ホームの「1回の価格を変える」など）
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('tab');
@@ -733,6 +736,7 @@ export default function DeviceDetailPage() {
           <Link href="/devices"><ArrowLeft className="h-3.5 w-3.5 mr-1" />{t.common.back}</Link>
         </Button>
         <DeviceStatusBadge status={detail.status} />
+        {paySummary && paySummary[detail.id] && <PaySummaryText s={paySummary[detail.id]} className="text-xs" />}
         <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:ml-auto">
           <Button
             variant="default"

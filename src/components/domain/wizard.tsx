@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-const COLS: Record<number, string> = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' };
+const COLS: Record<number, string> = { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4', 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-6' };
 
 export function Stepper({ labels, step }: { labels: string[]; step: number }) {
   return (
@@ -174,8 +174,8 @@ export function ConfirmTable({ rows }: { rows: { k: string; v: React.ReactNode }
 }
 
 export const STATUS_TEXT: Record<string, string> = {
-  online: 'つながっている',
-  offline: 'つながっていない',
+  online: 'オンライン',
+  offline: 'オフライン',
   maintenance: 'メンテナンス中',
-  never_connected: 'まだつないでいない',
+  never_connected: '未接続',
 };

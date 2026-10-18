@@ -115,6 +115,17 @@ export default function DeviceGroupsPage() {
   // 顧客が1件だけ（顧客アカウントでの閲覧など）のときは冗長なので見出しを出さない。
   const showCustomerHeader = custOrder.length > 1;
 
+  // S262r: 同じマシンが2つ以上のグループに入っていないか（表示のみ・取得済みデータから計算）
+  const groupsByDevice = new Map<string, DeviceGroup[]>();
+  for (const g of deviceGroups) {
+    for (const m of g.members) {
+      if (!groupsByDevice.has(m.device_id)) groupsByDevice.set(m.device_id, []);
+      groupsByDevice.get(m.device_id)!.push(g);
+    }
+  }
+  const dupEntries = Array.from(groupsByDevice.entries()).filter(([, gs]) => gs.length >= 2);
+  const dupIds = new Set(dupEntries.map(([id]) => id));
+
   return (
     <AppShell title={t.title} breadcrumb={[t.home, t.groups]}>
       {/* S262l: 見た目のみ変更（取得・保存の処理は従来どおり） */}
@@ -126,6 +137,34 @@ export default function DeviceGroupsPage() {
           </Button>
         </div>
 
+        {dupEntries.length > 0 && (
+          <section role="alert" className="flex flex-col gap-3 rounded-card border border-warn/50 bg-warn/5 p-5">
+            <p className="text-[15px] font-bold leading-relaxed">同じマシンが複数のグループに入っています。連動再生がうまく動かない原因になります。</p>
+            <ul className="flex flex-col gap-2">
+              {dupEntries.map(([did, gs]) => {
+                const dname = devices.find((d) => d.id === did)?.name ?? did;
+                return (
+                  <li key={did} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="font-bold">
+                      {dname}：{gs.map((g) => g.name).join('／')}
+                      {showCustomerHeader && gs[0]?.customer_id ? `（${custName(gs[0].customer_id)}）` : ''}
+                    </span>
+                    {gs.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setEditing(g)}
+                        className="text-[13px] font-bold text-foreground underline underline-offset-4 hover:text-primary"
+                      >
+                        「{g.name}」を編集
+                      </button>
+                    ))}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
         {roots.length === 0 && (
           <div className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">{t.noGroups}</div>
         )}
@@ -150,6 +189,7 @@ export default function DeviceGroupsPage() {
                   onDelete={setDeleting}
                   devices={devices}
                   programs={programs}
+                  dupIds={dupIds}
                 />
               ))}
             </ul>
@@ -185,7 +225,7 @@ export default function DeviceGroupsPage() {
 }
 
 function GroupNode({
-  group, childrenList, depth, allGroups, canEdit, onEdit, onDelete, devices, programs,
+  group, childrenList, depth, allGroups, canEdit, onEdit, onDelete, devices, programs, dupIds,
 }: {
   group: DeviceGroup;
   childrenList: DeviceGroup[];
@@ -196,6 +236,7 @@ function GroupNode({
   onDelete: (g: DeviceGroup) => void;
   devices: DeviceLite[];
   programs: ProgramLite[];
+  dupIds: Set<string>;
 }) {
   const t = usePageT(deviceGroupsDict);
   // S145: メンバー端末の状態表示。restProgram名解決（NULL=既定の箸休め）。
@@ -270,6 +311,7 @@ function GroupNode({
                           <span className="min-w-0 truncate text-[15px] font-bold text-foreground">{d?.name ?? m.device_id}</span>
                           {m.is_master && <span className="shrink-0 text-[12px] text-muted-foreground">{t.master}</span>}
                         </span>
+                        {dupIds.has(m.device_id) && <span className="text-[12px] font-bold text-warn">複数のグループ</span>}
                         <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
                           <span className={`h-2 w-2 shrink-0 rounded-full ${online ? 'bg-ok' : 'bg-muted-foreground/40'}`} aria-hidden="true" />
                           {online ? t.online : t.offline}
@@ -321,6 +363,7 @@ function GroupNode({
               onDelete={onDelete}
               devices={devices}
               programs={programs}
+              dupIds={dupIds}
             />
           ))}
         </ul>

@@ -1,17 +1,31 @@
 'use client';
 
+/**
+ * S262q: 「映像」— 旧「映像（プログラム）」と「映像の素材」を1つの画面にまとめた。
+ *
+ * 使う呼び出しはすべて既存のもの（中身も同じ）:
+ *   - 一覧        GET /programs?limit=100[&owner=self|customer]   … 旧 programs/page.tsx の raw fetch
+ *                 GET /assets?limit=100[&owner=self|customer]     … 旧 assets/page.tsx
+ *   - アップロード POST /assets/upload (multipart: file, name)      … 旧 assets/page.tsx の XHR（30分タイムアウト・1.4GiB上限）をそのまま
+ *   - 削除        DELETE /assets/{id}[?force=true]                  … 旧 assets/page.tsx（使用中409→確認→force）
+ *   - 流せるようにする（1本の映像から）:
+ *       POST /programs {name, description}                         … programs/new/page.tsx
+ *       POST /programs/{id}/scenes {name, duration_sec, order_index:0} … programs/[id] AddSceneModal
+ *       POST /programs/{id}/scenes/{sid}/widgets {type, asset_id, x:0,y:0,width:100,height:100,z_index:0,config:{}} … 同上
+ *       POST /programs/{id}/publish                                 … programs/[id] handlePublish
+ *   - 準備中の映像を流せるようにする: POST /programs/{id}/publish   … 同上
+ * データの形（公開/下書き）は変えていない。画面では「公開」「下書き」という言葉を出さない。
+ */
 import Link from 'next/link';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { fmtRelative, fmtDuration, fmtBytes } from '@/lib/format';
-import { Search, Plus, Layers, HardDrive, Clock, Eye, Film, Image as ImageIcon } from 'lucide-react';
+import { fmtDuration, fmtBytes, fmtRelative } from '@/lib/format';
+import { Film, Image as ImageIcon, Loader2, Upload, Layers } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
-import { usePageT } from '@/i18n/usePageT';
-import { programsDict } from '@/i18n/ns/programs';
+import { SearchBox } from '@/components/domain/wizard';
+import { cn } from '@/lib/utils';
+import type { Asset } from '@/types/domain';
 
 type ScenePreview = {
   scene_id: string;
@@ -20,18 +34,15 @@ type ScenePreview = {
   asset_type: 'video' | 'image' | 'gif' | null;
   thumbnail_url: string | null;
   asset_duration_ms?: number | null;
-  asset_name?: string | null;  // S224: セットされた素材名
+  asset_name?: string | null;
 };
 
-// Session 13: 表示用の秒数を取得 (動画は実長、画像/gif は duration_sec)
 function getDisplayDurationSec(sp: ScenePreview): number {
   if (sp.asset_type === 'video' && sp.asset_duration_ms && sp.asset_duration_ms > 0) {
     return Math.ceil(sp.asset_duration_ms / 1000);
   }
   return sp.duration_sec;
 }
-
-// Session 13: プログラム全体の合計秒数 (動画は実長、画像/gif は duration_sec)
 function getProgramTotalSec(scenePreviews?: ScenePreview[], fallback?: number): number {
   if (!scenePreviews || scenePreviews.length === 0) return fallback ?? 0;
   return scenePreviews.reduce((sum, sp) => sum + getDisplayDurationSec(sp), 0);
@@ -40,222 +51,405 @@ function getProgramTotalSec(scenePreviews?: ScenePreview[], fallback?: number): 
 type Program = {
   id: string;
   customer_id: string;
-  customer_name?: string;  // ★assetowner: 顧客名バッジ用
+  customer_name?: string;
   name: string;
   description: string | null;
   total_duration_sec: number;
   published: boolean;
   scene_count?: number;
   size_bytes?: number;
-  widget_count?: number;
-  thumbnail_url?: string | null;
   scene_previews?: ScenePreview[];
   created_at: string;
   updated_at: string;
 };
 
-export default function ProgramsPage() {
-  const t = usePageT(programsDict);
-  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';  // S145
-  const myCid = tokenStore.getUser()?.customer_id;  // ★assetowner: 自社判定用
-  const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');  // ★assetowner: 自社/顧客タブ(既定=自社)
+const MAX_BYTES = 1503238553; // 1.4 GiB（旧「映像の素材」と同じ。backend の MAX_UPLOAD_BYTES と一致）
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+
+const baseName = (n: string) => n.replace(/\.[^.]+$/, '');
+
+export default function VideosPage() {
+  const isSuperAdmin = tokenStore.getUser()?.role === 'lv1_super';
+  const myCid = tokenStore.getUser()?.customer_id;
+  const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');
   const [programs, setPrograms] = useState<Program[]>([]);
-  const reqSeq = useRef(0);  // ★assetowner: タブ切替レース対策(古い応答で新タブを上書きしない)
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showUnpublished, setShowUnpublished] = useState(true);
+  const reqSeq = useRef(0);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
+  // upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [justUploaded, setJustUploaded] = useState<Asset | null>(null);
+  // make playable
+  const [making, setMaking] = useState<string | null>(null); // asset id or program id
+  const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchPrograms = useCallback(async () => {
-    const seq = ++reqSeq.current;  // ★assetowner: この呼び出しの世代番号
+  const fetchAll = useCallback(async () => {
+    const seq = ++reqSeq.current;
     try {
       const token = tokenStore.getAccess();
-      // ★assetowner: lv1_super は 自社/顧客 タブで owner を切替。それ以外は自顧客のみ。
       const ownerParam = isSuperAdmin ? `&owner=${ownerTab}` : '';
-      const res = await fetch(`${apiBase}/programs?limit=100${ownerParam}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (seq === reqSeq.current) setPrograms(data.items ?? data ?? []);  // 最新要求のみ反映
+      const headers = { Authorization: `Bearer ${token}` };
+      const [pr, ar] = await Promise.all([
+        fetch(`${apiBase}/programs?limit=100${ownerParam}`, { headers }),
+        fetch(`${apiBase}/assets?limit=100${ownerParam}`, { headers }),
+      ]);
+      const pj = pr.ok ? await pr.json() : { items: [] };
+      const aj = ar.ok ? await ar.json() : { items: [] };
+      if (seq !== reqSeq.current) return;
+      setPrograms(pj.items ?? pj ?? []);
+      const al = aj.items ?? aj.data ?? aj ?? [];
+      setAssets(Array.isArray(al) ? al : []);
     } catch (err) {
-      console.error('Failed to fetch programs:', err);
+      console.error('[videos] fetch failed:', err);
     } finally {
       if (seq === reqSeq.current) setLoading(false);
     }
-  }, [apiBase, ownerTab, isSuperAdmin]);
+  }, [ownerTab, isSuperAdmin]);
 
-  useEffect(() => {
-    fetchPrograms();
-  }, [fetchPrograms]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = useMemo(() => {
-    return programs.filter((p) => {
-      if (!showUnpublished && !p.published) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        if (!p.name.toLowerCase().includes(s)) return false;
+  // ── アップロード（旧 assets/page.tsx と同じ XHR） ──
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setUploadError(null);
+    setJustUploaded(null);
+    setNotice(null);
+    if (file.size > MAX_BYTES) {
+      setUploadError(`ファイルが大きすぎます（${(file.size / 1024 / 1024).toFixed(1)} MB）。1.4GBまでのファイルを選んでください。`);
+      return;
+    }
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const token = tokenStore.getAccess();
+      if (!token) throw new Error('ログインし直してください。');
+      const created = await new Promise<Asset>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status === 201) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('結果を読み取れませんでした。')); }
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText);
+              reject(new Error(err.detail ?? err.title ?? `HTTP ${xhr.status}`));
+            } catch {
+              reject(new Error(`HTTP ${xhr.status}`));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error('通信できませんでした。'));
+        xhr.ontimeout = () => reject(new Error('時間がかかりすぎたため止まりました。'));
+        xhr.open('POST', `${apiBase}/assets/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.timeout = 30 * 60 * 1000;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
+        xhr.send(formData);
+      });
+      setAssets((prev) => [created, ...prev]);
+      setJustUploaded(created);
+    } catch (err) {
+      setUploadError(`追加できませんでした：${err instanceof Error ? err.message : '原因がわかりません'}`);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // ── 1本の映像から、マシンで流せる映像を作る（既存の作成→シーン→ウィジェット→公開 と同じ） ──
+  const makePlayable = async (a: Asset) => {
+    setMaking(a.id);
+    setActionError(null);
+    setNotice(null);
+    try {
+      const token = tokenStore.getAccess();
+      const json = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      const pr = await fetch(`${apiBase}/programs`, {
+        method: 'POST', headers: json,
+        body: JSON.stringify({ name: baseName(a.name).trim() || a.name, description: '' }),
+      });
+      if (!pr.ok) throw new Error(`作成 HTTP ${pr.status}`);
+      const program = await pr.json();
+      const isImage = a.type === 'image' || a.type === 'gif';
+      const durationSec = !isImage && a.duration_ms && a.duration_ms > 0 ? Math.ceil(a.duration_ms / 1000) : 10;
+      const sr = await fetch(`${apiBase}/programs/${program.id}/scenes`, {
+        method: 'POST', headers: json,
+        body: JSON.stringify({ name: 'シーン 1', duration_sec: durationSec, order_index: 0 }),
+      });
+      if (!sr.ok) throw new Error(`シーン HTTP ${sr.status}`);
+      const scene = await sr.json();
+      const wr = await fetch(`${apiBase}/programs/${program.id}/scenes/${scene.id}/widgets`, {
+        method: 'POST', headers: json,
+        body: JSON.stringify({ type: isImage ? 'image' : 'video', asset_id: a.id, x: 0, y: 0, width: 100, height: 100, z_index: 0, config: {} }),
+      });
+      if (!wr.ok) throw new Error(`映像の設定 HTTP ${wr.status}`);
+      const pub = await fetch(`${apiBase}/programs/${program.id}/publish`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!pub.ok) throw new Error(`仕上げ HTTP ${pub.status}`);
+      setNotice(`「${baseName(a.name)}」をマシンで流せるようにしました。`);
+      setJustUploaded(null);
+      await fetchAll();
+    } catch (err) {
+      setActionError(`流せるようにできませんでした（${err instanceof Error ? err.message : ''}）。時間をおいてもう一度お試しください。`);
+    } finally {
+      setMaking(null);
+    }
+  };
+
+  // 準備中の映像を流せるようにする（既存の publish）
+  const publish = async (p: Program) => {
+    setMaking(p.id);
+    setActionError(null);
+    setNotice(null);
+    try {
+      const token = tokenStore.getAccess();
+      const res = await fetch(`${apiBase}/programs/${p.id}/publish`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setNotice(`「${p.name}」をマシンで流せるようにしました。`);
+      await fetchAll();
+    } catch (err) {
+      setActionError(`流せるようにできませんでした（${String(err)}）。`);
+    } finally {
+      setMaking(null);
+    }
+  };
+
+  // 削除（旧 assets/page.tsx と同じ流れ）
+  const deleteAsset = async (a: Asset) => {
+    const isCustomerItem = isSuperAdmin && a.customer_id !== myCid;
+    const who = a.customer_name || a.customer_id;
+    const msg = isCustomerItem
+      ? `顧客「${who}」の映像ファイル「${a.name}」を削除します。顧客の画面からも消え、元に戻せません。よろしいですか？`
+      : `映像ファイル「${a.name}」を削除します。元に戻せません。よろしいですか？`;
+    const usage = (a.used_in_program_count ?? 0) > 0 ? `\n\nこのファイルは ${a.used_in_program_count} 本の映像で使われています。削除するとその映像が正しく流れなくなります。` : '';
+    if (!confirm(msg + usage)) return;
+    const token = tokenStore.getAccess();
+    const doDelete = (force: boolean) =>
+      fetch(`${apiBase}/assets/${a.id}${force ? '?force=true' : ''}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    try {
+      let res = await doDelete(false);
+      if (res.status === 409) {
+        let detail = 'このファイルは使われています。';
+        try { const j = await res.json(); detail = j.detail || j.title || detail; } catch { /* noop */ }
+        if (!confirm(`${detail}\n\n使っている映像が正しく流れなくなりますが、削除しますか？`)) return;
+        res = await doDelete(true);
       }
-      return true;
-    });
-  }, [programs, search, showUnpublished]);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAssets((prev) => prev.filter((x) => x.id !== a.id));
+    } catch (err) {
+      alert(`削除できませんでした（${String(err)}）`);
+    }
+  };
+
+  const q = search.trim().toLowerCase();
+  const fp = useMemo(() => programs.filter((p) => !q || p.name.toLowerCase().includes(q)), [programs, q]);
+  const fa = useMemo(() => assets.filter((a) => !q || a.name.toLowerCase().includes(q)), [assets, q]);
+  const ownerLabel = (cid: string, name?: string) => (isSuperAdmin && cid !== myCid ? (name || cid) : null);
 
   return (
-    <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
-      <Card className="mb-4">
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder={t.searchPlaceholder}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs"
-            />
+    <AppShell title="映像">
+      <div className="flex w-full max-w-[1200px] flex-col gap-6">
+        {/* 映像を追加する */}
+        <section className="flex flex-col gap-4 rounded-card border bg-card p-5 sm:p-[22px]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-[17px] font-bold">映像を追加する</h2>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                パソコンの動画・画像ファイルを選ぶと追加されます（1.4GBまで）。追加したら「この映像をマシンで流せるようにする」を押してください。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input ref={fileInputRef} type="file" accept="video/*,image/*" onChange={handleFileSelect} className="hidden" />
+              <Button onClick={() => !uploading && fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="animate-spin" /> : <Upload />}
+                {uploading ? `追加しています… ${uploadProgress}%` : 'ファイルを選んで追加する'}
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/programs/new"><Layers />複数の映像をつなげて1本にする</Link>
+              </Button>
+            </div>
+          </div>
+          {uploading && (
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+              <div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} />
+            </div>
+          )}
+          {uploadError && <div role="alert" className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-bold text-destructive">{uploadError}</div>}
+          {justUploaded && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-primary/40 bg-primary/5 px-4 py-3.5">
+              <span className="text-[15px] font-bold">「{justUploaded.name}」を追加しました。</span>
+              <Button onClick={() => makePlayable(justUploaded)} disabled={making === justUploaded.id}>
+                {making === justUploaded.id && <Loader2 className="animate-spin" />}
+                この映像をマシンで流せるようにする
+              </Button>
+            </div>
+          )}
+          {notice && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-ok/30 bg-ok/5 px-4 py-3 text-sm">
+              <span className="font-bold text-ok">{notice}</span>
+              <Link href="/play" className="font-bold underline-offset-4 hover:underline">マシンで流す →</Link>
+            </div>
+          )}
+          {actionError && <div role="alert" className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-bold text-destructive">{actionError}</div>}
+        </section>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-[240px] flex-1 sm:max-w-md">
+            <SearchBox value={search} onChange={setSearch} placeholder="映像の名前で探す" />
           </div>
           {isSuperAdmin && (
-            <div className="flex border rounded-md">
-              <Button variant={ownerTab === 'self' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-r-none text-xs" onClick={() => setOwnerTab('self')}>{t.self}</Button>
-              <Button variant={ownerTab === 'customer' ? 'secondary' : 'ghost'} size="sm" className="h-8 rounded-l-none border-l text-xs" onClick={() => setOwnerTab('customer')}>{t.customer}</Button>
+            <div className="inline-flex rounded-[10px] border bg-card p-1" role="group" aria-label="表示する映像">
+              {(['self', 'customer'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setOwnerTab(k)}
+                  aria-pressed={ownerTab === k}
+                  className={cn('min-h-[40px] rounded-lg px-4 text-sm font-bold', ownerTab === k ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  {k === 'self' ? '自社' : '顧客'}
+                </button>
+              ))}
             </div>
           )}
-          <Button
-            variant={showUnpublished ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => setShowUnpublished(!showUnpublished)}
-            className="h-8 text-xs"
-          >
-            {t.includeDrafts}
-          </Button>
-          <div className="ml-auto" />
-          <Button size="sm" className="gap-1.5" asChild>
-            <Link href="/programs/new">
-              <Plus className="h-3.5 w-3.5" />{t.createNew}
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
 
-      {loading ? (
-        <div className="text-center text-sm text-muted-foreground py-12">
-          {t.loading}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((p) => (
-            <Card key={p.id} className="overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all">
-              <Link href={`/programs/${p.id}`}>
-                <div className="aspect-video bg-muted relative overflow-hidden">
-                  {/* S224: サムネを枠いっぱいに(object-cover)。単一シーンは全面、複数は均等分割で全高表示 */}
-                  {p.scene_previews && p.scene_previews.length > 0 ? (() => {
-                    const n = p.scene_previews.length;
-                    return (
-                      <div className="absolute inset-0 flex">
-                        {p.scene_previews.map((scene, i) => (
-                          <div key={scene.scene_id} className="relative flex-1 min-w-0 h-full bg-black/60 border-r border-black/25 last:border-r-0">
-                            {scene.thumbnail_url ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img
-                                src={scene.thumbnail_url}
-                                alt={t.sceneAlt(i + 1)}
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                {scene.asset_type === 'video' ? (
-                                  <Film className="h-7 w-7 text-muted-foreground" />
-                                ) : (
-                                  <ImageIcon className="h-7 w-7 text-muted-foreground" />
-                                )}
-                              </div>
-                            )}
-                            {n > 1 && (
-                              <div className="absolute bottom-0 left-0 bg-primary/90 text-primary-foreground font-bold text-[9px] px-1 rounded-tr">
-                                {i + 1}
-                              </div>
-                            )}
-                            <div className="absolute bottom-0 right-0 bg-black/70 text-white text-[9px] px-1 leading-tight">
-                              {getDisplayDurationSec(scene)}s
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })() : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">{t.noScene}</div>
-                  )}
-                  {!p.published && (
-                    <Badge variant="warn" className="absolute top-2 left-2">{t.draft}</Badge>
-                  )}
-                  {p.published && (
-                    <Badge className="absolute top-2 left-2">{t.published}</Badge>
-                  )}
-                  <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
-                    <Clock className="h-3 w-3" />
-                    {fmtDuration(getProgramTotalSec(p.scene_previews, p.total_duration_sec) * 1000)}
-                  </Badge>
-                </div>
-              </Link>
-              <div className="p-4">
-                <Link href={`/programs/${p.id}`} className="hover:underline">
-                  <h3 className="font-medium text-sm">{p.name}</h3>
-                </Link>
-                {isSuperAdmin && p.customer_id !== myCid && (
-                  <div className="mt-0.5">
-                    <span className="inline-block max-w-full truncate text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0" title={p.customer_name || p.customer_id}>{p.customer_name || p.customer_id}</span>
-                  </div>
-                )}
-                {/* S224: セットされた素材名 */}
-                {(() => {
-                  const mats = [...new Set((p.scene_previews ?? []).map((s) => s.asset_name).filter(Boolean))];
-                  return mats.length > 0 ? (
-                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Film className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{mats.join(' / ')}</span>
-                    </div>
-                  ) : null;
-                })()}
-                {p.description && (
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
-                )}
-                <div className="flex items-center gap-3 mt-3 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Layers className="h-3 w-3" />{p.scene_count ?? 0} {t.sceneUnit}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <HardDrive className="h-3 w-3" />{fmtBytes(p.size_bytes ?? 0)}
-                  </span>
-                  <span className="ml-auto">{fmtRelative(p.updated_at)}</span>
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <Button variant="outline" size="sm" className="h-7 text-xs flex-1 gap-1" asChild>
-                    <Link href={`/programs/${p.id}`}>
-                      <Eye className="h-3 w-3" />{t.open}
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-          {filtered.length === 0 && (
-            <div className="col-span-full text-center text-sm text-muted-foreground py-12">
-              {programs.length === 0 ? (
-                <>
-                  <div>{t.noPrograms}</div>
-                  <Button size="sm" className="mt-3 gap-1.5" asChild>
-                    <Link href="/programs/new">
-                      <Plus className="h-3.5 w-3.5" />{t.createFirst}
-                    </Link>
-                  </Button>
-                </>
-              ) : (
-                t.noMatch
-              )}
+        {/* マシンで流せる映像 */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-[17px] font-bold">マシンで流す映像（{fp.length}本）</h2>
+          {loading ? (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />読み込んでいます…</div>
+          ) : fp.length === 0 ? (
+            <div className="rounded-card border bg-card px-6 py-8 text-center text-sm text-muted-foreground">
+              {programs.length === 0 ? 'まだ映像がありません。上の「ファイルを選んで追加する」から始めてください。' : `「${search}」に当てはまる映像はありません。`}
             </div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {fp.map((p) => {
+                const owner = ownerLabel(p.customer_id, p.customer_name);
+                const thumbs = p.scene_previews ?? [];
+                const files = [...new Set(thumbs.map((s) => s.asset_name).filter(Boolean))];
+                return (
+                  <li key={p.id} className="flex flex-col overflow-hidden rounded-card border bg-card">
+                    <Link href={`/programs/${p.id}`} className="relative block aspect-video bg-[#111111]">
+                      {thumbs.length > 0 ? (
+                        <div className="absolute inset-0 flex">
+                          {thumbs.map((scene, i) => (
+                            <div key={scene.scene_id} className="relative h-full min-w-0 flex-1 border-r border-black/30 last:border-r-0">
+                              {scene.thumbnail_url ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={scene.thumbnail_url} alt={`${i + 1}つ目`} className="absolute inset-0 h-full w-full object-cover" />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-white/50">
+                                  {scene.asset_type === 'video' ? <Film className="h-7 w-7" /> : <ImageIcon className="h-7 w-7" />}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">映像がまだ入っていません</div>
+                      )}
+                    </Link>
+                    <div className="flex flex-1 flex-col gap-1.5 p-4">
+                      <Link href={`/programs/${p.id}`} className="text-[15px] font-bold leading-snug hover:underline">{p.name}</Link>
+                      {owner && <span className="text-[13px] text-muted-foreground">{owner}</span>}
+                      <span className="text-[13px] text-muted-foreground">
+                        {fmtDuration(getProgramTotalSec(p.scene_previews, p.total_duration_sec) * 1000)}
+                        {(p.scene_count ?? 0) > 1 && `・${p.scene_count}本をつなげた映像`}
+                        {files.length > 0 && (p.scene_count ?? 0) <= 1 && `・${files.join('、')}`}
+                      </span>
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+                        {p.published ? (
+                          <span className="text-[13px] font-bold text-ok">マシンで流せます</span>
+                        ) : (
+                          <span className="text-[13px] text-muted-foreground">準備中</span>
+                        )}
+                        {!p.published && (p.scene_count ?? thumbs.length) > 0 && (
+                          <Button variant="outline" onClick={() => publish(p)} disabled={making === p.id}>
+                            {making === p.id && <Loader2 className="animate-spin" />}
+                            流せるようにする
+                          </Button>
+                        )}
+                        {!p.published && (p.scene_count ?? thumbs.length) === 0 && (
+                          <Link href={`/programs/${p.id}`} className="text-sm font-bold underline-offset-4 hover:underline">開いて映像を入れる →</Link>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
-      )}
+        </section>
+
+        {/* 追加した映像ファイル */}
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-[17px] font-bold">追加した映像ファイル（{fa.length}件）</h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">「流せるようにする」を押すと、上の「マシンで流す映像」に1本ずつ加わります。</p>
+          </div>
+          {!loading && fa.length === 0 ? (
+            <div className="rounded-card border bg-card px-6 py-8 text-center text-sm text-muted-foreground">追加したファイルはまだありません。</div>
+          ) : (
+            <ul className="flex flex-col divide-y rounded-card border bg-card">
+              {fa.map((a) => {
+                const owner = ownerLabel(a.customer_id, a.customer_name);
+                return (
+                  <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#111111]">
+                      {a.thumbnail_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={a.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                      ) : a.type === 'video' ? <Film className="h-5 w-5 text-white/50" /> : <ImageIcon className="h-5 w-5 text-white/50" />}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="break-all text-[15px] font-bold">{a.name}</span>
+                      <span className="text-[13px] text-muted-foreground">
+                        {a.type === 'video' ? '動画' : a.type === 'image' || a.type === 'gif' ? '画像' : a.type}
+                        ・{fmtBytes(a.size)}{a.duration_ms ? `・${fmtDuration(a.duration_ms)}` : ''}
+                        {owner ? `・${owner}` : ''}
+                        ・{a.used_in_program_count > 0 ? `${a.used_in_program_count}本の映像で使用中` : 'まだ使われていません'}
+                        ・{fmtRelative(a.created_at)}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {(a.type === 'video' || a.type === 'image' || a.type === 'gif') && (
+                        <Button variant="outline" onClick={() => makePlayable(a)} disabled={making === a.id}>
+                          {making === a.id && <Loader2 className="animate-spin" />}
+                          流せるようにする
+                        </Button>
+                      )}
+                      <button
+                        type="button"
+                        className="min-h-[44px] rounded-[10px] px-3 text-sm text-muted-foreground hover:bg-destructive/5 hover:text-destructive"
+                        onClick={() => deleteAsset(a)}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </AppShell>
   );
 }

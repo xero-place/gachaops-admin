@@ -1,6 +1,6 @@
 export const statusBadgesDict = {
   ja: {
-    device: { online: "つながっている", offline: "つながっていない", maintenance: "メンテナンス中", never_connected: "まだつないでいない" },
+    device: { online: "オンライン", offline: "オフライン", maintenance: "メンテナンス中", never_connected: "未接続" },
     play: { plan: "計画配信中", manual: "手動再生中", idle: "待機" },
     task: { draft: "下書き", scheduled: "予約", distributing: "配信中", completed: "完了", partial_success: "一部成功", failed: "失敗", cancelled: "キャンセル" },
     order: { pending: "未決済", paid: "支払済", failed: "失敗", cancelled: "キャンセル", refunded: "返金済", expired: "期限切れ" },

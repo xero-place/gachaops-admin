@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -264,7 +263,7 @@ export default function ProgramDetailPage() {
               <Send className="h-3.5 w-3.5" />{t.publish}
             </Button>
           ) : (
-            <Badge className="px-3 py-1.5">{t.publishedBadge}</Badge>
+            <span className="text-sm font-bold text-ok">{t.publishedBadge}</span>
           )}
         </div>
       </div>
@@ -594,7 +593,7 @@ function AddSceneModal({
             {filteredAssets.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground border rounded-md">
                 <div>{t.noAssets}</div>
-                <Link href="/assets" className="text-primary underline text-xs mt-1 inline-block">
+                <Link href="/programs" className="text-primary underline text-xs mt-1 inline-block">
                   {t.uploadOnAssets}
                 </Link>
               </div>

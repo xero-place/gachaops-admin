@@ -45,10 +45,10 @@ export function RequestSummary({ request }: { request: SignupRequest }) {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  online: 'つながっています',
-  offline: 'つながっていません',
+  online: 'オンライン',
+  offline: 'オフライン',
   maintenance: 'メンテナンス中',
-  never_connected: 'まだつないでいません',
+  never_connected: '未接続',
 };
 
 export function StockDevicePicker({
@@ -151,7 +151,7 @@ export function StockDevicePicker({
                   <span className="break-words text-base font-bold">{d.name}</span>
                   <span className="break-words text-[13px] text-muted-foreground">
                     番号 {d.serial || '—'}
-                    {d.last_heartbeat_at ? `・最後につながった日 ${fmtDate(d.last_heartbeat_at)}` : ''}
+                    {d.last_heartbeat_at ? `・最終接続日 ${fmtDate(d.last_heartbeat_at)}` : ''}
                   </span>
                   <span className="text-[13px] text-foreground/70 sm:hidden">
                     {STATUS_LABEL[d.status] ?? '未割当'}

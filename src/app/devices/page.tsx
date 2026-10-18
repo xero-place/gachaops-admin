@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { PaySummaryText, usePaySummary } from '@/components/domain/pay-summary';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Volume2, Search, Zap, Undo2, X, Loader2, Plus, ExternalLink, CalendarClock, Pencil } from 'lucide-react';
 import {
@@ -68,6 +69,8 @@ export default function DevicesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stockMap, setStockMap] = useState<Record<string, { remaining_balls: number; total_balls: number; low_stock_threshold: number; is_low: boolean; free_mode?: boolean }>>({});
   const [latestApkCode, setLatestApkCode] = useState<number | null>(null);  // 最新APKのversionCode(最大)
+  // S262r: 料金・支払い（新しい読み取り専用API。取れなければ列ごと隠す）
+  const paySummary = usePaySummary();
 
   useEffect(() => {
     let cancelled = false;
@@ -307,7 +310,7 @@ export default function DevicesPage() {
       {(soldOutOnly || fromHomeOffline) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border bg-card px-4 py-3 text-sm">
           <span className="font-bold">
-            {soldOutOnly ? '売り切れ（残り0個）' : 'つながっていない'}マシンだけを表示しています{customersOnly ? '（顧客のマシンのみ・弊社の在庫を除く）' : ''}：{filtered.length}台
+            {soldOutOnly ? '売り切れ（残り0個）' : 'オフラインの'}マシンだけを表示しています{customersOnly ? '（顧客のマシンのみ・弊社の在庫を除く）' : ''}：{filtered.length}台
           </span>
           <Button variant="outline" size="sm" onClick={() => { setSoldOutOnly(false); setCustomersOnly(false); setFromHomeOffline(false); setStatusFilter('all'); }}>すべてのマシンを表示</Button>
         </div>
@@ -395,7 +398,7 @@ export default function DevicesPage() {
 
       {/* Device table */}
       <Card>
-        <Table className="min-w-[880px]">
+        <Table className="min-w-[1020px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -415,6 +418,7 @@ export default function DevicesPage() {
               <TableHead>{t.colDevice}</TableHead>
               <TableHead>{t.colGroup}</TableHead>
               <TableHead>{t.colStatus}</TableHead>
+              {paySummary && <TableHead>料金・支払い</TableHead>}
               {/* S147c: モード列は非表示。play_modeは制御モードでUSB等の映像ソース実態を表せず誤解を生むため。発送後にルート1(signage連携で実ソース取得)で「映像」列として復活。 */}
               {/* <TableHead>モード</TableHead> */}
               <TableHead>{t.colPlaying}</TableHead>
@@ -460,6 +464,9 @@ export default function DevicesPage() {
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
+                {paySummary && (
+                  <TableCell className="text-xs"><PaySummaryText s={paySummary[d.id]} /></TableCell>
+                )}
                 {/* S147c: モード列セル非表示（ヘッダーと対応）。発送後ルート1で復活。
                 <TableCell>
                   <div className="flex items-center gap-1.5">
