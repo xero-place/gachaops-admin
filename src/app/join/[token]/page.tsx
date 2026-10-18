@@ -1,6 +1,6 @@
 'use client';
 
-// S262: お客様が開く登録画面（ログイン不要）。
+// S262: 顧客が開く登録画面（ログイン不要）。
 // 入力 → 確認コード入力 → 「お申し込みを受け付けました」。
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';

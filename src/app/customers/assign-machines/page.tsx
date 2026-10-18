@@ -1,7 +1,7 @@
 'use client';
 
-// S262c: お客様にマシンを追加する（4ステップ）。
-// 1. お客様を選ぶ → 2. お渡しするマシンを選ぶ → 3. 確認 → 4. 完了
+// S262c: 顧客にマシンを追加する（4ステップ）。
+// 1. 顧客を選ぶ → 2. お渡しするマシンを選ぶ → 3. 確認 → 4. 完了
 // 在庫（弊社）のマシンだけを移せる。POST /admin/customers/{id}/assign-devices。
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -35,11 +35,11 @@ interface CustomerChoice {
   sub: string;
 }
 
-const STEPS = ['お客様を選ぶ', 'お渡しするマシンを選ぶ', '確認', '完了'];
+const STEPS = ['顧客を選ぶ', 'お渡しするマシンを選ぶ', '確認', '完了'];
 
 export default function AssignMachinesPage() {
   return (
-    <AppShell title="お客様にマシンを追加する" back={{ href: '/', label: 'ホームに戻る' }}>
+    <AppShell title="顧客にマシンを追加する" back={{ href: '/', label: 'ホームに戻る' }}>
       <StaffOnly>
         <AssignWizard />
       </StaffOnly>
@@ -158,8 +158,8 @@ function AssignWizard() {
       <WizardCard>
         {step === 1 && (
           <>
-            <StepTitle title="どのお客様にマシンを渡しますか？" lead="登録待ちのお客様（まだ本人が使い始めていないお客様）も選べます。" />
-            <SearchBox value={query} onChange={setQuery} placeholder="お客様の名前で探す" />
+            <StepTitle title="どの顧客にマシンを渡しますか？" lead="登録待ちの顧客（まだ本人が使い始めていない顧客）も選べます。" />
+            <SearchBox value={query} onChange={setQuery} placeholder="顧客の名前で探す" />
             {custLoading ? (
               <Loading />
             ) : custError ? (
@@ -168,7 +168,7 @@ function AssignWizard() {
                 <Button variant="outline" onClick={loadCustomers}>もう一度読み込む</Button>
               </div>
             ) : filtered.length === 0 ? (
-              <EmptyBox>{query ? `「${query}」に当てはまるお客様はいません。` : 'お客様がまだいません。'}</EmptyBox>
+              <EmptyBox>{query ? `「${query}」に当てはまる顧客はいません。` : '顧客がまだいません。'}</EmptyBox>
             ) : (
               <ListScroll>
                 {filtered.map((c) => (
@@ -219,7 +219,7 @@ function AssignWizard() {
             <StepTitle title="この内容でマシンを渡します" lead="内容を確かめて、よければ「マシンを渡す」を押してください。" />
             <ConfirmTable
               rows={[
-                { k: 'お客様', v: <>{customer.name}{customer.pending && <span className="ml-2 text-sm font-normal text-muted-foreground">登録待ち</span>}</> },
+                { k: '顧客', v: <>{customer.name}{customer.pending && <span className="ml-2 text-sm font-normal text-muted-foreground">登録待ち</span>}</> },
                 { k: 'お渡しするマシン', v: `${picked.length}台（${pickedNames.join('、')}）` },
               ]}
             />
@@ -242,7 +242,7 @@ function AssignWizard() {
               {pickedNames.join('、')}
               <br />
               これからの売上は {customer.name} の分になります。
-              {customer.pending && '登録の前に、このお客様として映像や価格を準備しておけます。'}
+              {customer.pending && '登録の前に、この顧客として映像や価格を準備しておけます。'}
             </p>
             <div className="flex flex-wrap gap-2.5">
               {customer.pending && (

@@ -133,7 +133,7 @@ export default function DevicesPage() {
   // value is never overwritten by the initial defaults.
   // S262c: ホームの「売り切れのマシン」から ?soldout=1 で来たときだけ、在庫0のマシンに絞る（表示だけの絞り込み）
   const [soldOutOnly, setSoldOutOnly] = useState(false);
-  // S262f: ホームの数字から来たときは、ホームの台数と同じく「お客様のマシン」だけに絞る（弊社の在庫を除く）
+  // S262f: ホームの数字から来たときは、ホームの台数と同じく「顧客のマシン」だけに絞る（弊社の在庫を除く）
   const [customersOnly, setCustomersOnly] = useState(false);
   const [fromHomeOffline, setFromHomeOffline] = useState(false);
   const filtersHydrated = useRef(false);
@@ -307,7 +307,7 @@ export default function DevicesPage() {
       {(soldOutOnly || fromHomeOffline) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border bg-card px-4 py-3 text-sm">
           <span className="font-bold">
-            {soldOutOnly ? '売り切れ（残り0個）' : 'つながっていない'}マシンだけを表示しています{customersOnly ? '（お客様のマシンのみ・弊社の在庫を除く）' : ''}：{filtered.length}台
+            {soldOutOnly ? '売り切れ（残り0個）' : 'つながっていない'}マシンだけを表示しています{customersOnly ? '（顧客のマシンのみ・弊社の在庫を除く）' : ''}：{filtered.length}台
           </span>
           <Button variant="outline" size="sm" onClick={() => { setSoldOutOnly(false); setCustomersOnly(false); setFromHomeOffline(false); setStatusFilter('all'); }}>すべてのマシンを表示</Button>
         </div>
@@ -380,7 +380,7 @@ export default function DevicesPage() {
           >
             <Zap className="h-3.5 w-3.5" />{t.selectFiltered}
           </Button>
-          {/* S262: マシンの登録は弊社スタッフのみ（お客様には割り当てて渡す） */}
+          {/* S262: マシンの登録は弊社スタッフのみ（顧客には割り当てて渡す） */}
           {isSuperAdmin && (
           <Button
             size="sm"

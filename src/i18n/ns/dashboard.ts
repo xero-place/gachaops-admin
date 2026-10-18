@@ -3,7 +3,7 @@ export const dashboardDict = {
     title: "数字のまとめ",
     home: "ホーム",
     filterLabel: "表示対象:",
-    allCustomers: "すべてのお客様",
+    allCustomers: "すべての顧客",
     fetchError: (msg: string) => `データ取得エラー: ${msg}`,
     revenueToday: "本日の売上",
     revenueTodayDelta: "QR + 現金の合計",

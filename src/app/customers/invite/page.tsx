@@ -1,7 +1,7 @@
 'use client';
 
-// S262: 新しいお客様の管理画面を発行する（4ステップ）。
-// 1. 登録リンクを作る → 2. お客様に送る → 3. 承認してマシンを選ぶ → 4. 完了
+// S262: 新しい顧客の管理画面を発行する（4ステップ）。
+// 1. 登録リンクを作る → 2. 顧客に送る → 3. 承認してマシンを選ぶ → 4. 完了
 // /customers/invite?request=<id> で開くと、その申し込みの承認（ステップ3）から始まる。
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -34,7 +34,7 @@ import {
 } from '@/lib/signup-admin';
 
 const NOTIFY_EMAIL = 'gtchax@xeroplace.jp';
-const STEP_LABELS = ['1. 登録リンクを作る', '2. お客様に送る', '3. 承認してマシンを選ぶ', '4. 完了'];
+const STEP_LABELS = ['1. 登録リンクを作る', '2. 顧客に送る', '3. 承認してマシンを選ぶ', '4. 完了'];
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
   return (
@@ -46,7 +46,7 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
 
 export default function CustomerInvitePage() {
   return (
-    <AppShell title="新しいお客様の管理画面を発行する" back={{ href: '/', label: 'ホームに戻る' }}>
+    <AppShell title="新しい顧客の管理画面を発行する" back={{ href: '/', label: 'ホームに戻る' }}>
       <StaffOnly>
         <InviteWizard />
       </StaffOnly>
@@ -132,7 +132,7 @@ function InviteWizard() {
   const createLink = async () => {
     setCompanyError(null);
     if (!company.trim()) {
-      setCompanyError('お客様の会社名を入力してください。');
+      setCompanyError('顧客の会社名を入力してください。');
       return;
     }
     setCreating(true);
@@ -200,7 +200,7 @@ function InviteWizard() {
     else if (step === 2) setStep(1);
   };
   const canBack = (step === 2) || (step === 3 && !!invite);
-  const nextLabel = step === 1 ? '登録リンクを作る' : step === 2 ? 'お客様が登録したら次へ' : 'この内容で承認する';
+  const nextLabel = step === 1 ? '登録リンクを作る' : step === 2 ? '顧客が登録したら次へ' : 'この内容で承認する';
   const nextBusy = (step === 1 && creating) || (step === 3 && approving);
   const nextDisabled = nextBusy || (step === 3 && !selectedRequest);
 
@@ -224,14 +224,14 @@ function InviteWizard() {
         {step === 1 && (
           <div className="flex flex-col gap-[22px]">
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-[22px] font-bold">お客様専用の登録リンクを作ります</h2>
+              <h2 className="text-[22px] font-bold">顧客専用の登録リンクを作ります</h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                メールアドレスとパスワードは、お客様ご自身に決めて入力してもらいます。こちらで聞き取る必要はありません。
+                メールアドレスとパスワードは、顧客自身に決めて入力してもらいます。こちらで聞き取る必要はありません。
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="f-company" className="text-sm font-bold">
-                お客様の会社名（必須）
+                顧客の会社名（必須）
               </label>
               <Input
                 id="f-company"
@@ -243,7 +243,7 @@ function InviteWizard() {
                 aria-invalid={!!companyError}
               />
               <div className="text-[13px] text-muted-foreground">
-                誰向けのリンクかを弊社で見分けるためのものです。お客様が登録時に直せます。
+                誰向けのリンクかを弊社で見分けるためのものです。顧客が登録時に直せます。
               </div>
             </div>
             {companyError && <ErrorBox>{companyError}</ErrorBox>}
@@ -255,11 +255,11 @@ function InviteWizard() {
               selected={prePicked}
               onChange={setPrePicked}
               title="先にお渡しするマシンを選ぶ（あとからでも追加できます）"
-              description="まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずにリンクだけ作ることもできます。"
+              description="まだどの顧客にも割り当てていないマシンだけを表示しています。選ばずにリンクだけ作ることもできます。"
             />
             {prePicked.length > 0 && <OwnershipNotice />}
             <div className="rounded-[10px] bg-secondary px-[18px] py-4 text-sm leading-relaxed text-foreground/80">
-              リンクを作ると、このお客様の管理画面がすぐにできあがり、お客様が登録する前から弊社で映像や価格を準備できます。
+              リンクを作ると、この顧客の管理画面がすぐにできあがり、顧客が登録する前から弊社で映像や価格を準備できます。
               <br />
               リンクは1社に1つで、7日間有効です。使われるとそれ以上は使えなくなります。
             </div>
@@ -269,7 +269,7 @@ function InviteWizard() {
         {step === 2 && invite && (
           <div className="flex flex-col gap-[18px]">
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-[22px] font-bold">リンクをお客様に送ってください</h2>
+              <h2 className="text-[22px] font-bold">リンクを顧客に送ってください</h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 メール・LINEなど、いつもの連絡手段で送れます。下の文章をそのまま貼り付けて使えます。
               </p>
@@ -278,9 +278,9 @@ function InviteWizard() {
             {invite.customer_id && (
               <div className="flex flex-col gap-4 rounded-xl border p-[18px]">
                 <div className="flex flex-col gap-1">
-                  <div className="text-[15px] font-bold">お客様の登録を待つあいだに、画面を準備できます</div>
+                  <div className="text-[15px] font-bold">顧客の登録を待つあいだに、画面を準備できます</div>
                   <p className="text-sm leading-relaxed text-muted-foreground">
-                    「{invite.company_name_hint}」の管理画面はもうできています。弊社がこのお客様として映像・価格などを先に設定しておくと、お客様は登録後すぐに使い始められます。
+                    「{invite.company_name_hint}」の管理画面はもうできています。弊社がこの顧客として映像・価格などを先に設定しておくと、顧客は登録後すぐに使い始められます。
                   </p>
                 </div>
                 <AssignedDeviceList
@@ -306,9 +306,9 @@ function InviteWizard() {
         {step === 3 && (
           <div className="flex flex-col gap-[18px]">
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-[22px] font-bold">お客様が登録したら、承認してマシンを割り当てます</h2>
+              <h2 className="text-[22px] font-bold">顧客が登録したら、承認してマシンを割り当てます</h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                お客様が登録すると、{NOTIFY_EMAIL} に「承認待ち」のメールが届き、ホームにも表示されます。内容を確かめて、お渡しするマシンを選んでください。
+                顧客が登録すると、{NOTIFY_EMAIL} に「承認待ち」のメールが届き、ホームにも表示されます。内容を確かめて、お渡しするマシンを選んでください。
               </p>
             </div>
 
@@ -346,7 +346,7 @@ function InviteWizard() {
                       selected={picked}
                       onChange={setPicked}
                       title="追加でお渡しするマシン（任意）"
-                      description="まだどのお客様にも割り当てていないマシンだけを表示しています。追加しないで承認することもできます。"
+                      description="まだどの顧客にも割り当てていないマシンだけを表示しています。追加しないで承認することもできます。"
                     />
                     {picked.length > 0 && <OwnershipNotice />}
                   </>
@@ -393,11 +393,11 @@ function InviteWizard() {
                 <p className="text-[15px] leading-[1.8] text-foreground/80">
                   {done.request.company_name}（{done.request.email}）に「ご利用いただけるようになりました」というメールが届きます（{NOTIFY_EMAIL} にも控えが届きます）。
                   <br />
-                  お客様は、ご自身で決めたメールアドレスとパスワードでログインできます。
-                  {done.count > 0 ? <><br />お渡ししたマシン：{done.count}台</> : <><br />マシンはまだ割り当てていません。後から「お客様にマシンを追加する」で割り当てられます。</>}
+                  顧客は、自分で決めたメールアドレスとパスワードでログインできます。
+                  {done.count > 0 ? <><br />お渡ししたマシン：{done.count}台</> : <><br />マシンはまだ割り当てていません。後から「顧客にマシンを追加する」で割り当てられます。</>}
                 </p>
                 <div className="rounded-[10px] bg-secondary px-[18px] py-4 text-sm leading-[1.8] text-foreground/80">
-                  お客様の画面を代わりに操作したいときは、「お客様」一覧から「このお客様として操作する」を押してください。
+                  顧客の画面を代わりに操作したいときは、「顧客」一覧から「この顧客として操作する」を押してください。
                 </div>
               </>
             ) : (
@@ -413,7 +413,7 @@ function InviteWizard() {
                 <Link href="/">ホームに戻る</Link>
               </Button>
               <Button variant="outline" className="h-12 px-6 text-[15px]" onClick={restart}>
-                別のお客様の登録リンクを作る
+                別の顧客の登録リンクを作る
               </Button>
             </div>
           </div>
@@ -484,7 +484,7 @@ function PendingChooser({
       {requests.length === 0 ? (
         <div className="rounded-[10px] bg-secondary px-[18px] py-4 text-sm leading-relaxed text-foreground/80">
           {waitingFor ? `「${waitingFor}」からの登録はまだ届いていません。` : '承認待ちの申し込みはいまはありません。'}
-          お客様が登録を終えたら、下のボタンで確かめてください。この画面を閉じても、ホームの「承認待ちのお客様」から続きができます。
+          顧客が登録を終えたら、下のボタンで確かめてください。この画面を閉じても、ホームの「承認待ちの顧客」から続きができます。
         </div>
       ) : (
         <>

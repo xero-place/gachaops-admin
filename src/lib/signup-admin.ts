@@ -1,4 +1,4 @@
-// S262: お客様の登録リンク・承認・メンバー招待まわりの API（S262_SPEC の契約どおり）。
+// S262: 顧客の登録リンク・承認・メンバー招待まわりの API（S262_SPEC の契約どおり）。
 import { api, ApiError, type ImpersonateResponse } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 
@@ -10,7 +10,7 @@ export interface CustomerInvite {
   expires_at: string;
   used_at: string | null;
   created_by_name: string | null;
-  /** S262b: リンク作成時に作ったお客様 */
+  /** S262b: リンク作成時に作った顧客 */
   customer_id?: string | null;
   customer_name?: string | null;
   device_count?: number;
@@ -21,7 +21,7 @@ export interface CreatedInvite {
   url: string;
   expires_at: string;
   company_name_hint: string;
-  /** S262b: リンクと同時に作られたお客様 */
+  /** S262b: リンクと同時に作られた顧客 */
   customer_id?: string | null;
   assigned_device_ids?: string[];
 }
@@ -31,7 +31,7 @@ export interface DeviceRef {
   name: string;
 }
 
-/** S262b: まだ本人が登録していないお客様（弊社が先に準備できる） */
+/** S262b: まだ本人が登録していない顧客（弊社が先に準備できる） */
 export interface PendingCustomer {
   customer_id: string;
   name: string;
@@ -51,7 +51,7 @@ export interface SignupRequest {
   created_at: string;
   verified_at: string | null;
   invite_id: string | null;
-  /** S262b: リンク作成時に作ったお客様と、すでに移したマシン */
+  /** S262b: リンク作成時に作った顧客と、すでに移したマシン */
   customer_id?: string | null;
   assigned_devices?: DeviceRef[];
 }
@@ -94,10 +94,10 @@ const items = <T,>(r: { items?: T[] } | T[] | null | undefined): T[] =>
 export const signupAdmin = {
   createInvite: (company_name_hint: string, device_ids: string[] = []) =>
     api.post<CreatedInvite>('/admin/customer-invites', { company_name_hint, device_ids }),
-  /** S262b: 同じお客様の登録リンクを作り直す（古いリンクは使えなくなる） */
+  /** S262b: 同じ顧客の登録リンクを作り直す（古いリンクは使えなくなる） */
   reissueInvite: (customerId: string) =>
     api.post<CreatedInvite>(`/admin/customers/${encodeURIComponent(customerId)}/invite`, {}),
-  /** S262b: 在庫のマシンをお客様に移す */
+  /** S262b: 在庫のマシンを顧客に移す */
   assignDevices: (customerId: string, device_ids: string[]) =>
     api.post<{ assigned_device_ids: string[] }>(
       `/admin/customers/${encodeURIComponent(customerId)}/assign-devices`,
@@ -129,7 +129,7 @@ export const signupAdmin = {
 const PREP_KEY = 'gachaops_prepare_session';
 
 /**
- * S262b: 「このお客様として準備する」。まだ本人が登録していないお客様の画面を、弊社が代わりに準備する。
+ * S262b: 「この顧客として準備する」。まだ本人が登録していない顧客の画面を、弊社が代わりに準備する。
  * 既存の代理操作（auth.impersonate）と同じ流れ：今のスタッフのログインを退避 → 返ってきたトークンに切り替える。
  * 戻るときは代理操作バナーの「スタッフの画面に戻る」をそのまま使う。
  */
@@ -152,7 +152,7 @@ export async function startPrepareSession(customerId: string, customerName: stri
   }
 }
 
-/** いまの代理操作が「準備中」なら、そのお客様名を返す。 */
+/** いまの代理操作が「準備中」なら、その顧客名を返す。 */
 export function preparingCustomerName(): string | null {
   if (typeof window === 'undefined' || !tokenStore.isImpersonating()) return null;
   try {
@@ -224,7 +224,7 @@ export function friendlyError(e: unknown, context: 'approve' | 'reject' | 'invit
       return 'このメールアドレスはすでに登録されています。別のメールアドレスをお使いください。';
     }
     if (context === 'approve' || context === 'assign' || raw.includes('device_not_in_stock')) {
-      return '選んだマシンの中に、すでに別のお客様に割り当てられたもの（または同じ番号のマシン）があります。一覧を読み込み直して選び直してください。';
+      return '選んだマシンの中に、すでに別の顧客に割り当てられたもの（または同じ番号のマシン）があります。一覧を読み込み直して選び直してください。';
     }
     return 'すでに処理されているか、ほかの内容とぶつかっています。画面を読み込み直してください。';
   }

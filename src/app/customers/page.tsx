@@ -1,8 +1,8 @@
 'use client';
 
 // src/app/customers/page.tsx
-// 運営（lv1_super）専用「お客様」ページ。
-// S262: 旧「新規顧客登録」ウィザード（端末の新規登録を含む）は廃止。新しいお客様は /customers/invite の登録リンクから。
+// 運営（lv1_super）専用「顧客」ページ。
+// S262: 旧「新規顧客登録」ウィザード（端末の新規登録を含む）は廃止。新しい顧客は /customers/invite の登録リンクから。
 // device-groups/page.tsx と同じ作法（AppShell + Card + @/components/ui + tokenStore ガード）。
 
 import { AppShell } from '@/components/layout/app-shell';
@@ -129,7 +129,7 @@ export default function CustomersPage() {
           </div>
         )}
 
-        {/* S262b: 登録待ちのお客様（弊社が先に準備できる） */}
+        {/* S262b: 登録待ちの顧客（弊社が先に準備できる） */}
         {isSuperAdmin && <PendingCustomersSection />}
 
         {!isSuperAdmin ? (

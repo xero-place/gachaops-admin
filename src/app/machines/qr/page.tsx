@@ -84,7 +84,7 @@ function QrPick() {
           title="どのマシンのキャッシュレス決済を切り替えますか？"
           lead="マシンを選ぶと、そのマシンの「価格」の画面が開きます。「QRコード決済」の欄で切り替えてください（切り替えるとすぐに反映されます）。"
         />
-        <SearchBox value={q} onChange={setQ} placeholder="マシンの名前・番号・お客様の名前で探す" />
+        <SearchBox value={q} onChange={setQ} placeholder="マシンの名前・番号・顧客の名前で探す" />
         {loading ? (
           <Loading />
         ) : error ? (

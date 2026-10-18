@@ -59,7 +59,7 @@ export function StockDevicePicker({
   selected,
   onChange,
   title = 'お渡しするマシンを選ぶ',
-  description = 'まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずに承認して、後から追加することもできます。',
+  description = 'まだどの顧客にも割り当てていないマシンだけを表示しています。選ばずに承認して、後から追加することもできます。',
   alwaysSearch = false,
 }: {
   devices: StockDevice[];
@@ -117,7 +117,7 @@ export function StockDevicePicker({
         </div>
       ) : devices.length === 0 ? (
         <div className="rounded-[10px] bg-secondary p-4 text-sm text-foreground/80">
-          割り当てられるマシンがいまはありません。マシンを選ばずに承認し、後から「お客様にマシンを追加する」で割り当てられます。
+          割り当てられるマシンがいまはありません。マシンを選ばずに承認し、後から「顧客にマシンを追加する」で割り当てられます。
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-[10px] bg-secondary p-4 text-sm text-foreground/80">

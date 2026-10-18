@@ -669,6 +669,19 @@ export default function DeviceDetailPage() {
       if (acceptMode === 'cash') {
         const pr = parseInt(setPrice, 10);
         if (!Number.isNaN(pr)) body.price_per_draw = pr;
+      } else {
+        // S262i: 現金を受け付けない（キャッシュレスのみ）マシンでも 1回の料金（=QRの金額）を変えられるようにする。
+        //   変えたときだけ送る（変えていなければ従来どおり料金には触らない）。1円未満は保存しない。
+        const pr = parseInt(setPrice, 10);
+        const cur = curPool?.price_per_draw;
+        if (!Number.isNaN(pr) && pr !== cur) {
+          if (pr < 1) {
+            setSettingsMsg('1回の料金は1円以上で入力してください。保存していません。');
+            setSettingsSaving(false);
+            return;
+          }
+          body.price_per_draw = pr;
+        }
       }
       // L1デフォルト演出は「演出」タブの DrawOrderMappingEditor (default-effect API) で保存する。
       // ここ（価格タブの保存）では触らない（取りこぼしによる誤クリア防止）。
@@ -730,7 +743,7 @@ export default function DeviceDetailPage() {
           >
             <Zap className="h-3.5 w-3.5" />{tp.switchPlayback}
           </Button>
-          {/* S262d: スクリーンショットは弊社スタッフだけ（お客様の画面には出さない） */}
+          {/* S262d: スクリーンショットは弊社スタッフだけ（顧客の画面には出さない） */}
           {isSuperAdmin && (
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || capturing} onClick={handleScreenshot}>
             <Camera className="h-3.5 w-3.5" />{capturing ? tp.capturing : tp.screenshot}
@@ -1126,6 +1139,34 @@ export default function DeviceDetailPage() {
                     </div>
                   ) : (
                     <>
+                      {/* S262i: 1回の料金（キャッシュレス決済・現金で共通）。受付方法に関係なく常に表示・入力できる */}
+                      <div className="space-y-2 rounded-[14px] border p-4">
+                        <label htmlFor="set-price" className="block text-base font-bold">1回の料金</label>
+                        <p className="text-xs text-muted-foreground">
+                          キャッシュレス決済（QR）で支払う金額です。現金を受け付けるマシンでは、現金の1回の料金も同じです。
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input id="set-price" type="number" inputMode="numeric" min={1}
+                            className="w-40 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-lg font-bold"
+                            value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
+                          <span className="text-sm text-muted-foreground">{t.pricing.pricePerPlay.suffix}</span>
+                        </div>
+                        {locale === 'en' && (
+                          <div className="text-xs text-muted-foreground">≈ {formatPrice(parseInt(setPrice, 10) || 0)}</div>
+                        )}
+                        <div className="text-sm">
+                          キャッシュレス決済（QR）：{detail.qr_enabled ? <span className="font-bold">受け付けている</span> : <span className="font-bold text-muted-foreground">受け付けていない</span>}
+                          {detail.qr_enabled && (parseInt(setPrice, 10) > 0) && (
+                            <span className="text-muted-foreground">（QRには {parseInt(setPrice, 10).toLocaleString('ja-JP')}円 と表示されます）</span>
+                          )}
+                        </div>
+                        {curPool && String(curPool.price_per_draw ?? '') !== setPrice && setPrice !== '' && (
+                          <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                            まだ保存していません（いまの料金：{curPool.price_per_draw ?? '—'}円）。下の「保存する」を押すと変わります。マシン本体の設定も同じ金額にしてください。
+                          </p>
+                        )}
+                      </div>
+
                       {/* 投入の受付方法（現金 / メダル / 受け付けない） */}
                       <div className="space-y-2">
                         <div className="text-sm font-medium">{t.pricing.acceptMethod.title}</div>
@@ -1145,22 +1186,6 @@ export default function DeviceDetailPage() {
                             ) : null}
                           </span>
                         </label>
-
-                        {/* 1回の料金（現金のときだけ表示） */}
-                        {acceptMode === 'cash' && (
-                          <div className="ml-6 space-y-1">
-                            <label htmlFor="set-price" className="text-sm font-medium">{t.pricing.pricePerPlay.label}</label>
-                            <div className="flex items-center gap-2">
-                              <input id="set-price" type="number" inputMode="numeric"
-                                className="w-32 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
-                                value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
-                              <span className="text-sm text-muted-foreground">{t.pricing.pricePerPlay.suffix}</span>
-                            </div>
-                            {locale === 'en' && (
-                              <div className="text-xs text-muted-foreground">≈ {formatPrice(parseInt(setPrice, 10) || 0)}</div>
-                            )}
-                          </div>
-                        )}
 
                         <label className={`flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer transition-colors ${acceptMode === 'token' ? 'border-primary bg-primary/5' : 'border-slate-300 dark:border-slate-700'}`}>
                           <input type="radio" name="accept-mode" className="mt-0.5"

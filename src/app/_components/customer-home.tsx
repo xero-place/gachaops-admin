@@ -1,6 +1,6 @@
 'use client';
 
-// S262: お客様のホーム。「はじめての方へ」3ステップ＋「やりたいこと」＋マシンの様子。
+// S262: 顧客のホーム。「はじめての方へ」3ステップ＋「やりたいこと」＋マシンの様子。
 // 各カードは、その作業ができる既存の画面へつなぐ。
 import Link from 'next/link';
 import { useEffect, useState } from 'react';

@@ -1,6 +1,6 @@
 'use client';
 
-// S262: 承認待ちのお客様（登録リンクから申し込まれたもの）と、発行済みの登録リンク。
+// S262: 承認待ちの顧客（登録リンクから申し込まれたもの）と、発行済みの登録リンク。
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, RefreshCw } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
 
 export default function ApprovalsPage() {
   return (
-    <AppShell title="承認待ちのお客様" back={{ href: '/customers', label: 'お客様の一覧に戻る' }}>
+    <AppShell title="承認待ちの顧客" back={{ href: '/customers', label: '顧客の一覧に戻る' }}>
       <StaffOnly>
         <Approvals />
       </StaffOnly>
@@ -85,10 +85,10 @@ function Approvals() {
     <div className="flex w-full max-w-[1000px] flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[15px] text-muted-foreground">
-          登録リンクから申し込まれたお客様です。内容を確かめて、承認するかお断りするかを決めてください。
+          登録リンクから申し込まれた顧客です。内容を確かめて、承認するかお断りするかを決めてください。
         </p>
         <Button asChild>
-          <Link href="/customers/invite">新しいお客様の管理画面を発行する</Link>
+          <Link href="/customers/invite">新しい顧客の管理画面を発行する</Link>
         </Button>
       </div>
 
@@ -117,7 +117,7 @@ function Approvals() {
           </div>
         ) : requests.length === 0 ? (
           <div className="rounded-[10px] bg-secondary p-4 text-sm text-foreground/80">
-            承認待ちのお客様はいません。
+            承認待ちの顧客はいません。
           </div>
         ) : (
           <ul className="flex flex-col divide-y">
@@ -152,7 +152,7 @@ function Approvals() {
         <div>
           <h2 className="text-[17px] font-bold">まだ使われていない登録リンク</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            送ったけれど、まだお客様が登録していないリンクです。間違えて作ったときや、送り先を変えたいときは取り消してください。
+            送ったけれど、まだ顧客が登録していないリンクです。間違えて作ったときや、送り先を変えたいときは取り消してください。
           </p>
         </div>
         {invLoading && invites.length === 0 ? (

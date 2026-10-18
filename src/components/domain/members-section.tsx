@@ -1,7 +1,7 @@
 'use client';
 
-// S262: 設定 >「メンバー」。お客様の管理者が、一緒に使う人を招待・取り消しする。
-// 弊社スタッフはお客様を選んで同じ操作ができる（?customer_id=）。
+// S262: 設定 >「メンバー」。顧客の管理者が、一緒に使う人を招待・取り消しする。
+// 弊社スタッフは顧客を選んで同じ操作ができる（?customer_id=）。
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -107,7 +107,7 @@ export function MembersSection({ isStaff }: { isStaff: boolean }) {
       {isStaff && (
         <div className="flex flex-col gap-1.5 sm:max-w-[420px]">
           <label htmlFor="members-customer" className="text-sm font-bold">
-            お客様を選ぶ
+            顧客を選ぶ
           </label>
           <select
             id="members-customer"

@@ -1,6 +1,6 @@
 'use client';
 
-// S262: ホーム。弊社スタッフ（lv1_super）とお客様で中身を分ける。
+// S262: ホーム。弊社スタッフ（lv1_super）と顧客で中身を分ける。
 // 以前のダッシュボード（数字のまとめ）は /dashboard に移した。
 import { AppShell } from '@/components/layout/app-shell';
 import { useCurrentUser } from '@/lib/use-current-user';

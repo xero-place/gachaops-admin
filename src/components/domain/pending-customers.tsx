@@ -1,6 +1,6 @@
 'use client';
 
-// S262b: 「登録待ちのお客様」— 登録リンクは作ったが、まだ本人が登録していない（または承認前の）お客様。
+// S262b: 「登録待ちの顧客」— 登録リンクは作ったが、まだ本人が登録していない（または承認前の）顧客。
 // 弊社が先に準備する・リンクを作り直す・マシンを追加する、ができる。
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -14,7 +14,7 @@ import {
 import { fmtDate, fmtDateTime, friendlyError, signupAdmin, type PendingCustomer } from '@/lib/signup-admin';
 
 function statusLine(c: PendingCustomer): { text: string; strong: boolean } {
-  if (c.signup_request?.status === 'pending_approval') return { text: 'お客様の登録が済みました。承認を待っています。', strong: true };
+  if (c.signup_request?.status === 'pending_approval') return { text: '顧客の登録が済みました。承認を待っています。', strong: true };
   if (c.active_invite) return { text: `登録リンクを送付済み（${fmtDateTime(c.active_invite.expires_at)} まで有効）`, strong: false };
   return { text: '有効な登録リンクがありません。作り直して送ってください。', strong: true };
 }
@@ -40,9 +40,9 @@ export function PendingCustomersSection() {
   return (
     <section aria-labelledby="pending-customers" className="flex flex-col gap-4 rounded-card border bg-card p-5 sm:p-[22px]">
       <div className="flex flex-col gap-1">
-        <h2 id="pending-customers" className="text-[17px] font-bold">登録待ちのお客様</h2>
+        <h2 id="pending-customers" className="text-[17px] font-bold">登録待ちの顧客</h2>
         <p className="text-[13px] leading-relaxed text-muted-foreground">
-          登録リンクを作ったお客様のうち、まだご本人が使い始めていないお客様です。登録の前でも、このお客様として映像や価格を準備できます。
+          登録リンクを作った顧客のうち、まだご本人が使い始めていない顧客です。登録の前でも、この顧客として映像や価格を準備できます。
         </p>
       </div>
 
@@ -65,7 +65,7 @@ export function PendingCustomersSection() {
           <Button variant="outline" onClick={load}>もう一度読み込む</Button>
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-[10px] bg-secondary p-4 text-sm text-foreground/80">登録待ちのお客様はいません。</div>
+        <div className="rounded-[10px] bg-secondary p-4 text-sm text-foreground/80">登録待ちの顧客はいません。</div>
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((c) => {

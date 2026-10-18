@@ -17,7 +17,7 @@ export function ImpersonationBanner() {
   const router = useRouter();
   const t = usePageT(impersonationBannerDict);
   const [name, setName] = useState<string | null>(null);
-  // S262b: 本人登録前のお客様を弊社が準備しているとき（「このお客様として準備する」）
+  // S262b: 本人登録前の顧客を弊社が準備しているとき（「この顧客として準備する」）
   const [preparing, setPreparing] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function ImpersonationBanner() {
         setPreparing(preparingCustomerName());
         const u = tokenStore.getUser();
         const person = u?.name ?? u?.email ?? impersonationBannerDict.ja.otherAccount;
-        // S262: どのお客様の画面かがすぐ分かるよう、会社名を先に出す
+        // S262: どの顧客の画面かがすぐ分かるよう、会社名を先に出す
         setName(u?.customer_name && u.customer_name !== person ? `${u.customer_name}（${person}）` : person);
       } else {
         setName(null);
@@ -57,7 +57,7 @@ export function ImpersonationBanner() {
           {preparing ? (
             <>
               <span className="font-semibold">準備中：{preparing}</span>
-              <span className="ml-1">（お客様の登録前に、弊社が画面を準備しています）</span>
+              <span className="ml-1">（顧客の登録前に、弊社が画面を準備しています）</span>
             </>
           ) : (
             <>{t.asPrefix}<span className="font-semibold">{name}</span>{t.asSuffix}</>

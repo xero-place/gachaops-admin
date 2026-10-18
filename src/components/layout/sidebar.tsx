@@ -91,7 +91,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </nav>
       )}
-      {/* S262: WEBマニュアル（スタッフ・お客様とも） */}
+      {/* S262: WEBマニュアル（スタッフ・顧客とも） */}
       <div className="mt-6 border-t border-[#2A2A2A] pt-4">
         <ManualButton tone="dark" className="w-full" />
       </div>

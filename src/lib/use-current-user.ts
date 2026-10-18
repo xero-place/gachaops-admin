@@ -11,7 +11,7 @@ export interface CurrentUser {
   role: string | null;
   /** 弊社スタッフ（lv1_super） */
   isStaff: boolean;
-  /** お客様の管理者（lv2_admin、店舗限定アカウントは除く）＝メンバーを追加できる */
+  /** 顧客の管理者（lv2_admin、店舗限定アカウントは除く）＝メンバーを追加できる */
   isCustomerAdmin: boolean;
 }
 

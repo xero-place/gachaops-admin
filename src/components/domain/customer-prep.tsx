@@ -1,11 +1,11 @@
 'use client';
 
-// S262b: お客様の登録前に、弊社がマシンを渡して画面を準備するための部品。
+// S262b: 顧客の登録前に、弊社がマシンを渡して画面を準備するための部品。
 // ・OwnershipNotice      … マシンを移すときに必ず出す説明（売上の持ち主が変わること）
-// ・InviteLinkPanel      … 登録リンクと、お客様に送る文章（コピー用）
-// ・AssignDevicesDialog  … 在庫のマシンを選んでお客様に移す
+// ・InviteLinkPanel      … 登録リンクと、顧客に送る文章（コピー用）
+// ・AssignDevicesDialog  … 在庫のマシンを選んで顧客に移す
 // ・ReissueInviteDialog  … 登録リンクを作り直す
-// ・PrepareButton        … 「このお客様として準備する」
+// ・PrepareButton        … 「この顧客として準備する」
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ import {
 } from '@/lib/signup-admin';
 
 export const OWNERSHIP_SENTENCE =
-  'この時点でマシンはこのお客様のものになり、これ以降の売上はこのお客様の分になります。これまでの売上の記録はお客様には見えません。';
+  'この時点でマシンはこの顧客のものになり、これ以降の売上はこの顧客の分になります。これまでの売上の記録は顧客には見えません。';
 
 export function OwnershipNotice({ className }: { className?: string }) {
   return (
@@ -74,7 +74,7 @@ export function InviteLinkPanel({ invite }: { invite: CreatedInvite }) {
         <CopyButton text={invite.url} label="リンクをコピー" className="h-12" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <div className="text-sm font-bold">お客様に送る文章</div>
+        <div className="text-sm font-bold">顧客に送る文章</div>
         <div className="whitespace-pre-line break-all rounded-[10px] border px-[18px] py-4 text-sm leading-[1.9] text-foreground/80">
           {msg}
         </div>
@@ -89,7 +89,7 @@ export function InviteLinkPanel({ invite }: { invite: CreatedInvite }) {
   );
 }
 
-/** お客様にお渡し済みのマシン（読み取りのみ） */
+/** 顧客にお渡し済みのマシン（読み取りのみ） */
 export function AssignedDeviceList({ devices, title = 'すでにお渡ししているマシン' }: { devices: DeviceRef[]; title?: string }) {
   return (
     <div className="flex flex-col gap-2">
@@ -129,14 +129,14 @@ export function PrepareButton({
       await startPrepareSession(customerId, customerName);
       window.location.href = '/';
     } catch (e) {
-      window.alert('このお客様の画面を開けませんでした。' + friendlyError(e, 'prepare'));
+      window.alert('この顧客の画面を開けませんでした。' + friendlyError(e, 'prepare'));
       setBusy(false);
     }
   };
   return (
     <Button variant={variant} className={className} onClick={run} disabled={busy}>
       {busy ? <Loader2 className="animate-spin" /> : <UserCog />}
-      このお客様として準備する
+      この顧客として準備する
     </Button>
   );
 }
@@ -202,7 +202,7 @@ export function AssignDevicesDialog({
           selected={picked}
           onChange={setPicked}
           title="移すマシンを選ぶ"
-          description="まだどのお客様にも割り当てていないマシンだけを表示しています。"
+          description="まだどの顧客にも割り当てていないマシンだけを表示しています。"
         />
         <OwnershipNotice />
         {error && <ErrorBox>{error}</ErrorBox>}
@@ -212,7 +212,7 @@ export function AssignDevicesDialog({
           </Button>
           <Button onClick={run} disabled={busy || picked.length === 0}>
             {busy && <Loader2 className="animate-spin" />}
-            {picked.length > 0 ? `${picked.length}台をこのお客様に移す` : 'マシンを選んでください'}
+            {picked.length > 0 ? `${picked.length}台をこの顧客に移す` : 'マシンを選んでください'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -252,7 +252,7 @@ export function ReissueInviteDialog({
           <DialogTitle>{customerName} の登録リンクを作り直す</DialogTitle>
           <DialogDescription>
             {invite
-              ? '新しいリンクができました。お客様に送ってください。'
+              ? '新しいリンクができました。顧客に送ってください。'
               : '新しいリンクを作ると、前に送ったリンクは使えなくなります。お渡し済みのマシンと準備した内容はそのまま残ります。'}
           </DialogDescription>
         </DialogHeader>

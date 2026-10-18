@@ -35,29 +35,29 @@ export function StaffHome() {
           primary
           href="/customers/invite"
           icon={ICONS.addUser}
-          title="新しいお客様の管理画面を発行する"
-          desc="登録リンクを作ってお客様に送るだけ。メールアドレスとパスワードはお客様が決め、弊社が承認すると使えるようになります。"
+          title="新しい顧客の管理画面を発行する"
+          desc="登録リンクを作って顧客に送るだけ。メールアドレスとパスワードは顧客が決め、弊社が承認すると使えるようになります。"
           cta="はじめる →"
         />
         <ActionCard
           href="/customers/assign-machines"
           icon={ICONS.addMachine}
-          title="お客様にマシンを追加する"
-          desc="お客様（登録待ちのお客様も含む）を選んで、在庫のマシンを割り当てます。"
+          title="顧客にマシンを追加する"
+          desc="顧客（登録待ちの顧客も含む）を選んで、在庫のマシンを割り当てます。"
           cta="はじめる →"
         />
         <ActionCard
           href="/machines/move"
           icon={ICONS.move}
-          title="マシンを別のお客様へ移す"
+          title="マシンを別の顧客へ移す"
           desc="売上の記録は残したまま、マシンの持ち主を変えます。"
           cta="はじめる →"
         />
         <ActionCard
           href="/customers"
           icon={ICONS.person}
-          title="お客様の画面を代わりに操作する"
-          desc="お客様を選ぶと、そのお客様の管理画面をそのまま操作できます。"
+          title="顧客の画面を代わりに操作する"
+          desc="顧客を選ぶと、その顧客の管理画面をそのまま操作できます。"
           cta="はじめる →"
         />
         <ActionCard
@@ -71,7 +71,7 @@ export function StaffHome() {
           href="/sales-events"
           icon={ICONS.chart}
           title="売上を確認する"
-          desc="お客様ごと・マシンごと・日別の売上と明細を見ます。"
+          desc="顧客ごと・マシンごと・日別の売上と明細を見ます。"
           cta="はじめる →"
         />
       </section>
@@ -81,7 +81,7 @@ export function StaffHome() {
           <StatTile label="つながっていないマシン" value={n(summary?.offline_devices)} unit="台" href="/devices?status=offline&scope=customers" />
           <StatTile label="売り切れのマシン" value={n(summary?.sold_out_devices)} unit="台" href="/devices?soldout=1&scope=customers" />
           <StatTile label="排出を確認してほしい注文" value={n(summary?.unconfirmed_dispense_7d)} unit="件" href="/sales-events?undispensed=1" />
-          <StatTile label="承認待ちのお客様" value={n(summary?.pending_signups)} unit="件" href="/customers/approvals" />
+          <StatTile label="承認待ちの顧客" value={n(summary?.pending_signups)} unit="件" href="/customers/approvals" />
         </div>
       </Panel>
     </div>
