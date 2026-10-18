@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell } from '@/components/layout/app-shell';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -15,7 +15,7 @@ function apiMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiError) return e.problem.detail || e.problem.title || fallback;
   return e instanceof Error && e.message ? e.message : fallback;
 }
-import { Loader2, Layers3, ChevronRight, Plus, Link2, Crown, Trash2, AlertTriangle, Grid3x3, Play } from 'lucide-react';
+import { Loader2, Plus, AlertTriangle, Grid3x3, Play } from 'lucide-react';
 import VideoWallPreviewModal from '@/components/videowall/VideoWallPreviewModal';
 import { usePageT } from '@/i18n/usePageT';
 import { deviceGroupsDict } from '@/i18n/ns/deviceGroups';
@@ -117,75 +117,45 @@ export default function DeviceGroupsPage() {
 
   return (
     <AppShell title={t.title} breadcrumb={[t.home, t.groups]}>
-      <div className="flex items-center justify-end mb-4">
-        <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
-          <Plus className="h-3.5 w-3.5" />{t.newGroup}
-        </Button>
-      </div>
+      {/* S262l: 見た目のみ変更（取得・保存の処理は従来どおり） */}
+      <div className="flex w-full max-w-[1200px] flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-[720px] text-[15px] leading-relaxed text-muted-foreground">{t.hierarchyDesc}</p>
+          <Button onClick={() => setCreating(true)}>
+            <Plus />{t.newGroup}
+          </Button>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">{t.hierarchy}</CardTitle>
-          <p className="text-xs text-muted-foreground">{t.hierarchyDesc}</p>
-          {/* ★uiGrp: 凡例。アイコン・バッジの意味を明示。 */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />{t.online}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />{t.offline}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 font-medium">
-                <Crown className="h-2.5 w-2.5" />{t.master}
-              </span>
-              {t.masterDesc}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 font-medium">
-                <Link2 className="h-2.5 w-2.5" />{t.linked}
-              </span>
-              {t.linkedDesc}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="font-medium text-foreground/70">{t.restRoom}</span>
-              {t.restRoomDesc}
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {roots.length === 0 && (
-            <p className="text-sm text-muted-foreground py-6 text-center">{t.noGroups}</p>
-          )}
-          {custOrder.map((custKey) => (
-            <section key={custKey} className="space-y-2">
-              {showCustomerHeader && (
-                <div className="flex items-center gap-2 px-0.5">
-                  <span className="text-sm font-semibold text-foreground">{custName(custKey === '__none__' ? undefined : custKey)}</span>
-                  <span className="text-[11px] text-muted-foreground">{t.groupCount(rootsByCust.get(custKey)!.length)}</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-              )}
-              <ul className="space-y-2">
-                {rootsByCust.get(custKey)!.map((root) => (
-                  <GroupNode
-                    key={root.id}
-                    group={root}
-                    childrenList={childrenOf(root.id)}
-                    depth={0}
-                    allGroups={deviceGroups}
-                    canEdit={true}
-                    onEdit={setEditing}
-                    onDelete={setDeleting}
-                    devices={devices}
-                    programs={programs}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
-        </CardContent>
-      </Card>
+        {roots.length === 0 && (
+          <div className="rounded-card border bg-card px-6 py-10 text-center text-sm text-muted-foreground">{t.noGroups}</div>
+        )}
+        {custOrder.map((custKey) => (
+          <section key={custKey} className="flex flex-col gap-3">
+            {showCustomerHeader && (
+              <div className="flex items-baseline gap-3 px-0.5">
+                <h2 className="text-[17px] font-bold text-foreground">{custName(custKey === '__none__' ? undefined : custKey)}</h2>
+                <span className="text-[13px] text-muted-foreground">{t.groupCount(rootsByCust.get(custKey)!.length)}</span>
+              </div>
+            )}
+            <ul className="flex flex-col gap-3">
+              {rootsByCust.get(custKey)!.map((root) => (
+                <GroupNode
+                  key={root.id}
+                  group={root}
+                  childrenList={childrenOf(root.id)}
+                  depth={0}
+                  allGroups={deviceGroups}
+                  canEdit={true}
+                  onEdit={setEditing}
+                  onDelete={setDeleting}
+                  devices={devices}
+                  programs={programs}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
 
       {editing && (
         <EditGroupDialog
@@ -238,103 +208,107 @@ function GroupNode({
   }));
   const onlineCount = memberDevices.filter(({ d }) => d?.status === 'online').length;
   const offlineCount = memberDevices.length - onlineCount;
+  // S262l: 表示だけの開閉（6台以下は開いた状態、それより多いときは最初の1行だけ表示）
+  const [expanded, setExpanded] = useState(memberDevices.length <= 6);
+  const FIRST_ROW = 4;
+  const shown = expanded ? memberDevices : memberDevices.slice(0, FIRST_ROW);
+  const masterEntry = memberDevices.find(({ m }) => m.is_master);
+  const masterName = masterEntry ? (masterEntry.d?.name ?? masterEntry.m.device_id) : null;
+  const statusTone =
+    memberDevices.length === 0 || onlineCount === 0
+      ? 'text-muted-foreground'
+      : offlineCount === 0
+        ? 'text-ok'
+        : 'text-warn';
+  const restLabel = group.rest_program_id ? restName : t.restNone;
 
   return (
     <li>
-      {/* ★uiGrp: 1グループ=1カード。見出し→箸休め→端末の順で読み下せるレイアウト。 */}
-      <div className="group/card rounded-lg border bg-card overflow-hidden">
-        {/* 見出し行 */}
-        <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/30">
-          {childrenList.length > 0 ? (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <Layers3 className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-sm font-semibold text-foreground truncate">{group.name}</span>
-          {group.linked && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium shrink-0">
-              <Link2 className="h-2.5 w-2.5" />{t.linked}
-            </span>
-          )}
-
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            {/* オン/オフ集計 */}
+      {/* S262l: 1グループ=1枚の白いカード。名前 → 種類 → つなぎの映像 → マシン の順に読める。 */}
+      <div className="rounded-card border bg-card">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-5 pb-3 pt-5 sm:px-[22px]">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3 className="break-words text-[19px] font-bold leading-snug text-foreground">{group.name}</h3>
+            <p className="text-sm text-foreground/80">
+              {group.linked ? t.typeLinked(memberDevices.length, masterName) : t.typePlain(memberDevices.length)}
+              {childrenList.length > 0 && <span className="ml-2 text-muted-foreground">・{t.subGroups(childrenList.length)}</span>}
+            </p>
+            <p className="text-[13px] text-muted-foreground">{t.restLine(restLabel)}</p>
+          </div>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
             {memberDevices.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{t.on} {onlineCount}
-                </span>
-                {offlineCount > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[11px] font-medium">
-                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />{t.off} {offlineCount}
-                  </span>
-                )}
-              </div>
+              <span className={`text-sm font-bold tabular-nums ${statusTone}`}>{t.statusLine(onlineCount, offlineCount)}</span>
             )}
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              {t.deviceCountText(group.device_count, group.child_group_count)}
-            </span>
             {canEdit && (
-              <div className="flex gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(group)}>{t.edit}</Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+              <div className="flex items-center gap-1">
+                <Button variant="outline" onClick={() => onEdit(group)}>{t.edit}</Button>
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-[10px] px-3 text-sm text-muted-foreground hover:bg-destructive/5 hover:text-destructive"
                   onClick={() => onDelete(group)}
-                  aria-label={t.delete}
                 >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                  {t.delete}
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* 本文：箸休め＋端末 */}
-        {group.members.length > 0 ? (
-          <div className="px-3 py-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/70">{t.restRoom}</span>
-              <span>{restName}</span>
+        <div className="border-t px-5 py-4 sm:px-[22px]">
+          {memberDevices.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,200px),1fr))] gap-2">
+                {shown.map(({ m, d }) => {
+                  const online = d?.status === 'online';
+                  return (
+                    <li key={m.device_id}>
+                      <Link
+                        href={`/devices/${encodeURIComponent(m.device_id)}`}
+                        className="flex h-full flex-col gap-1 rounded-[10px] border bg-secondary px-3.5 py-3 transition-colors hover:bg-accent"
+                      >
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="min-w-0 truncate text-[15px] font-bold text-foreground">{d?.name ?? m.device_id}</span>
+                          {m.is_master && <span className="shrink-0 text-[12px] text-muted-foreground">{t.master}</span>}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${online ? 'bg-ok' : 'bg-muted-foreground/40'}`} aria-hidden="true" />
+                          {online ? t.online : t.offline}
+                        </span>
+                        {online && d?.current_program_name && (
+                          <span className="truncate text-[12px] text-muted-foreground">{t.playing(d.current_program_name)}</span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              {memberDevices.length > FIRST_ROW && memberDevices.length > 6 && (
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded((v) => !v)}
+                  className="self-start text-sm font-bold text-foreground underline-offset-4 hover:underline"
+                >
+                  {expanded ? t.showLess : t.showAll(memberDevices.length)}
+                </button>
+              )}
             </div>
-            <ul className="divide-y divide-border/60">
-              {memberDevices.map(({ m, d }) => {
-                const online = d?.status === 'online';
-                return (
-                  <li key={m.device_id} className="flex items-center gap-2 py-1.5 text-xs">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${online ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
-                    <span className="font-medium text-foreground truncate">{d?.name ?? m.device_id}</span>
-                    {m.is_master && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-medium shrink-0">
-                        <Crown className="h-2.5 w-2.5" />{t.master}
-                      </span>
-                    )}
-                    <span className="ml-auto flex items-center gap-2 shrink-0">
-                      {online ? (
-                        <>
-                          <span className="inline-flex items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">{t.online}</span>
-                          <span className="text-muted-foreground max-w-[220px] truncate">
-                            {t.playing(d?.current_program_name ?? '—')}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-medium">{t.offline}</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : (
-          <div className="px-3 py-2 text-[11px] text-muted-foreground">{t.noDevicesRegistered}</div>
-        )}
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">{t.noDevicesRegistered}</span>
+              {canEdit && (
+                <Button variant="outline" onClick={() => onEdit(group)}>
+                  <Plus />{t.addMachines}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 子グループ：左罫線で入れ子を表現 */}
       {childrenList.length > 0 && (
-        <ul className="space-y-2 mt-2 ml-4 pl-3 border-l border-border">
+        <ul className="mt-3 ml-4 flex flex-col gap-3 border-l border-border pl-4">
           {childrenList.map((c) => (
             <GroupNode
               key={c.id}
