@@ -1,6 +1,6 @@
 export const customersDict = {
   ja: {
-    title: "お客様",
+    title: "顧客",
     home: "ホーム",
     noUsersToOperate: "このお客様には、代わりに操作できるアカウントがまだありません。",
     impersonateFailed: "お客様の画面に切り替えられませんでした。もう一度お試しください。",

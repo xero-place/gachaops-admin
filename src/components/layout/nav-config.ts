@@ -19,8 +19,9 @@ export interface ShellNav {
 export const STAFF_NAV: ShellNav = {
   main: [
     { href: '/', label: 'ホーム' },
-    { href: '/customers', label: 'お客様' },
+    { href: '/customers', label: '顧客' },
     { href: '/devices', label: 'マシン' },
+    { href: '/device-groups', label: 'グループ作成' },
     { href: '/sales-events', label: '売上' },
     { href: '/orders', label: 'キャッシュレス決済' },
     { href: '/programs', label: '映像' },
@@ -33,7 +34,6 @@ export const STAFF_NAV: ShellNav = {
   more: [
     { href: '/dashboard', label: '数字のまとめ' },
     { href: '/devices/map', label: 'マシンの地図' },
-    { href: '/device-groups', label: 'マシンのグループ' },
     { href: '/assets', label: '映像の素材' },
     { href: '/plan-schedules', label: '日時を決めて流す' },
     { href: '/live', label: 'リンク再生' },
@@ -47,6 +47,7 @@ export const CUSTOMER_NAV: ShellNav = {
   main: [
     { href: '/', label: 'ホーム' },
     { href: '/devices', label: 'マシン' },
+    { href: '/device-groups', label: 'グループ作成' },
     { href: '/programs', label: '映像' },
     { href: '/sales-events', label: '売上' },
   ],
@@ -56,7 +57,6 @@ export const CUSTOMER_NAV: ShellNav = {
   ],
   more: [
     { href: '/dashboard', label: '数字のまとめ' },
-    { href: '/device-groups', label: 'マシンのグループ' },
     { href: '/assets', label: '映像の素材' },
     { href: '/plan-schedules', label: '日時を決めて流す' },
     { href: '/live', label: 'リンク再生' },
@@ -66,7 +66,8 @@ export const CUSTOMER_NAV: ShellNav = {
 
 export const SHELL_NAV_EN: Record<string, string> = {
   'ホーム': 'Home',
-  'お客様': 'Customers',
+  '顧客': 'Customers',
+  'グループ作成': 'Groups',
   'マシン': 'Machines',
   '売上': 'Sales',
   'キャッシュレス決済': 'Cashless payments',
