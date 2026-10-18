@@ -6,6 +6,7 @@ import { auth, tokenStore } from '@/lib/api';
 import { UserCog, LogOut } from 'lucide-react';
 import { usePageT } from '@/i18n/usePageT';
 import { impersonationBannerDict } from '@/i18n/ns/impersonationBanner';
+import { clearPrepareMarker, preparingCustomerName } from '@/lib/signup-admin';
 
 /**
  * S157: shown across every authenticated page while the operator (lv1_super)
@@ -16,16 +17,20 @@ export function ImpersonationBanner() {
   const router = useRouter();
   const t = usePageT(impersonationBannerDict);
   const [name, setName] = useState<string | null>(null);
+  // S262b: 本人登録前のお客様を弊社が準備しているとき（「このお客様として準備する」）
+  const [preparing, setPreparing] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
       if (tokenStore.isImpersonating()) {
+        setPreparing(preparingCustomerName());
         const u = tokenStore.getUser();
         const person = u?.name ?? u?.email ?? impersonationBannerDict.ja.otherAccount;
         // S262: どのお客様の画面かがすぐ分かるよう、会社名を先に出す
         setName(u?.customer_name && u.customer_name !== person ? `${u.customer_name}（${person}）` : person);
       } else {
         setName(null);
+        setPreparing(null);
       }
     };
     sync();
@@ -38,6 +43,7 @@ export function ImpersonationBanner() {
 
   const onReturn = () => {
     auth.stopImpersonation();
+    clearPrepareMarker();
     router.replace('/');
     // Force a clean reload so all data refetches under the operator token.
     if (typeof window !== 'undefined') window.location.href = '/';
@@ -48,7 +54,14 @@ export function ImpersonationBanner() {
       <div className="flex items-center gap-2 text-destructive">
         <UserCog className="h-4 w-4 shrink-0" />
         <span>
-          {t.asPrefix}<span className="font-semibold">{name}</span>{t.asSuffix}
+          {preparing ? (
+            <>
+              <span className="font-semibold">準備中：{preparing}</span>
+              <span className="ml-1">（お客様の登録前に、弊社が画面を準備しています）</span>
+            </>
+          ) : (
+            <>{t.asPrefix}<span className="font-semibold">{name}</span>{t.asSuffix}</>
+          )}
         </span>
       </div>
       <button

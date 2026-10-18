@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { Trash2, AlertTriangle, Loader2, Pencil, UserCog, CalendarX, Undo2 } from 'lucide-react';
 import { usePageT } from '@/i18n/usePageT';
 import { customersDict } from '@/i18n/ns/customers';
+import { PendingCustomersSection } from '@/components/domain/pending-customers';
 
 type CustomerRow = {
   id: string;
@@ -127,6 +128,9 @@ export default function CustomersPage() {
             {notice}
           </div>
         )}
+
+        {/* S262b: 登録待ちのお客様（弊社が先に準備できる） */}
+        {isSuperAdmin && <PendingCustomersSection />}
 
         {!isSuperAdmin ? (
           <Card>

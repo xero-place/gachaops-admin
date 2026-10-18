@@ -40,10 +40,10 @@ export function StaffHome() {
           cta="はじめる →"
         />
         <ActionCard
-          href="/devices"
+          href="/customers/assign-machines"
           icon={ICONS.addMachine}
           title="お客様にマシンを追加する"
-          desc="登録済みのマシンから選んで、今のお客様に割り当てます。"
+          desc="お客様（登録待ちのお客様も含む）を選んで、在庫のマシンを割り当てます。"
           cta="はじめる →"
         />
         <ActionCard

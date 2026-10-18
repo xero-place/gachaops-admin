@@ -118,9 +118,18 @@ async function call<T>(
     }
     if (outcome === 'authfail') {
       // Refresh token genuinely invalid/revoked → sign out.
-      tokenStore.clear();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      // S262b: 代理操作/準備中のセッションが失効した（例: 承認で準備用ユーザが消えた）ときは、
+      //   スタッフ本人のログインまで消さずにスタッフの画面へ戻す。
+      if (tokenStore.isImpersonating() && tokenStore.restoreImpersonator()) {
+        try { localStorage.removeItem('gachaops_prepare_session'); } catch { /* noop */ }
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+      } else {
+        tokenStore.clear();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
       }
     }
     // 'transient' → keep the session; the error is surfaced below and the

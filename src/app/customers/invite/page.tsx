@@ -9,7 +9,6 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CopyButton } from '@/components/domain/copy-button';
 import { StaffOnly } from '@/components/domain/staff-only';
 import { DoneMark } from '@/components/public/public-frame';
 import {
@@ -17,6 +16,13 @@ import {
   RequestSummary,
   StockDevicePicker,
 } from '@/components/domain/signup-approval';
+import {
+  AssignDevicesDialog,
+  AssignedDeviceList,
+  InviteLinkPanel,
+  OwnershipNotice,
+  PrepareButton,
+} from '@/components/domain/customer-prep';
 import { cn } from '@/lib/utils';
 import {
   fmtDate,
@@ -30,16 +36,6 @@ import {
 
 const NOTIFY_EMAIL = 'gtchax@xeroplace.jp';
 const STEP_LABELS = ['1. 登録リンクを作る', '2. お客様に送る', '3. 承認してマシンを選ぶ', '4. 完了'];
-
-function messageText(url: string) {
-  return [
-    'GTCHA X 管理画面のご登録をお願いいたします。',
-    '下のリンクを開き、お使いになるメールアドレスとパスワードをご自身で決めてご登録ください。',
-    '弊社で確認が済みしだい、ご登録のメールアドレスにお知らせが届き、すぐにお使いいただけます。',
-    '（リンクの有効期限：7日間）',
-    url,
-  ].join('\n');
-}
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
   return (
@@ -67,6 +63,11 @@ function InviteWizard() {
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [invite, setInvite] = useState<CreatedInvite | null>(null);
+  // S262b: リンク作成時に先にお渡しするマシン
+  const [prePicked, setPrePicked] = useState<string[]>([]);
+  const [handedNames, setHandedNames] = useState<string[]>([]);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignNotice, setAssignNotice] = useState<string | null>(null);
 
   // step 3
   const [requests, setRequests] = useState<SignupRequest[]>([]);
@@ -118,15 +119,15 @@ function InviteWizard() {
     }
   }, []);
 
-  // ?request=<id> で開いたときはステップ3から
+  // ?request=<id> で開いたときはステップ3から。それ以外はステップ1でマシンの一覧を読む
   useEffect(() => {
     const rid = new URLSearchParams(window.location.search).get('request');
     if (rid) {
       setStep(3);
       setRequestId(rid);
       loadRequests(rid, null);
-      loadDevices();
     }
+    loadDevices();
   }, [loadRequests, loadDevices]);
 
   const createLink = async () => {
@@ -137,9 +138,12 @@ function InviteWizard() {
     }
     setCreating(true);
     try {
-      const inv = await signupAdmin.createInvite(company.trim());
+      const inv = await signupAdmin.createInvite(company.trim(), prePicked);
       setInvite(inv);
+      const moved = inv.assigned_device_ids ?? prePicked;
+      setHandedNames(devices.filter((d) => moved.includes(d.id)).map((d) => d.name));
       setStep(2);
+      loadDevices();
     } catch (e) {
       setCompanyError(friendlyError(e, 'invite'));
     } finally {
@@ -174,8 +178,12 @@ function InviteWizard() {
     setStep(1);
     setCompany('');
     setInvite(null);
+    setPrePicked([]);
+    setHandedNames([]);
+    setAssignNotice(null);
     setRequestId(null);
     setPicked([]);
+    loadDevices();
     setDone(null);
     setApproveError(null);
     if (typeof window !== 'undefined' && window.location.search) {
@@ -240,7 +248,20 @@ function InviteWizard() {
               </div>
             </div>
             {companyError && <ErrorBox>{companyError}</ErrorBox>}
+            <StockDevicePicker
+              devices={devices}
+              loading={devLoading}
+              error={devError}
+              onReload={loadDevices}
+              selected={prePicked}
+              onChange={setPrePicked}
+              title="先にお渡しするマシンを選ぶ（あとからでも追加できます）"
+              description="まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずにリンクだけ作ることもできます。"
+            />
+            {prePicked.length > 0 && <OwnershipNotice />}
             <div className="rounded-[10px] bg-secondary px-[18px] py-4 text-sm leading-relaxed text-foreground/80">
+              リンクを作ると、このお客様の管理画面がすぐにできあがり、お客様が登録する前から弊社で映像や価格を準備できます。
+              <br />
               リンクは1社に1つで、7日間有効です。使われるとそれ以上は使えなくなります。
             </div>
           </div>
@@ -254,24 +275,32 @@ function InviteWizard() {
                 メール・LINEなど、いつもの連絡手段で送れます。下の文章をそのまま貼り付けて使えます。
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="min-w-0 flex-[1_1_320px] break-all rounded-[10px] border border-input bg-secondary px-3.5 py-3 text-[15px]">
-                {invite.url}
+            <InviteLinkPanel invite={invite} />
+            {invite.customer_id && (
+              <div className="flex flex-col gap-4 rounded-xl border p-[18px]">
+                <div className="flex flex-col gap-1">
+                  <div className="text-[15px] font-bold">お客様の登録を待つあいだに、画面を準備できます</div>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    「{invite.company_name_hint}」の管理画面はもうできています。弊社がこのお客様として映像・価格などを先に設定しておくと、お客様は登録後すぐに使い始められます。
+                  </p>
+                </div>
+                <AssignedDeviceList
+                  title="お渡ししたマシン"
+                  devices={handedNames.map((n, i) => ({ id: String(i), name: n }))}
+                />
+                {assignNotice && (
+                  <div role="status" className="rounded-[10px] border border-ok/30 bg-ok/5 px-4 py-3 text-sm text-ok">
+                    {assignNotice}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2.5">
+                  <PrepareButton customerId={invite.customer_id} customerName={invite.company_name_hint} />
+                  <Button variant="outline" onClick={() => setAssignOpen(true)}>
+                    マシンを追加する
+                  </Button>
+                </div>
               </div>
-              <CopyButton text={invite.url} label="リンクをコピー" className="h-12" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="text-sm font-bold">お客様に送る文章</div>
-              <div className="whitespace-pre-line break-all rounded-[10px] border px-[18px] py-4 text-sm leading-[1.9] text-foreground/80">
-                {messageText(invite.url)}
-              </div>
-            </div>
-            <CopyButton text={messageText(invite.url)} label="文章ごとコピー" className="self-start" />
-            <div className="rounded-[10px] bg-secondary px-[18px] py-4 text-sm leading-relaxed text-foreground/80">
-              「{invite.company_name_hint}」向けのリンクです。有効期限は {fmtDateTime(invite.expires_at)} までです。
-              <br />
-              このリンクはこの画面でしか表示されません。閉じる前にコピーして送ってください。
-            </div>
+            )}
           </div>
         )}
 
@@ -307,14 +336,31 @@ function InviteWizard() {
             ) : (
               <>
                 <RequestSummary request={selectedRequest} />
-                <StockDevicePicker
-                  devices={devices}
-                  loading={devLoading}
-                  error={devError}
-                  onReload={loadDevices}
-                  selected={picked}
-                  onChange={setPicked}
-                />
+                {selectedRequest.customer_id ? (
+                  <>
+                    <AssignedDeviceList devices={selectedRequest.assigned_devices ?? []} />
+                    <StockDevicePicker
+                      devices={devices}
+                      loading={devLoading}
+                      error={devError}
+                      onReload={loadDevices}
+                      selected={picked}
+                      onChange={setPicked}
+                      title="追加でお渡しするマシン（任意）"
+                      description="まだどのお客様にも割り当てていないマシンだけを表示しています。追加しないで承認することもできます。"
+                    />
+                    {picked.length > 0 && <OwnershipNotice />}
+                  </>
+                ) : (
+                  <StockDevicePicker
+                    devices={devices}
+                    loading={devLoading}
+                    error={devError}
+                    onReload={loadDevices}
+                    selected={picked}
+                    onChange={setPicked}
+                  />
+                )}
                 {approveError && <ErrorBox>{approveError}</ErrorBox>}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                   {requests.length > 1 && (
@@ -391,6 +437,20 @@ function InviteWizard() {
           </div>
         )}
       </section>
+
+      {assignOpen && invite?.customer_id && (
+        <AssignDevicesDialog
+          customerId={invite.customer_id}
+          customerName={invite.company_name_hint}
+          onClose={() => setAssignOpen(false)}
+          onAssigned={(n, names) => {
+            setAssignOpen(false);
+            setHandedNames((cur) => [...cur, ...names]);
+            setAssignNotice(`${n}台のマシンをお渡ししました。`);
+            signupAdmin.stockDevices().then((list) => setDevices(list)).catch(() => {});
+          }}
+        />
+      )}
 
       {rejectOpen && selectedRequest && (
         <RejectDialog

@@ -58,6 +58,8 @@ export function StockDevicePicker({
   onReload,
   selected,
   onChange,
+  title = 'お渡しするマシンを選ぶ',
+  description = 'まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずに承認して、後から追加することもできます。',
 }: {
   devices: StockDevice[];
   loading: boolean;
@@ -65,6 +67,8 @@ export function StockDevicePicker({
   onReload: () => void;
   selected: string[];
   onChange: (ids: string[]) => void;
+  title?: string;
+  description?: string;
 }) {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -81,10 +85,8 @@ export function StockDevicePicker({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <div className="text-[15px] font-bold">お渡しするマシンを選ぶ</div>
-        <div className="mt-1 text-[13px] text-muted-foreground">
-          まだどのお客様にも割り当てていないマシンだけを表示しています。選ばずに承認して、後から追加することもできます。
-        </div>
+        <div className="text-[15px] font-bold">{title}</div>
+        <div className="mt-1 text-[13px] text-muted-foreground">{description}</div>
       </div>
       {devices.length > 6 && (
         <div className="relative">
