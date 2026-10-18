@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils';
 export function PublicFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center gap-6 bg-background px-4 py-10 text-foreground sm:py-14">
-      <div className="text-2xl font-bold">GTCHA X</div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/gtchax-logo-dark.png" alt="GTCHA X" className="h-[28px] w-auto" />
       <main className="flex w-full max-w-[520px] flex-col gap-5 rounded-2xl border bg-card p-6 sm:p-8">
         {children}
       </main>

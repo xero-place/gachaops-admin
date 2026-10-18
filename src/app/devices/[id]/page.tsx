@@ -124,7 +124,10 @@ export default function DeviceDetailPage() {
   // S262: ?tab=settings / ?tab=stock で開いたときは、そのタブを最初に表示する（ホームの「1回の価格を変える」など）
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('tab');
-    if (q && ['overview', 'settings', 'effects', 'screenshots', 'schedules', 'history', 'stock', 'sales'].includes(q)) setTab(q);
+    // S262d: スクリーンショットは弊社スタッフ(lv1_super)だけ
+    const staff = tokenStore.getUser()?.role === 'lv1_super';
+    const allowed = ['overview', 'settings', 'effects', 'schedules', 'history', 'stock', 'sales', ...(staff ? ['screenshots'] : [])];
+    if (q && allowed.includes(q)) setTab(q);
   }, []);
 
   // S231: この端末の売上・回転数（本日/累計）。売上タブで表示。既存API(summary/by-device)を device_id で絞込。
@@ -727,9 +730,12 @@ export default function DeviceDetailPage() {
           >
             <Zap className="h-3.5 w-3.5" />{tp.switchPlayback}
           </Button>
+          {/* S262d: スクリーンショットは弊社スタッフだけ（お客様の画面には出さない） */}
+          {isSuperAdmin && (
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || capturing} onClick={handleScreenshot}>
             <Camera className="h-3.5 w-3.5" />{capturing ? tp.capturing : tp.screenshot}
           </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-1.5" disabled={detail.status !== 'online' || restarting} onClick={handleRestartApp}>
             <RefreshCcw className="h-3.5 w-3.5" />{tp.restart}
           </Button>
@@ -743,7 +749,7 @@ export default function DeviceDetailPage() {
               <TabsTrigger value="overview">{t.device.tabs.overview}</TabsTrigger>
               <TabsTrigger value="settings">{t.device.tabs.pricing}</TabsTrigger>
               <TabsTrigger value="effects">{t.device.tabs.effects}</TabsTrigger>
-              <TabsTrigger value="screenshots">{t.device.tabs.screenshots}</TabsTrigger>
+              {isSuperAdmin && <TabsTrigger value="screenshots">{t.device.tabs.screenshots}</TabsTrigger>}
               <TabsTrigger value="schedules">{t.device.tabs.powerSchedule}</TabsTrigger>
               <TabsTrigger value="history">{t.device.tabs.apkHistory}</TabsTrigger>
                 <TabsTrigger value="stock">{t.device.tabs.inventory}</TabsTrigger>
@@ -1006,7 +1012,7 @@ export default function DeviceDetailPage() {
               {/* === /S161 reassign UI === */}
             </TabsContent>
 
-            <TabsContent value="screenshots">
+            {isSuperAdmin && (<TabsContent value="screenshots">
               <Card className="mb-4">
                 <CardHeader>
                   <CardTitle className="text-sm">{tp.liveViewTitle}</CardTitle>
@@ -1034,7 +1040,7 @@ export default function DeviceDetailPage() {
                 </CardContent>
               </Card>
 {/* S141: スクリーンショット履歴は非表示（ライブビューに一本化） */}
-            </TabsContent>
+            </TabsContent>)}
 
             <TabsContent value="schedules">
               <Card className="mb-4">

@@ -53,8 +53,10 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex flex-col">
-      <div className="px-3 pb-5 pt-1 text-xl font-bold text-white">
-        GTCHA X
+      <div className="flex items-end px-3 pb-5 pt-1 text-xl font-bold text-white">
+        {/* S262d: 正式ロゴ（白） */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/gtchax-logo-white.png" alt="GTCHA X" className="h-[22px] w-auto" />
         {ready && isStaff && (
           <span className="ml-1.5 text-[13px] font-normal text-[#9CA3AF]">運営</span>
         )}
