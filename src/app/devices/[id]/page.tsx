@@ -1139,33 +1139,49 @@ export default function DeviceDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {/* S262i: 1回の料金（キャッシュレス決済・現金で共通）。受付方法に関係なく常に表示・入力できる */}
-                      <div className="space-y-2 rounded-[14px] border p-4">
-                        <label htmlFor="set-price" className="block text-base font-bold">1回の料金</label>
-                        <p className="text-xs text-muted-foreground">
-                          キャッシュレス決済（QR）で支払う金額です。現金を受け付けるマシンでは、現金の1回の料金も同じです。
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <input id="set-price" type="number" inputMode="numeric" min={1}
-                            className="w-40 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-lg font-bold"
-                            value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
-                          <span className="text-sm text-muted-foreground">{t.pricing.pricePerPlay.suffix}</span>
-                        </div>
-                        {locale === 'en' && (
-                          <div className="text-xs text-muted-foreground">≈ {formatPrice(parseInt(setPrice, 10) || 0)}</div>
-                        )}
-                        <div className="text-sm">
-                          キャッシュレス決済（QR）：{detail.qr_enabled ? <span className="font-bold">受け付けている</span> : <span className="font-bold text-muted-foreground">受け付けていない</span>}
-                          {detail.qr_enabled && (parseInt(setPrice, 10) > 0) && (
-                            <span className="text-muted-foreground">（QRには {parseInt(setPrice, 10).toLocaleString('ja-JP')}円 と表示されます）</span>
-                          )}
-                        </div>
-                        {curPool && String(curPool.price_per_draw ?? '') !== setPrice && setPrice !== '' && (
-                          <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
-                            まだ保存していません（いまの料金：{curPool.price_per_draw ?? '—'}円）。下の「保存する」を押すと変わります。マシン本体の設定も同じ金額にしてください。
-                          </p>
-                        )}
-                      </div>
+                      {/* S262i/k: 1回の料金。受付方法とQRの状態に合わせて、何に使われる金額かをはっきり出す（表示のみ。保存処理は別） */}
+                      {(() => {
+                        const qrOn = !!detail.qr_enabled;
+                        const priceUsed = acceptMode === 'cash' || qrOn;
+                        const n = parseInt(setPrice, 10);
+                        const yen = Number.isFinite(n) && n > 0 ? `${n.toLocaleString('ja-JP')}円` : '—';
+                        const head =
+                          acceptMode === 'cash' && qrOn ? '現金 ＋ キャッシュレス決済（QR）'
+                          : acceptMode === 'cash' ? '現金のみ（キャッシュレス決済は受け付けていません）'
+                          : acceptMode === 'none' && qrOn ? '現金なし（キャッシュレス決済のみ）'
+                          : acceptMode === 'token' && qrOn ? 'メダル ＋ キャッシュレス決済（QR）'
+                          : acceptMode === 'token' ? 'メダルのみ（料金は使われません）'
+                          : '現金もキャッシュレス決済も受け付けていません（料金は使われません）';
+                        const sub =
+                          acceptMode === 'cash' && qrOn ? `現金でもキャッシュレス決済でも、1回 ${yen} です。`
+                          : acceptMode === 'cash' ? `現金で1回 ${yen} です。`
+                          : acceptMode === 'none' && qrOn ? `QRで1回 ${yen} を支払います。マシンの現金投入口は使いません。`
+                          : acceptMode === 'token' && qrOn ? `キャッシュレス決済（QR）は1回 ${yen} です。メダルは枚数で記録します。`
+                          : 'キャッシュレス決済をONにしたときは、この金額がQRに表示されます。';
+                        return (
+                          <div className={`space-y-2 rounded-[14px] border p-4 ${priceUsed ? '' : 'bg-muted/40'}`}>
+                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                              <label htmlFor="set-price" className="text-base font-bold">1回の料金</label>
+                              <span className={`text-sm font-bold ${priceUsed ? 'text-foreground' : 'text-muted-foreground'}`}>{head}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input id="set-price" type="number" inputMode="numeric" min={1}
+                                className={`w-40 rounded-md border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-lg font-bold ${priceUsed ? '' : 'text-muted-foreground opacity-60'}`}
+                                value={setPrice} onChange={(e) => setSetPrice(e.target.value)} />
+                              <span className="text-sm text-muted-foreground">{t.pricing.pricePerPlay.suffix}</span>
+                            </div>
+                            {locale === 'en' && (
+                              <div className="text-xs text-muted-foreground">≈ {formatPrice(parseInt(setPrice, 10) || 0)}</div>
+                            )}
+                            <p className={`text-sm ${priceUsed ? 'text-foreground' : 'text-muted-foreground'}`}>{sub}</p>
+                            {curPool && String(curPool.price_per_draw ?? '') !== setPrice && setPrice !== '' && (
+                              <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                まだ保存していません（いまの料金：{curPool.price_per_draw ?? '—'}円）。下の「保存する」を押すと変わります。マシン本体の設定も同じ金額にしてください。
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* 投入の受付方法（現金 / メダル / 受け付けない） */}
                       <div className="space-y-2">
