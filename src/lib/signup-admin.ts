@@ -220,6 +220,8 @@ export function friendlyError(e: unknown, context: 'approve' | 'reject' | 'invit
       : '対象が見つかりませんでした。すでに処理されたかもしれません。画面を読み込み直してください。';
   }
   if (e.status === 409) {
+    // ★S270: 変換中（準備中）の映像を流そうとしたとき。サーバーの案内をそのまま出す
+    if (raw.includes('準備中')) return e.problem?.detail ?? '映像を準備中です（30秒ほど）。少し待ってから、もう一度流してください。';
     if (raw.includes('email') || raw.includes('duplicate') || raw.includes('taken') || raw.includes('exists')) {
       return 'このメールアドレスはすでに登録されています。別のメールアドレスをお使いください。';
     }

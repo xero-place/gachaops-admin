@@ -60,6 +60,7 @@ type Program = {
   scene_count?: number;
   size_bytes?: number;
   scene_previews?: ScenePreview[];
+  processing?: boolean; // ★S270: 中の動画がマシン向けに変換中（準備中）。終わるまで流せない
   created_at: string;
   updated_at: string;
 };
@@ -114,6 +115,14 @@ export default function VideosPage() {
   }, [ownerTab, isSuperAdmin]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ★S270: 変換中（準備中）のものがある間は、5秒ごとに一覧を読み直す（終われば自動で「マシンで流せます」に変わる）
+  const anyProcessing = programs.some((p) => p.processing) || assets.some((a) => a.processing);
+  useEffect(() => {
+    if (!anyProcessing) return;
+    const t = setInterval(() => { fetchAll(); }, 5000);
+    return () => clearInterval(t);
+  }, [anyProcessing, fetchAll]);
 
   // ── アップロード（旧 assets/page.tsx と同じ XHR） ──
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -192,7 +201,9 @@ export default function VideosPage() {
         try { const j = await res.json(); d = j.detail || j.title || d; } catch { /* noop */ }
         throw new Error(d);
       }
-      setNotice(`「${baseName(a.name)}」を追加しました。そのままマシンで流せます。`);
+      setNotice(a.processing
+        ? `「${baseName(a.name)}」を追加しました。いまマシン向けに変換しています（30秒ほど）。「準備中」の表示が消えたら流せます。`
+        : `「${baseName(a.name)}」を追加しました。そのままマシンで流せます。`);
       setJustUploaded(null);
       await fetchAll();
     } catch (err) {
@@ -346,7 +357,11 @@ export default function VideosPage() {
                         {files.length > 0 && (p.scene_count ?? 0) <= 1 && `・${files.join('、')}`}
                       </span>
                       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-                        {p.published ? (
+                        {p.published && p.processing ? (
+                          <span className="inline-flex items-center gap-1 text-[13px] font-bold text-warn">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />準備中（30秒ほど）
+                          </span>
+                        ) : p.published ? (
                           <span className="text-[13px] font-bold text-ok">マシンで流せます</span>
                         ) : (
                           <span className="text-[13px] text-muted-foreground">準備中</span>
@@ -394,6 +409,7 @@ export default function VideosPage() {
                         {owner ? `・${owner}` : ''}
                         ・{a.used_in_program_count > 0 ? `${a.used_in_program_count}本の映像で使用中` : 'まだ使われていません'}
                         ・{fmtRelative(a.created_at)}
+                        {a.processing && <span className="font-bold text-warn">・準備中（30秒ほど）</span>}
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">

@@ -449,13 +449,17 @@ function ProgramOption({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={program.processing ? undefined : onSelect}
+      disabled={!!program.processing}
       className={`text-left rounded-md border bg-card p-3 transition-all flex flex-col gap-2 ${
-        selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
+        program.processing ? 'opacity-60 cursor-not-allowed' : selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
       }`}
     >
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium truncate">{program.name}</div>
+        {program.processing && (
+          <div className="text-[11px] font-bold text-warn mt-0.5">準備中（30秒ほど）・少し待ってから開き直してください</div>
+        )}
         <div className="text-[10.5px] text-muted-foreground mt-0.5 flex items-center gap-2">
           <span>{program.scene_count} {t.sceneUnit}</span>
           <span>·</span>

@@ -178,6 +178,8 @@ export interface Program {
   total_duration_sec: number;
   /** Whether this program is published (locked) */
   published: boolean;
+  /** ★S270: 中の動画がマシン向けに変換中（準備中）。終わるまで流せない */
+  processing?: boolean;
   scene_count: number;
   widget_count: number;
   thumbnail_url: string | null;
@@ -226,6 +228,7 @@ export interface Asset {
   thumbnail_url: string | null;
   tags: string[];
   used_in_program_count: number;
+  processing?: boolean; // ★S270: アップロード直後のマシン向け変換中（準備中）
   created_at: string;
 }
 

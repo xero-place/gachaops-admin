@@ -72,6 +72,7 @@ interface Program {
   name: string;
   customer_id?: string;
   published?: boolean;
+  processing?: boolean; // ★S270: マシン向けに変換中（準備中）。終わるまで流せない
 }
 interface Group {
   id: string;
@@ -181,6 +182,33 @@ function PlayWizard() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // ★S270: 準備中の映像がある間は、5秒ごとに映像の一覧だけ読み直す（終われば自動で選べるようになる）
+  const anyProcessing = programs.some((p) => p.processing);
+  useEffect(() => {
+    if (!anyProcessing) return;
+    const t = setInterval(async () => {
+      try {
+        const p = await api.get<{ items?: Program[] } | Program[]>('/programs?limit=100');
+        setPrograms(asList(p).filter((x) => x.published !== false));
+      } catch { /* 次の回で読み直す */ }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [anyProcessing]);
+  // 準備中の映像を選んでいたら、選択を外す（流せないため）
+  useEffect(() => {
+    const busy = new Set(programs.filter((p) => p.processing).map((p) => p.id));
+    if (busy.size === 0) return;
+    setProgramId((v) => (busy.has(v) ? '' : v));
+    setPerMachine((x) => {
+      const ent = Object.entries(x).filter(([, v]) => busy.has(v));
+      if (ent.length === 0) return x;
+      const nx = { ...x };
+      ent.forEach(([k]) => { nx[k] = ''; });
+      return nx;
+    });
+    setRestId((v) => (busy.has(v) ? '' : v));
+  }, [programs]);
 
   // お客様のアカウントは自分の会社で固定
   useEffect(() => {
@@ -493,7 +521,7 @@ function PlayWizard() {
     <>
       <option value="">映像を選んでください</option>
       {custPrograms.map((p) => (
-        <option key={p.id} value={p.id}>{p.name}</option>
+        <option key={p.id} value={p.id} disabled={!!p.processing}>{p.processing ? `${p.name}（準備中・30秒ほど）` : p.name}</option>
       ))}
     </>
   );
@@ -645,7 +673,7 @@ function PlayWizard() {
                   <select id="p-rest" value={restId} onChange={(e) => setRestId(e.target.value)} className={selectCls}>
                     <option value="">使わない（いつものつなぎの映像）</option>
                     {custPrograms.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id} disabled={!!p.processing}>{p.processing ? `${p.name}（準備中・30秒ほど）` : p.name}</option>
                     ))}
                   </select>
                 </div>
@@ -692,7 +720,18 @@ function PlayWizard() {
             ) : (
               <ListScroll>
                 {custPrograms.map((p) => (
-                  <ChoiceRow key={p.id} selected={programId === p.id} onClick={() => setProgramId(p.id)} title={p.name} />
+                  p.processing ? (
+                    <div key={p.id} aria-disabled="true"
+                      className="flex min-h-[60px] w-full shrink-0 items-center gap-3.5 rounded-[10px] border bg-card px-4 py-3.5 opacity-60">
+                      <span aria-hidden="true" className="h-5 w-5 shrink-0 rounded-full border-2 border-[#9CA3AF]" />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="break-words text-base font-bold">{p.name}</span>
+                        <span className="text-[13px] font-bold text-warn">準備中（30秒ほど）・終わると選べます</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <ChoiceRow key={p.id} selected={programId === p.id} onClick={() => setProgramId(p.id)} title={p.name} />
+                  )
                 ))}
               </ListScroll>
             )}
