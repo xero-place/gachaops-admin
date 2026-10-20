@@ -8,7 +8,8 @@
  *                 GET /assets?limit=100[&owner=self|customer]     … 旧 assets/page.tsx
  *   - アップロード POST /assets/upload (multipart: file, name)      … 旧 assets/page.tsx の XHR（30分タイムアウト・1.4GiB上限）をそのまま
  *   - 削除        DELETE /assets/{id}[?force=true]                  … 旧 assets/page.tsx（使用中409→確認→force）
- *   - 流せるようにする（1本の映像から）:
+ *   - ★S269: アップロード後に自動で「流せる映像」を作る: POST /programs/from-asset {asset_id}（1回・失敗時は何も残らない）
+ *   - （旧）流せるようにする（1本の映像から）:
  *       POST /programs {name, description}                         … programs/new/page.tsx
  *       POST /programs/{id}/scenes {name, duration_sec, order_index:0} … programs/[id] AddSceneModal
  *       POST /programs/{id}/scenes/{sid}/widgets {type, asset_id, x:0,y:0,width:100,height:100,z_index:0,config:{}} … 同上
@@ -159,7 +160,12 @@ export default function VideosPage() {
         xhr.send(formData);
       });
       setAssets((prev) => [created, ...prev]);
-      setJustUploaded(created);
+      // ★S269: 追加したら、そのままマシンで流せる映像にする（ボタンを押す手間なし）
+      if (created.type === 'video' || created.type === 'image' || created.type === 'gif') {
+        await makePlayable(created);
+      } else {
+        setJustUploaded(created);
+      }
     } catch (err) {
       setUploadError(`追加できませんでした：${err instanceof Error ? err.message : '原因がわかりません'}`);
     } finally {
@@ -168,62 +174,29 @@ export default function VideosPage() {
     }
   };
 
-  // ── 1本の映像から、マシンで流せる映像を作る（既存の作成→シーン→ウィジェット→公開 と同じ） ──
+  // ── 1本の映像から、マシンで流せる映像を作る ──
+  //   ★S269: サーバーの1回の呼び出し（POST /programs/from-asset）で作る。途中で失敗しても空の映像は残らない。
   const makePlayable = async (a: Asset) => {
     setMaking(a.id);
     setActionError(null);
     setNotice(null);
     try {
       const token = tokenStore.getAccess();
-      const json = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-      const pr = await fetch(`${apiBase}/programs`, {
-        method: 'POST', headers: json,
-        body: JSON.stringify({ name: baseName(a.name).trim() || a.name, description: '' }),
+      const res = await fetch(`${apiBase}/programs/from-asset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ asset_id: a.id }),
       });
-      if (!pr.ok) throw new Error(`作成 HTTP ${pr.status}`);
-      const program = await pr.json();
-      const isImage = a.type === 'image' || a.type === 'gif';
-      const durationSec = !isImage && a.duration_ms && a.duration_ms > 0 ? Math.ceil(a.duration_ms / 1000) : 10;
-      const sr = await fetch(`${apiBase}/programs/${program.id}/scenes`, {
-        method: 'POST', headers: json,
-        body: JSON.stringify({ name: 'シーン 1', duration_sec: durationSec, order_index: 0 }),
-      });
-      if (!sr.ok) throw new Error(`シーン HTTP ${sr.status}`);
-      const scene = await sr.json();
-      const wr = await fetch(`${apiBase}/programs/${program.id}/scenes/${scene.id}/widgets`, {
-        method: 'POST', headers: json,
-        body: JSON.stringify({ type: isImage ? 'image' : 'video', asset_id: a.id, x: 0, y: 0, width: 100, height: 100, z_index: 0, config: {} }),
-      });
-      if (!wr.ok) throw new Error(`映像の設定 HTTP ${wr.status}`);
-      const pub = await fetch(`${apiBase}/programs/${program.id}/publish`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!pub.ok) throw new Error(`仕上げ HTTP ${pub.status}`);
-      setNotice(`「${baseName(a.name)}」をマシンで流せるようにしました。`);
+      if (!res.ok) {
+        let d = `HTTP ${res.status}`;
+        try { const j = await res.json(); d = j.detail || j.title || d; } catch { /* noop */ }
+        throw new Error(d);
+      }
+      setNotice(`「${baseName(a.name)}」を追加しました。そのままマシンで流せます。`);
       setJustUploaded(null);
       await fetchAll();
     } catch (err) {
-      setActionError(`流せるようにできませんでした（${err instanceof Error ? err.message : ''}）。時間をおいてもう一度お試しください。`);
-    } finally {
-      setMaking(null);
-    }
-  };
-
-  // 準備中の映像を流せるようにする（既存の publish）
-  const publish = async (p: Program) => {
-    setMaking(p.id);
-    setActionError(null);
-    setNotice(null);
-    try {
-      const token = tokenStore.getAccess();
-      const res = await fetch(`${apiBase}/programs/${p.id}/publish`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setNotice(`「${p.name}」をマシンで流せるようにしました。`);
-      await fetchAll();
-    } catch (err) {
-      setActionError(`流せるようにできませんでした（${String(err)}）。`);
+      setActionError(`「${baseName(a.name)}」は追加しましたが、マシンで流せる映像にできませんでした（${err instanceof Error ? err.message : ''}）。下の一覧の「マシンで流せる映像にする」を押してください。`);
     } finally {
       setMaking(null);
     }
@@ -246,6 +219,8 @@ export default function VideosPage() {
       if (res.status === 409) {
         let detail = 'このファイルは使われています。';
         try { const j = await res.json(); detail = j.detail || j.title || detail; } catch { /* noop */ }
+        // ★S269: マシンで流している最中のファイルは消せない（サーバーが拒否する）。確認を出さずに理由だけ伝える。
+        if (detail.includes('マシンで流している')) { alert(detail); return; }
         if (!confirm(`${detail}\n\n使っている映像が正しく流れなくなりますが、削除しますか？`)) return;
         res = await doDelete(true);
       }
@@ -270,7 +245,7 @@ export default function VideosPage() {
             <div className="flex flex-col gap-1">
               <h2 className="text-[17px] font-bold">映像を追加する</h2>
               <p className="text-[13px] leading-relaxed text-muted-foreground">
-                パソコンの動画・画像ファイルを選ぶと追加されます（1.4GBまで）。追加したら「この映像をマシンで流せるようにする」を押してください。
+                パソコンの動画・画像ファイルを選ぶと、そのままマシンで流せる映像になります（1.4GBまで）。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -292,11 +267,7 @@ export default function VideosPage() {
           {uploadError && <div role="alert" className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-bold text-destructive">{uploadError}</div>}
           {justUploaded && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-primary/40 bg-primary/5 px-4 py-3.5">
-              <span className="text-[15px] font-bold">「{justUploaded.name}」を追加しました。</span>
-              <Button onClick={() => makePlayable(justUploaded)} disabled={making === justUploaded.id}>
-                {making === justUploaded.id && <Loader2 className="animate-spin" />}
-                この映像をマシンで流せるようにする
-              </Button>
+              <span className="text-[15px] font-bold">「{justUploaded.name}」を追加しました。（この種類のファイルはマシンでは流せません）</span>
             </div>
           )}
           {notice && (
@@ -381,10 +352,7 @@ export default function VideosPage() {
                           <span className="text-[13px] text-muted-foreground">準備中</span>
                         )}
                         {!p.published && (p.scene_count ?? thumbs.length) > 0 && (
-                          <Button variant="outline" onClick={() => publish(p)} disabled={making === p.id}>
-                            {making === p.id && <Loader2 className="animate-spin" />}
-                            流せるようにする
-                          </Button>
+                          <Link href={`/programs/${p.id}`} className="text-sm font-bold underline-offset-4 hover:underline">開いて仕上げる →</Link>
                         )}
                         {!p.published && (p.scene_count ?? thumbs.length) === 0 && (
                           <Link href={`/programs/${p.id}`} className="text-sm font-bold underline-offset-4 hover:underline">開いて映像を入れる →</Link>
@@ -402,7 +370,7 @@ export default function VideosPage() {
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="text-[17px] font-bold">追加した映像ファイル（{fa.length}件）</h2>
-            <p className="mt-1 text-[13px] text-muted-foreground">「流せるようにする」を押すと、上の「マシンで流す映像」に1本ずつ加わります。</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">追加したファイルは、そのまま上の「マシンで流す映像」に加わります。マシンで流している映像のファイルは削除できません。</p>
           </div>
           {!loading && fa.length === 0 ? (
             <div className="rounded-card border bg-card px-6 py-8 text-center text-sm text-muted-foreground">追加したファイルはまだありません。</div>
@@ -429,10 +397,10 @@ export default function VideosPage() {
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {(a.type === 'video' || a.type === 'image' || a.type === 'gif') && (
+                      {(a.type === 'video' || a.type === 'image' || a.type === 'gif') && (a.used_in_program_count ?? 0) === 0 && (
                         <Button variant="outline" onClick={() => makePlayable(a)} disabled={making === a.id}>
                           {making === a.id && <Loader2 className="animate-spin" />}
-                          流せるようにする
+                          マシンで流せる映像にする
                         </Button>
                       )}
                       <button

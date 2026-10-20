@@ -570,7 +570,8 @@ export default function DevicesPage() {
             <span className="text-muted-foreground">{t.selectedSuffix}</span>
           </div>
           <div className="h-5 w-px bg-border" />
-          {selectedManualCount > 0 && (
+          {/* ★S269: 「計画配信に戻す」は止める操作（計画が無いと待機中になる）ため弊社スタッフだけ */}
+          {selectedManualCount > 0 && isSuperAdmin && (
             <Button
               variant="outline"
               size="sm"
