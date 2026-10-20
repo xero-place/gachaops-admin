@@ -130,6 +130,12 @@ export default function ProgramDetailPage() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 409) {
+        // ★S271: マシンで流している映像の最後の動画は外せない（サーバーの案内をそのまま見せる）
+        let d = '';
+        try { const j = await res.json(); d = j.detail || ''; } catch { /* noop */ }
+        if (d) { alert(d); return; }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchData();
     } catch (err) {

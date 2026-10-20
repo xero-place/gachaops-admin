@@ -22,11 +22,12 @@ import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } f
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { fmtDuration, fmtBytes, fmtRelative } from '@/lib/format';
-import { Film, Image as ImageIcon, Loader2, Upload, Layers } from 'lucide-react';
+import { Film, Image as ImageIcon, Loader2, Upload, Layers, Play, X } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 import { SearchBox } from '@/components/domain/wizard';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types/domain';
+import { PlayWizard } from '@/components/domain/play-wizard';
 
 type ScenePreview = {
   scene_id: string;
@@ -61,6 +62,7 @@ type Program = {
   size_bytes?: number;
   scene_previews?: ScenePreview[];
   processing?: boolean; // ★S270: 中の動画がマシン向けに変換中（準備中）。終わるまで流せない
+  has_media?: boolean; // ★S271: 動画・画像が入っているか（false なら流せない）
   created_at: string;
   updated_at: string;
 };
@@ -90,6 +92,10 @@ export default function VideosPage() {
   const [making, setMaking] = useState<string | null>(null); // asset id or program id
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // ★S271: いま追加した映像（準備が終わったら「この映像をマシンで流す」を出す）
+  const [lastMade, setLastMade] = useState<{ id: string; name: string } | null>(null);
+  // ★S271: この画面のまま「マシンで流す」（null=閉じている / ''=映像を選ぶところから / id=その映像を選んだ状態で）
+  const [playFor, setPlayFor] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const seq = ++reqSeq.current;
@@ -201,9 +207,10 @@ export default function VideosPage() {
         try { const j = await res.json(); d = j.detail || j.title || d; } catch { /* noop */ }
         throw new Error(d);
       }
-      setNotice(a.processing
-        ? `「${baseName(a.name)}」を追加しました。いまマシン向けに変換しています（30秒ほど）。「準備中」の表示が消えたら流せます。`
-        : `「${baseName(a.name)}」を追加しました。そのままマシンで流せます。`);
+      try {
+        const made = await res.json();
+        if (made?.id) setLastMade({ id: made.id, name: made.name || baseName(a.name) });
+      } catch { /* 一覧の読み直しで出る */ }
       setJustUploaded(null);
       await fetchAll();
     } catch (err) {
@@ -268,6 +275,9 @@ export default function VideosPage() {
               <Button asChild variant="outline">
                 <Link href="/programs/new"><Layers />複数の映像をつなげて1本にする</Link>
               </Button>
+              <Button variant="outline" onClick={() => setPlayFor('')}>
+                <Play />マシンで流す
+              </Button>
             </div>
           </div>
           {uploading && (
@@ -282,11 +292,27 @@ export default function VideosPage() {
             </div>
           )}
           {notice && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-ok/30 bg-ok/5 px-4 py-3 text-sm">
-              <span className="font-bold text-ok">{notice}</span>
-              <Link href="/play" className="font-bold underline-offset-4 hover:underline">マシンで流す →</Link>
-            </div>
+            <div role="status" className="rounded-[10px] border border-ok/30 bg-ok/5 px-4 py-3 text-sm font-bold text-ok">{notice}</div>
           )}
+          {lastMade && (() => {
+            // ★S271: 準備中はボタンを出さない。準備が終わったら「この映像をマシンで流す」を出す
+            const lp = programs.find((x) => x.id === lastMade.id);
+            const ready = !!lp && !lp.processing && lp.has_media !== false;
+            return ready ? (
+              <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-ok/40 bg-ok/5 px-4 py-3.5">
+                <span className="text-[15px] font-bold text-ok">「{lastMade.name}」の準備ができました。マシンで流せます。</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => setPlayFor(lastMade.id)}><Play />この映像をマシンで流す</Button>
+                  <Button variant="ghost" onClick={() => setLastMade(null)}>あとで</Button>
+                </div>
+              </div>
+            ) : (
+              <div role="status" className="flex items-center gap-2.5 rounded-[10px] border border-warn/30 bg-warn/5 px-4 py-3.5 text-[15px] font-bold text-warn">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                「{lastMade.name}」を追加しました。いまマシン向けに変換しています（30秒ほど）。終わると、ここに「マシンで流す」ボタンが出ます。
+              </div>
+            );
+          })()}
           {actionError && <div role="alert" className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-bold text-destructive">{actionError}</div>}
         </section>
 
@@ -357,12 +383,14 @@ export default function VideosPage() {
                         {files.length > 0 && (p.scene_count ?? 0) <= 1 && `・${files.join('、')}`}
                       </span>
                       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-                        {p.published && p.processing ? (
+                        {p.has_media === false ? (
+                          <span className="text-[13px] font-bold text-destructive">映像が入っていません（流せません）</span>
+                        ) : p.published && p.processing ? (
                           <span className="inline-flex items-center gap-1 text-[13px] font-bold text-warn">
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />準備中（30秒ほど）
                           </span>
                         ) : p.published ? (
-                          <span className="text-[13px] font-bold text-ok">マシンで流せます</span>
+                          <Button size="sm" onClick={() => setPlayFor(p.id)}><Play />マシンで流す</Button>
                         ) : (
                           <span className="text-[13px] text-muted-foreground">準備中</span>
                         )}
@@ -434,6 +462,29 @@ export default function VideosPage() {
           )}
         </section>
       </div>
+
+      {/* ★S271: この画面のまま、映像を選んでマシンで流す（中身は /play と同じ手順） */}
+      {playFor !== null && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="マシンで流す">
+          <div className="relative my-auto w-full max-w-[1000px] rounded-card bg-background p-4 shadow-xl sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-[19px] font-bold">マシンで流す</h2>
+              <button
+                type="button"
+                onClick={() => { setPlayFor(null); fetchAll(); }}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[10px] px-3 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-4 w-4" />閉じる
+              </button>
+            </div>
+            <PlayWizard
+              key={playFor || 'none'}
+              initialProgramId={playFor || undefined}
+              onClose={() => { setPlayFor(null); setLastMade(null); fetchAll(); }}
+            />
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
