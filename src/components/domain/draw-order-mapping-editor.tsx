@@ -23,7 +23,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -66,21 +65,19 @@ import { drawOrderMappingEditorDict } from '@/i18n/ns/drawOrderMappingEditor';
 
 const MAX_DRAW_ORDER = 100;
 
-const BADGE_RAINBOW =
-  'bg-gradient-to-r from-pink-100 via-yellow-100 to-cyan-100 text-purple-800 border-purple-300';
-
-// 複数の演出動画を混在させたとき、種類ごとに一目で分かるよう自動割当する配色。
-const BADGE_PALETTE = [
-  'bg-rose-100 text-rose-700 border-rose-300',
-  'bg-sky-100 text-sky-700 border-sky-300',
-  'bg-amber-100 text-amber-800 border-amber-300',
-  'bg-emerald-100 text-emerald-700 border-emerald-300',
-  'bg-violet-100 text-violet-700 border-violet-300',
-  'bg-cyan-100 text-cyan-700 border-cyan-300',
-  'bg-orange-100 text-orange-800 border-orange-300',
-  'bg-lime-100 text-lime-700 border-lime-300',
-  'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-300',
-  'bg-teal-100 text-teal-700 border-teal-300',
+// ★S266: 演出名の横の小さな丸の色（バッジは使わない）。1種類なら灰色、複数なら種類ごとに色分け。
+const DOT_SINGLE = 'bg-gray-400 border-gray-400';
+const DOT_PALETTE = [
+  'bg-rose-500 border-rose-500',
+  'bg-sky-500 border-sky-500',
+  'bg-amber-500 border-amber-500',
+  'bg-emerald-500 border-emerald-500',
+  'bg-violet-500 border-violet-500',
+  'bg-cyan-500 border-cyan-500',
+  'bg-orange-500 border-orange-500',
+  'bg-lime-500 border-lime-500',
+  'bg-fuchsia-500 border-fuchsia-500',
+  'bg-teal-500 border-teal-500',
 ];
 
 type BulkMode = 'single' | 'random' | 'off';
@@ -126,6 +123,26 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
   const [bulkPackIds, setBulkPackIds] = useState<string[]>([]);
   const [bulkReplaceAll, setBulkReplaceAll] = useState(true);
   const [bulkSaving, setBulkSaving] = useState(false);
+
+  // ★S266: 演出の ON/OFF を画面に常に表示する（サーバーの実際の値）。undefined=未取得
+  const [effectEnabled, setEffectEnabled] = useState<boolean | null | undefined>(undefined);
+  const [enabledSaving, setEnabledSaving] = useState(false);
+  // ★S266: 最後に保存した内容（自動では消さない）
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+
+  const loadEffectEnabled = useCallback(async () => {
+    if (!deviceId) return;
+    try {
+      const d = await api.get<{ effect_enabled?: boolean | null }>(`/devices/${deviceId}`);
+      setEffectEnabled(d.effect_enabled ?? null);
+    } catch {
+      setEffectEnabled(undefined);
+    }
+  }, [deviceId]);
+
+  useEffect(() => {
+    void loadEffectEnabled();
+  }, [loadEffectEnabled]);
 
   const loadDrawCount = useCallback(async () => {
     if (!deviceId) return;
@@ -265,10 +282,33 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
         return true;
       } catch {
         return false;
+      } finally {
+        await loadEffectEnabled();  // ★S266: 画面の ON/OFF 表示はサーバーの値で更新する
       }
     },
-    [deviceId],
+    [deviceId, loadEffectEnabled],
   );
+
+  const nowHHMM = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  // ★S266: 画面上部の「演出をONにする / OFFにする」ボタン
+  const handleSetEnabled = async (enabled: boolean) => {
+    setError(null);
+    setEnabledSaving(true);
+    try {
+      const ok = await setDeviceEffectEnabled(enabled);
+      if (!ok) throw new Error(t.effectEnabledFail);
+      setLastSaved(`${nowHHMM()} ${enabled ? t.savedOn : t.savedOff}`);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
+      setError(enabled ? t.onFail(msg) : t.offFail(msg));
+    } finally {
+      setEnabledSaving(false);
+    }
+  };
 
   const toggleBulkPack = (id: string) => {
     setBulkPackIds((prev) =>
@@ -301,9 +341,8 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
       try {
         const ok = await setDeviceEffectEnabled(false);
         if (!ok) throw new Error(t.effectEnabledFail);
-        setSuccessMsg(t.offSuccess);
+        setLastSaved(`${nowHHMM()} ${t.savedOff}`);
         setBulkDialogOpen(false);
-        setTimeout(() => setSuccessMsg(null), 4000);
       } catch (e) {
         const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
         setError(t.offFail(msg));
@@ -346,21 +385,21 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
             : chosen[0];
         items.push({ draw_order: i, effect_pack_id: packId });
       }
-      const res = await api.put<GachaDrawOrderEffectBulkResult>(
+      await api.put<GachaDrawOrderEffectBulkResult>(
         `/gacha/pools/${poolId}/draw-order-effects/bulk`,
         { items, replace_all: bulkReplaceAll },
       );
       // 演出が確実に流れるよう ON にする（撤去した「演出再生」トグルの代替）。
-      const turnedOn = await setDeviceEffectEnabled(true);
-      const onNote = deviceId ? (turnedOn ? t.onNoteOn : t.onNoteFail) : '';
-      setSuccessMsg(
-        `${bulkMode === 'random' ? t.bulkRandomLabel : t.bulkSingleLabel}: ` +
-          t.bulkResult(res.inserted, res.updated, res.deleted, res.total_after) +
-          onNote,
-      );
+      const turnedOn = deviceId ? await setDeviceEffectEnabled(true) : true;
+      const names = chosen.map((id) => packs.find((p) => p.id === id)?.name ?? id).join('・');
       setBulkDialogOpen(false);
       await reloadEffects();
-      setTimeout(() => setSuccessMsg(null), 6000);
+      if (!turnedOn) {
+        // ★S266: ON にできなかったのに「成功」と出さない
+        setError(t.savedButOnFail(start, end, names));
+      } else {
+        setLastSaved(`${nowHHMM()} ${t.savedBulk(start, end, names, bulkMode === 'random')}`);
+      }
     } catch (e) {
       const msg = e instanceof ApiError ? e.problem.detail || e.problem.title : (e as Error).message;
       setError(t.bulkFail(msg));
@@ -393,12 +432,29 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
     const ids = Array.from(new Set(effects.map((e) => e.effect_pack_id))).sort();
     const m = new Map<string, string>();
     if (ids.length <= 1) {
-      ids.forEach((id) => m.set(id, BADGE_RAINBOW));
+      ids.forEach((id) => m.set(id, DOT_SINGLE));
     } else {
-      ids.forEach((id, i) => m.set(id, BADGE_PALETTE[i % BADGE_PALETTE.length]));
+      ids.forEach((id, i) => m.set(id, DOT_PALETTE[i % DOT_PALETTE.length]));
     }
     return m;
   }, [effects]);
+
+  // ★S266: いまの設定のまとめ（演出ごとの回数と範囲）
+  const summary = useMemo(() => {
+    const m = new Map<string, { name: string; count: number; min: number; max: number }>();
+    effects.forEach((e) => {
+      const name = packById.get(e.effect_pack_id)?.name ?? t.notInList;
+      const cur = m.get(e.effect_pack_id);
+      if (cur) {
+        cur.count += 1;
+        cur.min = Math.min(cur.min, e.draw_order);
+        cur.max = Math.max(cur.max, e.draw_order);
+      } else {
+        m.set(e.effect_pack_id, { name, count: 1, min: e.draw_order, max: e.draw_order });
+      }
+    });
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
+  }, [effects, packById]);
 
   const rangeCount = Math.max(0, (parseInt(bulkEnd, 10) || 0) - (parseInt(bulkStart, 10) || 0) + 1) || 0;
 
@@ -442,11 +498,57 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
           </div>
         </CardHeader>
         <CardContent>
-          {stats.total > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              <Badge variant="outline">
-                {t.configured} {stats.total} / {MAX_DRAW_ORDER}
-              </Badge>
+          {/* ★S266: 演出の ON/OFF と、いまの設定を常に表示 */}
+          {deviceId && effectEnabled !== undefined && (
+            <div
+              className={`mb-4 rounded-[14px] border p-4 ${
+                effectEnabled === false ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className={`text-lg font-bold ${effectEnabled === false ? 'text-red-700' : 'text-foreground'}`}>
+                    {effectEnabled === false ? t.statusOff : effectEnabled === null ? t.statusFollow : t.statusOn}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {effectEnabled === false ? t.statusOffSub : t.statusOnSub}
+                  </div>
+                </div>
+                {effectEnabled === false ? (
+                  <Button onClick={() => void handleSetEnabled(true)} disabled={enabledSaving}>
+                    {enabledSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {t.turnOn}
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => void handleSetEnabled(false)} disabled={enabledSaving}>
+                    {enabledSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {t.turnOff}
+                  </Button>
+                )}
+              </div>
+              <div className="mt-3 text-sm">
+                <span className="text-muted-foreground">{t.currentSetting}</span>
+                {summary.length === 0 ? (
+                  <span>{t.noneSet}</span>
+                ) : (
+                  <span>
+                    {summary
+                      .map((x) =>
+                        x.count === x.max - x.min + 1
+                          ? t.summaryRange(x.name, x.min, x.max)
+                          : t.summaryCount(x.name, x.count),
+                      )
+                      .join(' ／ ')}
+                    {stats.total < MAX_DRAW_ORDER && t.summaryUnset(MAX_DRAW_ORDER - stats.total)}
+                  </span>
+                )}
+              </div>
+              {lastSaved && (
+                <div className="mt-2 text-sm text-foreground">
+                  <CheckCircle2 className="inline h-4 w-4 mr-1 text-emerald-600 align-text-bottom" />
+                  {lastSaved}
+                </div>
+              )}
             </div>
           )}
 
@@ -466,7 +568,14 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
             </div>
           )}
 
-          <div className="border rounded-md max-h-[600px] overflow-y-auto max-w-2xl">
+          {deviceId && effectEnabled === false && (
+            <p className="mb-2 text-sm text-red-700">{t.tableOffNote}</p>
+          )}
+          <div
+            className={`border rounded-md max-h-[600px] overflow-y-auto max-w-2xl ${
+              deviceId && effectEnabled === false ? 'opacity-50' : ''
+            }`}
+          >
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0 z-10">
                 <tr>
@@ -488,9 +597,15 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                       <td className="px-3 py-1.5 font-mono">{order}</td>
                       <td className="px-3 py-1.5">
                         {pack ? (
-                          <Badge variant="outline" className={packColor.get(pack.id)}>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              aria-hidden
+                              className={`inline-block h-2.5 w-2.5 rounded-full border ${packColor.get(pack.id) ?? ''}`}
+                            />
                             {pack.name}
-                          </Badge>
+                          </span>
+                        ) : effect ? (
+                          <span className="text-xs">{t.notInList}</span>
                         ) : (
                           <span className="text-xs italic">{t.unset}</span>
                         )}
@@ -714,9 +829,7 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                           checked={bulkPackIds.includes(p.id)}
                           onChange={() => toggleBulkPack(p.id)}
                         />
-                        <Badge variant="outline">
-                          {p.name}
-                        </Badge>
+                        <span>{p.name}</span>
                       </label>
                     ))}
                   </div>
@@ -726,6 +839,9 @@ export function DrawOrderMappingEditor({ poolId, packs, deviceId }: Props) {
                 </div>
               )}
 
+              {deviceId && effectEnabled === false && (
+                <p className="text-sm text-red-700">{t.willTurnOn}</p>
+              )}
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
