@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { ActionCard, ICONS, Panel, StatTile } from './home-parts';
 import { ManualButton } from '@/components/domain/manual-button';
+import { useCurrentUser } from '@/lib/use-current-user';
 
 interface Overview {
   device_total?: number;
@@ -24,6 +25,8 @@ const FIRST_STEPS = [
 export function CustomerHome() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [failed, setFailed] = useState(false);
+  // ★S273: メンバーを追加できるのは顧客の管理者だけ（設定画面の「メンバー」と同じ条件）
+  const { isCustomerAdmin } = useCurrentUser();
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +82,9 @@ export function CustomerHome() {
         <ActionCard href="/sales-events" icon={ICONS.chart} title="売上を見る" desc="今日・今月の売上と、マシンごとの明細を確認します。" />
         <ActionCard href="/choose-machine?tab=stock" icon={ICONS.refill} title="カプセルを補充した" desc="補充した数を入れて、売り切れ表示を解除します。" />
         <ActionCard href="/devices" icon={ICONS.clock} title="営業時間を決める" desc="営業時間外は画面を消したり、遊べないようにしたりできます。" />
+        {isCustomerAdmin && (
+          <ActionCard href="/settings?add=member#members" icon={ICONS.addUser} title="メンバーを追加する" desc="一緒に管理画面を使う人を招待します。招待した人にメールが届き、本人がパスワードを決めるとすぐに使えます。" />
+        )}
       </section>
 
       {!failed && (

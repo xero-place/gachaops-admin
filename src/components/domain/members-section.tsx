@@ -53,6 +53,17 @@ export function MembersSection({ isStaff }: { isStaff: boolean }) {
   const target = isStaff ? customerId || undefined : undefined;
   const canLoad = !isStaff || !!customerId;
 
+  // ★S273: ホームの「メンバーを追加する」から来たとき（?add=member）は、この欄を見せて追加の画面を開く
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('add') !== 'member') return;
+    u.searchParams.delete('add');
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+    document.getElementById('members')?.scrollIntoView({ block: 'start' });
+    if (!isStaff) setInviteOpen(true);
+  }, [isStaff]);
+
   const load = useCallback(async () => {
     if (!canLoad) return;
     setLoading(true);
