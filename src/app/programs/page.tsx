@@ -22,12 +22,12 @@ import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } f
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
 import { fmtDuration, fmtBytes, fmtRelative } from '@/lib/format';
-import { Film, Image as ImageIcon, Loader2, Upload, Layers, Play, X } from 'lucide-react';
+import { Film, Image as ImageIcon, Loader2, Upload, Layers, Play } from 'lucide-react';
 import { tokenStore } from '@/lib/token-store';
 import { SearchBox } from '@/components/domain/wizard';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types/domain';
-import { PlayWizard } from '@/components/domain/play-wizard';
+import { PlayDialog } from '@/components/domain/play-wizard';
 
 type ScenePreview = {
   scene_id: string;
@@ -392,7 +392,7 @@ export default function VideosPage() {
                         ) : p.published ? (
                           <Button size="sm" onClick={() => setPlayFor(p.id)}><Play />マシンで流す</Button>
                         ) : (
-                          <span className="text-[13px] text-muted-foreground">準備中</span>
+                          <span className="text-[13px] text-muted-foreground">作成中（まだ流せません）</span>
                         )}
                         {!p.published && (p.scene_count ?? thumbs.length) > 0 && (
                           <Link href={`/programs/${p.id}`} className="text-sm font-bold underline-offset-4 hover:underline">開いて仕上げる →</Link>
@@ -465,25 +465,10 @@ export default function VideosPage() {
 
       {/* ★S271: この画面のまま、映像を選んでマシンで流す（中身は /play と同じ手順） */}
       {playFor !== null && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="マシンで流す">
-          <div className="relative my-auto w-full max-w-[1000px] rounded-card bg-background p-4 shadow-xl sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-[19px] font-bold">マシンで流す</h2>
-              <button
-                type="button"
-                onClick={() => { setPlayFor(null); fetchAll(); }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[10px] px-3 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <X className="h-4 w-4" />閉じる
-              </button>
-            </div>
-            <PlayWizard
-              key={playFor || 'none'}
-              initialProgramId={playFor || undefined}
-              onClose={() => { setPlayFor(null); setLastMade(null); fetchAll(); }}
-            />
-          </div>
-        </div>
+        <PlayDialog
+          programId={playFor || undefined}
+          onClose={() => { if (playFor) setLastMade(null); setPlayFor(null); fetchAll(); }}
+        />
       )}
     </AppShell>
   );

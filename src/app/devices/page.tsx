@@ -477,6 +477,9 @@ export default function DevicesPage() {
                 */}
                 <TableCell className="text-xs">
                   {d.current_program_name ?? <span className="text-muted-foreground">—</span>}
+                  {d.current_program_has_media === false && (
+                    <div className="mt-0.5 text-[11px] font-bold text-destructive">映像が入っていません（別の映像を流してください）</div>
+                  )}
                   {(() => {
                     const rsv = getUpcomingReservation(d.group_ids, planSchedules);
                     return rsv ? (

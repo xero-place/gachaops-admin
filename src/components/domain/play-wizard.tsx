@@ -28,7 +28,7 @@
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DoneMark } from '@/components/public/public-frame';
@@ -715,7 +715,7 @@ export function PlayWizard({ initialProgramId, onClose }: { initialProgramId?: s
 
         {step === 'program' && (
           <>
-            <StepTitle title="どの映像を流しますか？" lead="公開済みの映像だけを表示しています。" />
+            <StepTitle title="どの映像を流しますか？" lead="マシンで流せる映像だけを選べます。" />
             {custPrograms.length === 0 ? (
               <EmptyBox>
                 流せる映像がまだありません。<Link href="/programs" className="font-bold underline-offset-4 hover:underline">映像の画面</Link>で映像を作ってください。
@@ -963,6 +963,28 @@ export function PlayWizard({ initialProgramId, onClose }: { initialProgramId?: s
           </div>
         )}
       </WizardCard>
+    </div>
+  );
+}
+
+
+/** ★S272: 画面の上に開く「マシンで流す」（映像の画面・映像の詳細画面で共通） */
+export function PlayDialog({ programId, onClose }: { programId?: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="マシンで流す">
+      <div className="relative my-auto w-full max-w-[1000px] rounded-card bg-background p-4 shadow-xl sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-[19px] font-bold">マシンで流す</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[10px] px-3 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-4 w-4" />閉じる
+          </button>
+        </div>
+        <PlayWizard key={programId || 'none'} initialProgramId={programId || undefined} onClose={onClose} />
+      </div>
     </div>
   );
 }

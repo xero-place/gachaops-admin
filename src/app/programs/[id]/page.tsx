@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Send, Layers, Trash2, ChevronUp, ChevronDown, Film, Image as ImageIcon, X, Save, Play, Loader2 } from 'lucide-react';
+import { PlayDialog } from '@/components/domain/play-wizard';
 import { tokenStore } from '@/lib/token-store';
 import { fmtDuration, fmtBytes } from '@/lib/format';
 import { usePageT } from '@/i18n/usePageT';
@@ -71,6 +72,8 @@ type Program = {
   scene_count?: number;
   size_bytes?: number;
   widget_count?: number;
+  has_media?: boolean;   // ★S271: 動画・画像が入っているか
+  processing?: boolean;  // ★S270: 変換中（準備中）
 };
 
 export default function ProgramDetailPage() {
@@ -84,6 +87,7 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showAddScene, setShowAddScene] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false); // ★S272: この画面からマシンで流す
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
 
@@ -190,7 +194,11 @@ export default function ProgramDetailPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let d = `HTTP ${res.status}`;
+        try { const j = await res.json(); d = j.detail || d; } catch { /* noop */ }
+        throw new Error(d);
+      }
       await fetchData();
       alert(t.published);
     } catch (err) {
@@ -268,8 +276,16 @@ export default function ProgramDetailPage() {
             <Button size="sm" className="gap-1.5" onClick={handlePublish} disabled={busy || scenes.length === 0}>
               <Send className="h-3.5 w-3.5" />{t.publish}
             </Button>
+          ) : program.has_media === false ? (
+            <span className="self-center text-sm font-bold text-destructive">映像が入っていません（流せません）</span>
+          ) : program.processing ? (
+            <span className="inline-flex items-center gap-1.5 self-center text-sm font-bold text-warn">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />準備中（30秒ほど）
+            </span>
           ) : (
-            <span className="text-sm font-bold text-ok">{t.publishedBadge}</span>
+            <Button size="sm" className="gap-1.5" onClick={() => setPlayOpen(true)}>
+              <Play className="h-3.5 w-3.5" />マシンで流す
+            </Button>
           )}
         </div>
       </div>
@@ -281,14 +297,40 @@ export default function ProgramDetailPage() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Layers className="h-4 w-4" />{t.sceneComposition(scenes.length)}
               </CardTitle>
-              <Button variant="default" size="sm" className="h-8 gap-1" onClick={() => setShowAddScene(true)}>
-                <Plus className="h-3.5 w-3.5" />{t.addScene}
-              </Button>
+              {!program.published && (
+                <Button variant="default" size="sm" className="h-8 gap-1" onClick={() => setShowAddScene(true)}>
+                  <Plus className="h-3.5 w-3.5" />{t.addScene}
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-2">
+              {/* ★S272: 完成済みの映像は中身を変えない。変えたいときは「つなげて1本にする」で新しく作る */}
+              {program.published && (
+                <div className="flex flex-col gap-3 rounded-[10px] border bg-secondary/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-1 text-sm leading-relaxed">
+                    {program.has_media === false ? (
+                      <>
+                        <span className="font-bold text-destructive">この映像には動画が入っていないため、マシンでは流せません。</span>
+                        <span className="text-muted-foreground">
+                          不要なら右上の「削除」で消してください（マシンで流している間は削除できないので、先に別の映像をマシンで流してください）。
+                          新しく作るときは、右のボタンから作れます。
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold">この映像は完成済みのため、中の動画は変えられません。</span>
+                        <span className="text-muted-foreground">動画を変えたいときや、複数の動画をつなげたいときは、新しく作ってください。</span>
+                      </>
+                    )}
+                  </div>
+                  <Button asChild variant="outline" className="shrink-0">
+                    <Link href="/programs/new"><Layers />複数の映像をつなげて1本にする</Link>
+                  </Button>
+                </div>
+              )}
               {scenes.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  {t.noScenes}
+                  {program.published ? '動画が入っていません。' : t.noScenes}
                 </div>
               ) : (
 (() => {
@@ -305,7 +347,7 @@ export default function ProgramDetailPage() {
                               'h-4 w-4';
                   return scenes.map((sc, i) => (
                   <div key={sc.id} className="flex items-center gap-3 p-3 border rounded-md hover:bg-accent/40">
-                    <div className="flex flex-col gap-0.5">
+                    {!program.published && <div className="flex flex-col gap-0.5">
                       <button
                         className="text-muted-foreground hover:text-foreground disabled:opacity-30"
                         onClick={() => handleMoveScene(sc.id, 'up')}
@@ -320,7 +362,7 @@ export default function ProgramDetailPage() {
                       >
                         <ChevronDown className="h-3 w-3" />
                       </button>
-                    </div>
+                    </div>}
                     <div className={`relative ${thumbSize} rounded overflow-hidden bg-black/60 flex-shrink-0`}>
                       {sc.primary_thumbnail_url ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
@@ -360,9 +402,11 @@ export default function ProgramDetailPage() {
                         {sc.widget_count && sc.widget_count > 0 ? t.widgetSuffix(sc.widget_count) : ''}
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteScene(sc.id, sc.name)} disabled={busy}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!program.published && (
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteScene(sc.id, sc.name)} disabled={busy}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 ));})()
               )}
@@ -390,7 +434,12 @@ export default function ProgramDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{t.status}</span>
-                <span className="font-medium">{program.published ? t.publishedBadge : t.draft}</span>
+                <span className={program.published && program.has_media === false ? 'font-bold text-destructive' : 'font-medium'}>
+                  {!program.published ? t.draft
+                    : program.has_media === false ? '映像が入っていません（流せません）'
+                    : program.processing ? '準備中（30秒ほど）'
+                    : t.publishedBadge}
+                </span>
               </div>
               {program.description && (
                 <div className="pt-2 border-t">
@@ -402,6 +451,8 @@ export default function ProgramDetailPage() {
           </Card>
         </div>
       </div>
+
+      {playOpen && <PlayDialog programId={program.id} onClose={() => { setPlayOpen(false); fetchData(); }} />}
 
       {showAddScene && (
         <AddSceneModal

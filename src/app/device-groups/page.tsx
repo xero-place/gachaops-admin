@@ -41,7 +41,10 @@ type CustomerLite = { id: string; name?: string };  // ★uiGrp: 顧客ごとに
 type VwAssetLite = { id: string; name: string; type?: string; url?: string | null };
 type VwTile = { id: string; row: number; col: number; position_index: number; tile_asset_id?: string | null; device_id?: string | null; tile_asset_url?: string | null };
 type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; source_asset_id?: string | null; tiles: VwTile[] };
-type ProgramLite = { id: string; name: string };  // S145: 箸休めセレクタ用
+type ProgramLite = { id: string; name: string; published?: boolean; has_media?: boolean; processing?: boolean };  // S145: 箸休めセレクタ用
+// ★S272: 流せない映像（作成中・中身が空・準備中）は箸休めに選べないようにする
+const unplayable = (p: ProgramLite): string | null =>
+  p.published === false ? '作成中' : p.has_media === false ? '映像が入っていません' : p.processing ? '準備中' : null;
 
 export default function DeviceGroupsPage() {
   const t = usePageT(deviceGroupsDict);
@@ -603,7 +606,9 @@ function EditGroupDialog({
               >
                 <option value="">{t.useDefaultRest}</option>
                 {programs.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id} disabled={!!unplayable(p) && p.id !== restProgramId}>
+                    {unplayable(p) ? `${p.name}（${unplayable(p)}・選べません）` : p.name}
+                  </option>
                 ))}
               </select>
               <p className="text-[10px] text-muted-foreground">

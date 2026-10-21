@@ -30,7 +30,7 @@ export const programDetailDict = {
     sceneCount: "シーン数",
     size: "容量",
     status: "ステータス",
-    draft: "準備中",
+    draft: "作成中（まだ流せません）",
     description: "説明",
     sceneNameDefault: (n: number) => `シーン ${n}`,
     selectAssetAlert: "動画 / 画像を選択してください",

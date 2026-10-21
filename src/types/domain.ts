@@ -105,6 +105,8 @@ export interface Device {
   /** Currently playing program, if any */
   current_program_id: string | null;
   current_program_name: string | null;
+  /** ★S272: いま流している映像に動画・画像が入っているか（false なら画面は待機中） */
+  current_program_has_media?: boolean | null;
   /** Real-time playback state (updated via SSE every 2s) */
   playback?: {
     state: 'playing' | 'paused' | 'idle';
@@ -180,6 +182,8 @@ export interface Program {
   published: boolean;
   /** ★S270: 中の動画がマシン向けに変換中（準備中）。終わるまで流せない */
   processing?: boolean;
+  /** ★S271: 動画・画像が入っているか（false なら流せない） */
+  has_media?: boolean;
   scene_count: number;
   widget_count: number;
   thumbnail_url: string | null;

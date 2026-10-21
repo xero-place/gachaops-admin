@@ -73,6 +73,7 @@ type DeviceDetail = {
   last_heartbeat_at: string | null;
   current_program_id: string | null;
   current_program_name?: string | null;
+  current_program_has_media?: boolean | null;  // ★S272
   current_program_size_bytes?: number | null;
   current_program_thumbnail_url?: string | null;  // S231: 現在の番組の先頭素材サムネ
   current_program_video_url?: string | null;  // S232: 先頭素材の再生URL
@@ -800,6 +801,11 @@ export default function DeviceDetailPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium">{detail.current_program_name}</div>
+                        {detail.current_program_has_media === false && (
+                          <div className="mt-0.5 text-sm font-bold text-destructive">
+                            この映像には動画が入っていないため、画面は「待機中」になります。別の映像を流してください。
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground mt-1">
                           {tp.contentSize}<span className="tabular-nums">{formatBytes(detail.current_program_size_bytes)}</span>
                         </div>

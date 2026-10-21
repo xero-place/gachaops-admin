@@ -38,7 +38,11 @@ type PlanSchedule = {
 };
 
 type GroupLite = { id: string; name: string };
-type ProgramLite = { id: string; name: string };
+type ProgramLite = { id: string; name: string; published?: boolean; has_media?: boolean; processing?: boolean };
+// ★S272: 流せない映像（作成中・中身が空・準備中）は選べないようにする
+const unplayable = (p: ProgramLite): string | null =>
+  p.published === false ? '作成中' : p.has_media === false ? '映像が入っていません' : p.processing ? '準備中' : null;
+const progLabel = (p: ProgramLite) => (unplayable(p) ? `${p.name}（${unplayable(p)}・選べません）` : p.name);
 
 // 15分刻みの時刻リスト（00:00〜23:45・96個）
 const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
@@ -346,7 +350,7 @@ export default function PlanSchedulesPage() {
                     <SelectTrigger><SelectValue placeholder={t.program} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">{t.select}</SelectItem>
-                      {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {programs.map((p) => <SelectItem key={p.id} value={p.id} disabled={!!unplayable(p)}>{progLabel(p)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -356,7 +360,7 @@ export default function PlanSchedulesPage() {
                     <SelectTrigger><SelectValue placeholder={t.noRevert} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">{t.noRevertOption}</SelectItem>
-                      {programs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {programs.map((p) => <SelectItem key={p.id} value={p.id} disabled={!!unplayable(p)}>{progLabel(p)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

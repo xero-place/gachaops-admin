@@ -449,14 +449,17 @@ function ProgramOption({
 
   return (
     <button
-      onClick={program.processing ? undefined : onSelect}
-      disabled={!!program.processing}
+      onClick={program.processing || program.has_media === false ? undefined : onSelect}
+      disabled={!!program.processing || program.has_media === false}
       className={`text-left rounded-md border bg-card p-3 transition-all flex flex-col gap-2 ${
-        program.processing ? 'opacity-60 cursor-not-allowed' : selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
+        program.processing || program.has_media === false ? 'opacity-60 cursor-not-allowed' : selected ? 'border-primary ring-2 ring-primary/30' : 'hover:bg-accent'
       }`}
     >
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium truncate">{program.name}</div>
+        {program.has_media === false && (
+          <div className="text-[11px] font-bold text-destructive mt-0.5">映像が入っていません（流せません）</div>
+        )}
         {program.processing && (
           <div className="text-[11px] font-bold text-warn mt-0.5">準備中（30秒ほど）・少し待ってから開き直してください</div>
         )}
