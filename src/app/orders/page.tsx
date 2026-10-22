@@ -67,6 +67,13 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // ★S264b: 運営メールの「返金はこちらから」（/orders?q=注文番号）から来たら、その注文だけを表示する
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('q');
+      if (q) setSearch(q);
+    } catch { /* noop */ }
+  }, []);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [providerFilter, setProviderFilter] = useState<string>('all');
   // ★qr-placeholder: QR表示だけの空注文(未決済/選択待ち)を既定で隠す
