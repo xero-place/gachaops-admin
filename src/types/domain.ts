@@ -174,6 +174,8 @@ export interface DeviceGroup {
 export interface Program {
   id: string;
   customer_id: string;
+  /** ★assetowner: 顧客名バッジ用（lv1_super が顧客の映像を見るとき） */
+  customer_name?: string | null;
   name: string;
   description: string | null;
   /** Total duration of all scenes */

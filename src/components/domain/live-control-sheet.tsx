@@ -35,6 +35,7 @@ import { api } from '@/lib/api';
 import type { Device } from '@/types/domain';
 import { usePageT } from '@/i18n/usePageT';
 import { liveControlSheetDict } from '@/i18n/ns/liveControlSheet';
+import { useCurrentUser } from '@/lib/use-current-user';
 
 // /devices のレスポンス形（このファイル内ローカル定義）
 interface DeviceListResp { items?: Device[]; data?: Device[]; total?: number }
@@ -57,6 +58,10 @@ export function LiveControlSheet({
   scope: LiveControlScope | null;
 }) {
   const t = usePageT(liveControlSheetDict);
+  // ★assetowner: 弊社スタッフは「本社／顧客」で映像を分けて表示（既定は本社）
+  const { isStaff, user } = useCurrentUser();
+  const ownCid = user?.customer_id ?? null;
+  const [ownerTab, setOwnerTab] = useState<'self' | 'customer'>('self');
   const [step, setStep] = useState<'pick' | 'confirm' | 'confirming'>('pick');
   // 配信後の到達確認: device_id -> 'pending' | 'ok' | 'unconfirmed'
   const [deliveryStatus, setDeliveryStatus] = useState<Record<string, 'pending' | 'ok' | 'unconfirmed'>>({});
@@ -94,17 +99,28 @@ export function LiveControlSheet({
     return () => { cancelled = true; };
   }, [open]);
 
+  // ★assetowner: 本社=自社の映像 / 顧客=他社の映像（スタッフのみ分ける。顧客は従来どおり自分の映像だけ）
+  const isCustomerProgram = (p: Program) => isStaff && ownCid != null && p.customer_id !== ownCid;
+
   // Only published programs can be sent live
   const eligible = useMemo(() => {
     return programs.filter((p) => {
       if (!p.published) return false;
+      // スタッフは本社/顧客タブで絞り込む（顧客アカウントは全部自分のものなので絞らない）
+      if (isStaff && ownCid != null) {
+        const isCust = p.customer_id !== ownCid;
+        if (ownerTab === 'self' && isCust) return false;
+        if (ownerTab === 'customer' && !isCust) return false;
+      }
       if (search) {
         const s = search.toLowerCase();
-        if (!p.name.toLowerCase().includes(s)) return false;
+        const name = p.name.toLowerCase();
+        const cust = (p.customer_name ?? '').toLowerCase();
+        if (!name.includes(s) && !cust.includes(s)) return false;
       }
       return true;
     });
-  }, [programs, search]);
+  }, [programs, search, isStaff, ownCid, ownerTab]);
 
   const selected = selectedProgramId ? programs.find((p) => p.id === selectedProgramId) : null;
 
@@ -112,6 +128,7 @@ export function LiveControlSheet({
     setStep('pick');
     setSelectedProgramId(null);
     setSearch('');
+    setOwnerTab('self');  // ★assetowner: 開き直すと既定は本社
     setMode('immediate');
     setDuration('30');
     setDeliveryStatus({});
@@ -205,10 +222,28 @@ export function LiveControlSheet({
 
         {step === 'pick' && (
           <div className="space-y-4">
+            {/* ★assetowner: 弊社スタッフは本社／顧客で切り替え（既定は本社） */}
+            {isStaff && (
+              <div className="inline-flex rounded-[10px] border bg-card p-1" role="group" aria-label={t.ownerGroupLabel}>
+                {(['self', 'customer'] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => { setOwnerTab(k); setSelectedProgramId(null); }}
+                    aria-pressed={ownerTab === k}
+                    className={`min-h-[36px] rounded-lg px-4 text-sm font-bold transition-colors ${
+                      ownerTab === k ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {k === 'self' ? t.ownerSelf : t.ownerCustomer}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder={t.searchPlaceholder}
+                placeholder={isStaff && ownerTab === 'customer' ? t.searchPlaceholderCustomer : t.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"
@@ -220,6 +255,7 @@ export function LiveControlSheet({
                 <ProgramOption
                   key={p.id}
                   program={p}
+                  ownerName={isCustomerProgram(p) ? (p.customer_name || p.customer_id) : null}
                   selected={selectedProgramId === p.id}
                   onSelect={() => setSelectedProgramId(p.id)}
                 />
@@ -431,10 +467,12 @@ function getProgramTotalSec(scenePreviews: Array<{ asset_type: string | null; du
 
 function ProgramOption({
   program,
+  ownerName,
   selected,
   onSelect,
 }: {
   program: Program & { scene_previews?: Array<{ scene_id: string; order_index: number; duration_sec: number; asset_type: string | null; thumbnail_url: string | null; asset_duration_ms?: number | null }> };
+  ownerName?: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -456,6 +494,11 @@ function ProgramOption({
       }`}
     >
       <div className="min-w-0 flex-1">
+        {ownerName && (
+          <Badge variant="secondary" className="mb-1 max-w-full truncate text-[10px] h-4 px-1.5 font-semibold">
+            {ownerName}
+          </Badge>
+        )}
         <div className="text-sm font-medium truncate">{program.name}</div>
         {program.has_media === false && (
           <div className="text-[11px] font-bold text-destructive mt-0.5">映像が入っていません（流せません）</div>
