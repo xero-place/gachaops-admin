@@ -26,13 +26,16 @@ type Target = {
   rows: number; cols: number; row: number; col: number; bezel_px: number;
 };
 type LiveStream = {
-  id: string; customer_id: string; name: string; kind?: Kind; source_url: string; has_cookies: boolean;
+  id: string; customer_id: string; name: string; kind?: Kind; provider?: Provider; source_url: string;
+  has_cookies: boolean; has_sheeta_cookie?: boolean;
   desired_state: 'running' | 'stopped'; delay_ms: number; hls_url: string;
   relay: { state: string; message: string; updated_at_ms: number | null };
   targets: Target[];
 };
 // S253: 種類（ライブ配信 / 動画URL＝素材に取り込み / YouTube＝マシンが直接再生）
 type Kind = 'live' | 'video' | 'youtube';
+// S284: 配信元（通常＝リンクをそのまま受信 / sheeta＝sheeta.jp の会員限定を通行証で受信）
+type Provider = 'generic' | 'sheeta';
 type ImportJob = { job_id: string; state: string; message?: string | null; asset_id?: string | null };
 type DeviceLite = { id: string; name: string; app_version?: string | null; customer_name?: string; group_names?: string[] };
 type GroupLite = { id: string; name: string; members?: { device_id: string }[] };
@@ -63,6 +66,8 @@ export default function LivePage() {
   const [url, setUrl] = useState('');
   const [delaySec, setDelaySec] = useState('15');
   const [cookies, setCookies] = useState('');
+  const [provider, setProvider] = useState<Provider>('generic');  // S284
+  const [sheetaCookie, setSheetaCookie] = useState('');            // S284
 
   // 再生先
   const [mode, setMode] = useState<'each' | 'wall'>('each');
@@ -130,6 +135,7 @@ export default function LivePage() {
     setIsNew(false); setSelectedId(''); setMsg(null); setPlayMsg(null); setJob(null);
   };
   const formKind: Kind = isNew ? kind : streamKind;
+  const formProvider: Provider = isNew ? provider : ((stream?.provider as Provider) || 'generic');  // S284
 
   // 取り込みの進み具合を数秒おきに確認
   useEffect(() => () => { if (jobTimer.current) window.clearInterval(jobTimer.current); }, []);
@@ -153,11 +159,12 @@ export default function LivePage() {
     setUrl(stream.source_url);
     setDelaySec(String(Math.round(stream.delay_ms / 1000)));
     setCookies('');
+    setSheetaCookie('');
   }, [stream?.id, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startNew = () => {
     setIsNew(true); setSelectedId(''); setName(''); setUrl(''); setDelaySec('15'); setCookies(''); setMsg(null);
-    setKind('live'); setJob(null);
+    setKind('live'); setJob(null); setProvider('generic'); setSheetaCookie('');
   };
 
   // 動画URL：素材として取り込む（配信の登録はしない）
@@ -182,9 +189,14 @@ export default function LivePage() {
     const body: Record<string, unknown> = { name: name.trim(), source_url: url.trim() };
     if (formKind === 'live') {
       body.delay_ms = Math.round(Number(delaySec || '15') * 1000);
-      if (cookies.trim()) body.cookies_txt = cookies;
+      // S284: 配信元が通常なら yt-dlp 用クッキー、sheeta ならログイン用クッキー
+      if (formProvider === 'generic') {
+        if (cookies.trim()) body.cookies_txt = cookies;
+      } else if (sheetaCookie.trim()) {
+        body.sheeta_cookie = sheetaCookie.trim();
+      }
     }
-    if (isNew) body.kind = kind;
+    if (isNew) { body.kind = kind; body.provider = provider; }
     try {
       if (isNew) {
         const s = await api.post<LiveStream>('/live/streams', body);
@@ -194,6 +206,7 @@ export default function LivePage() {
         setMsg(t.saved);
       }
       setCookies('');
+      setSheetaCookie('');
       await reload();
     } catch (e) {
       setMsg(t.failed(errMsg(e)));
@@ -321,6 +334,43 @@ export default function LivePage() {
     ? 'text-emerald-600 dark:text-emerald-400'
     : stream?.relay.state === 'error' ? 'text-destructive' : 'text-muted-foreground';
 
+  // S284: 配信元の選択（ライブ配信のときだけ。新規は選べる・既存は固定表示）
+  const renderProvider = () => formKind === 'live' && (
+    <div className="space-y-1 max-w-xs">
+      <Label className="text-xs">{t.provider}</Label>
+      <Select value={formProvider} disabled={!isNew}
+        onValueChange={(v) => { setProvider(v as Provider); setMsg(null); }}>
+        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {(['generic', 'sheeta'] as const).map((p) => (
+            <SelectItem key={p} value={p}>{t.providerLabel[p]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-[11px] text-muted-foreground">{t.providerNote[formProvider]}</p>
+    </div>
+  );
+
+  // S284: sheeta のログイン用クッキー入力（値は保存後に画面へ出さない。連携状態だけ表示）
+  const renderSheeta = () => formKind === 'live' && formProvider === 'sheeta' && (
+    <details className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2" open={isNew || !stream?.has_sheeta_cookie}>
+      <summary className="text-xs cursor-pointer select-none">
+        {t.sheetaCookie}
+        {!isNew && (stream?.has_sheeta_cookie
+          ? <span className="ml-1 text-emerald-600 dark:text-emerald-400">（{t.sheetaLinked}）</span>
+          : <span className="ml-1 text-destructive">（{t.sheetaNotLinked}）</span>)}
+      </summary>
+      <div className="text-[11px] text-muted-foreground mt-2 whitespace-pre-line">{t.sheetaCookieNote}</div>
+      <textarea
+        value={sheetaCookie}
+        onChange={(e) => setSheetaCookie(e.target.value)}
+        rows={3}
+        placeholder={t.sheetaCookiePlaceholder}
+        className="mt-2 w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs font-mono"
+      />
+    </details>
+  );
+
   return (
     <AppShell title={t.title} breadcrumb={[t.home, t.title]}>
       {view === 'list' ? (
@@ -405,6 +455,7 @@ export default function LivePage() {
                   </Select>
                 </div>
                 <p className="text-[11px] text-muted-foreground">{t.kindNote[formKind]}</p>
+                {renderProvider()}
                 <div className={`grid gap-4 ${formKind === 'live' ? 'sm:grid-cols-[1fr_2fr_120px]' : 'sm:grid-cols-[1fr_2fr]'}`}>
                   <div className="space-y-1">
                     <Label className="text-xs">{t.name}</Label>
@@ -423,7 +474,9 @@ export default function LivePage() {
                 </div>
                 {formKind === 'live' && <p className="text-[11px] text-muted-foreground">{t.delayNote}</p>}
 
-                {formKind === 'live' && (
+                {renderSheeta()}
+
+                {formKind === 'live' && formProvider === 'generic' && (
                 <details className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2">
                   <summary className="text-xs cursor-pointer select-none">
                     {t.cookies}{stream?.has_cookies ? `（${t.cookiesSet}）` : ''}
@@ -674,6 +727,7 @@ export default function LivePage() {
                 </Select>
               </div>
               <p className="text-[11px] text-muted-foreground">{t.kindNote[formKind]}</p>
+              {renderProvider()}
               <div className={`grid gap-4 ${formKind === 'live' ? 'sm:grid-cols-[1fr_2fr_120px]' : 'sm:grid-cols-[1fr_2fr]'}`}>
                 <div className="space-y-1">
                   <Label className="text-xs">{t.name}</Label>
@@ -692,7 +746,9 @@ export default function LivePage() {
               </div>
               {formKind === 'live' && <p className="text-[11px] text-muted-foreground">{t.delayNote}</p>}
 
-              {formKind === 'live' && (
+              {renderSheeta()}
+
+              {formKind === 'live' && formProvider === 'generic' && (
               <details className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2">
                 <summary className="text-xs cursor-pointer select-none">
                   {t.cookies}{stream?.has_cookies ? `（${t.cookiesSet}）` : ''}
