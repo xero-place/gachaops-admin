@@ -160,6 +160,8 @@ export default function LivePage() {
     setDelaySec(String(Math.round(stream.delay_ms / 1000)));
     setCookies('');
     setSheetaCookie('');
+    // S284c: 今このライブを流しているマシンは、最初からチェックを入れておく（各マシン再生のぶん）
+    setPicked(new Set(stream.targets.filter((tg) => tg.mode === 'each').map((tg) => tg.device_id)));
   }, [stream?.id, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startNew = () => {
@@ -707,9 +709,9 @@ export default function LivePage() {
                 </CardContent>
               </Card>
 
-          {/* 名前・リンクの編集（普段は閉じておく） */}
-          <details className="rounded-xl border border-slate-200 dark:border-slate-800 bg-card">
-            <summary className="cursor-pointer select-none px-6 py-4 text-sm font-medium">{t.editTitle}</summary>
+          {/* S284c: 名前・リンクの編集（折りたたまず常に表示する） */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-card">
+            <div className="px-6 py-4 text-sm font-medium">{t.editTitle}</div>
             <div className="px-0 pb-0">
           <Card className="border-0 shadow-none bg-transparent">
             
@@ -799,7 +801,7 @@ export default function LivePage() {
             </CardContent>
           </Card>
             </div>
-          </details>
+          </div>
         </div>
       )}
     </AppShell>
