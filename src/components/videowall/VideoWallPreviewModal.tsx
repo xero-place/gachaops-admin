@@ -48,6 +48,8 @@ type Props = {
   onClose: () => void;
   sourceUrl?: string | null;  // S159: 元動画URL（実効果モードの素）
   realBezelPx?: number;       // S159: 入力中の実機ベゼル(px, タイル1024基準)
+  bezelXPx?: number;          // S289: 横の実機ベゼル(px, タイル1024基準)。横並びの隙間ぶん
+  bezelYPx?: number;          // S289: 縦の実機ベゼル(px, タイル1280基準)。縦積みの隙間ぶん
 };
 
 function solveHomography(
@@ -88,7 +90,7 @@ const PH_COLORS = ["#e2403f","#2a9d9d","#3399cc","#fbb333","#7cc555","#cc3999","
 
 export default function VideoWallPreviewModal({
   rows, cols, bezelPx, machineWidth = 180, tiles, onClose,
-  sourceUrl, realBezelPx = 0,
+  sourceUrl, realBezelPx = 0, bezelXPx, bezelYPx,
 }: Props) {
   const tr = usePageT(videoWallPreviewDict);
   const [mounted, setMounted] = useState(false);
@@ -131,7 +133,9 @@ export default function VideoWallPreviewModal({
   );
 
   const useReal = !!sourceUrl;
-  const bz = Math.max(0, realBezelPx);
+  // S289: 横・縦で別々のベゼル。未指定時は従来の単一値 realBezelPx にフォールバック。
+  const bx = Math.max(0, bezelXPx ?? realBezelPx);
+  const by = Math.max(0, bezelYPx ?? realBezelPx);
 
   // S160: 実効果モード — オフスクリーンの単一 <video> と各タイル <canvas> を束ねる。
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -149,14 +153,14 @@ export default function VideoWallPreviewModal({
   //   wall_w = cols*TILE_W + (cols-1)*bz,  crop_x = col*(TILE_W+bz),  crop_w = TILE_W
   //   sx = natW * crop_x / wall_w  … (比率写像。natW=natH=wall のとき backend と完全一致)
   const cropOf = useCallback((row: number, col: number, natW: number, natH: number) => {
-    const wallW = cols * TILE_W + (cols - 1) * bz;
-    const wallH = rows * TILE_H + (rows - 1) * bz;
-    const sx = natW * (col * (TILE_W + bz)) / wallW;
-    const sy = natH * (row * (TILE_H + bz)) / wallH;
+    const wallW = cols * TILE_W + (cols - 1) * bx;
+    const wallH = rows * TILE_H + (rows - 1) * by;
+    const sx = natW * (col * (TILE_W + bx)) / wallW;
+    const sy = natH * (row * (TILE_H + by)) / wallH;
     const sw = natW * TILE_W / wallW;
     const sh = natH * TILE_H / wallH;
     return { sx, sy, sw, sh };
-  }, [rows, cols, bz]);
+  }, [rows, cols, bx, by]);
 
   // S219b: オフスクリーン動画は autoPlay 属性だけだと環境により再生開始しないことがある。
   // muted なので明示 play() はポリシー上許可される。canplay/loadeddata でも念押し。
@@ -230,7 +234,7 @@ export default function VideoWallPreviewModal({
         {tr.desc}
       </p>
       <p style={{ margin: "0 0 12px", color: useReal ? "#7cc555" : "#e0a23a", fontSize: 11 }}>
-        {useReal ? tr.realNote(bz) : tr.fallbackNote}
+        {useReal ? tr.realNote(bx, by) : tr.fallbackNote}
       </p>
 
       {/* S160: 実効果モードで全タイルが共有する唯一の再生ソース（画面外・非表示） */}
@@ -261,7 +265,9 @@ export default function VideoWallPreviewModal({
         <div style={{
           display: "inline-grid",
           gridTemplateColumns: `repeat(${cols}, auto)`,
-          gap: bezelPx,
+          // S289: 横の隙間(列間)と縦の隙間(行間)を別々に表示。実機ベゼルを表示スケールへ縮小。
+          columnGap: (bezelXPx != null || bezelYPx != null) ? Math.round(DISP_MW * bx / TILE_W) : bezelPx,
+          rowGap: (bezelXPx != null || bezelYPx != null) ? Math.round((DISP_MW * IMGH / IMGW) * by / TILE_H) : bezelPx,
           background: "#070809", padding: 12, borderRadius: 12,
         }}>
           {ordered.map((t, i) => (

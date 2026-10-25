@@ -40,7 +40,10 @@ type DeviceLite = { id: string; name?: string; status?: string; current_program_
 type CustomerLite = { id: string; name?: string };  // ★uiGrp: 顧客ごとに束ねる見出し名の解決用
 type VwAssetLite = { id: string; name: string; type?: string; url?: string | null };
 type VwTile = { id: string; row: number; col: number; position_index: number; tile_asset_id?: string | null; device_id?: string | null; tile_asset_url?: string | null };
-type VideoWall = { id: string; name: string; rows: number; cols: number; bezel_px: number; status: string; source_asset_id?: string | null; tiles: VwTile[] };
+type VideoWall = { id: string; name: string; rows: number; cols: number; bezel?: boolean; bezel_px: number; status: string; source_asset_id?: string | null; tiles: VwTile[] };
+// S289: ベゼル補正の固定値（実機: 横27cm×縦33cm、隙間 横15cm/縦35cm、タイル1024×1280）
+const BEZEL_X_PX = Math.round(15 / 27 * 1024);  // ≒569
+const BEZEL_Y_PX = Math.round(35 / 33 * 1280);  // ≒1358
 type ProgramLite = { id: string; name: string; published?: boolean; has_media?: boolean; processing?: boolean };  // S145: 箸休めセレクタ用
 // ★S272: 流せない映像（作成中・中身が空・準備中）は箸休めに選べないようにする
 const unplayable = (p: ProgramLite): string | null =>
@@ -403,7 +406,7 @@ function EditGroupDialog({
   const [vwSourceId, setVwSourceId] = useState<string>('');
   const [vwRows, setVwRows] = useState<number>(1);
   const [vwCols, setVwCols] = useState<number>(group.members.length || 2);
-  const [vwBezel, setVwBezel] = useState<number>(0);  // 実測デフォルト（後で確定）
+  const [vwBezelOn, setVwBezelOn] = useState<boolean>(true);  // S289: ベゼル補正ON/OFF（既定ON）
   const [vw, setVw] = useState<VideoWall | null>(null);
   const [vwBusy, setVwBusy] = useState(false);
   const [vwPreview, setVwPreview] = useState(false);
@@ -433,10 +436,8 @@ function EditGroupDialog({
           setVwEnabled(true);
           setVwRows(latest.rows);
           setVwCols(latest.cols);
-          // NOTE: bezel is intentionally NOT restored from the saved wall.
-          // The latest saved wall is often bezel_px=0, and auto-restoring it
-          // overwrote the operator's input, re-baking tiles at 0 every time.
-          // Bezel is now always driven by the live input field.
+          // S289: ベゼル補正はON/OFFのみになったので、保存値を復元してよい。
+          setVwBezelOn(latest.bezel ?? (latest.bezel_px > 0));
         }
       })
       .catch(() => { /* 無ければ何もしない */ });
@@ -451,7 +452,7 @@ function EditGroupDialog({
     try {
       const created = await api.post<VideoWall>('/videowalls', {
         name: `${name}_wall`, source_asset_id: vwSourceId,
-        rows: vwRows, cols: vwCols, bezel_px: vwBezel, device_group_id: group.id,
+        rows: vwRows, cols: vwCols, bezel: vwBezelOn, device_group_id: group.id,
       });
       setVw(created);
     } catch { setVwErr(t.createFailedVw); }
@@ -673,21 +674,20 @@ function EditGroupDialog({
                       onChange={(e) => setVwCols(Math.max(1, Number(e.target.value)))}
                       className="w-full rounded border bg-background px-2 py-1 text-xs" />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground">{t.bezelCorrection}</label>
-                    <input type="number" min={0} max={400}
-                      value={vwBezel === 0 ? "" : vwBezel}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/^0+(?=\d)/, "");
-                        setVwBezel(v === "" ? 0 : Math.max(0, Math.min(400, Number(v))));
-                      }}
-                      className="w-full rounded border bg-background px-2 py-1 text-xs" />
-                  </div>
                   <div className="flex items-end text-[10px] text-muted-foreground">
                     {t.splitInto(vwRows * vwCols)}
                   </div>
                 </div>
+                {/* S289: ベゼル補正はON/OFFのみ。ONで横15cm・縦35cmぶんを台数に応じ自動補正。 */}
+                <label className="flex items-start gap-2 rounded-md border bg-muted/30 px-2 py-2 cursor-pointer">
+                  <input type="checkbox" className="mt-0.5"
+                    checked={vwBezelOn}
+                    onChange={(e) => setVwBezelOn(e.target.checked)} />
+                  <span className="text-[11px] leading-snug">
+                    <span className="font-medium">{t.bezelCorrection}</span>
+                    <span className="block text-[10px] text-muted-foreground">{t.bezelAutoNote}</span>
+                  </span>
+                </label>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={vwCreate} disabled={vwBusy || !vwSourceId}>
                     {vwBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}{t.create}
@@ -729,9 +729,10 @@ function EditGroupDialog({
                   <VideoWallPreviewModal
                     rows={vw.rows}
                     cols={vw.cols}
-                    bezelPx={vw.bezel_px > 0 ? Math.round(vw.bezel_px / 6) : 0}
+                    bezelPx={0}
                     sourceUrl={vwAssets.find((a) => a.id === (vwSourceId || vw.source_asset_id))?.url ?? null}
-                    realBezelPx={vwBezel}
+                    bezelXPx={vwBezelOn ? BEZEL_X_PX : 0}
+                    bezelYPx={vwBezelOn ? BEZEL_Y_PX : 0}
                     tiles={vw.tiles.map((t) => ({
                       position_index: t.position_index, row: t.row, col: t.col,
                       tile_asset_url: t.tile_asset_url ?? null,
