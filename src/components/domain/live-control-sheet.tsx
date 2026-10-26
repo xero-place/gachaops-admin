@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { tokenStore } from '@/lib/token-store';
 import { useLiveStore } from '@/stores/live-control-store';
 import { fmtDuration } from '@/lib/format';
@@ -292,12 +292,7 @@ export function LiveControlSheet({
             </div>
 
             <Tabs value={mode} onValueChange={(v) => setMode(v as 'immediate' | 'expiring')}>
-              {/* ★S228: 期限指定は非表示（時限切替は「配信計画」メニューで行う運用）。即時切替のみ。 */}
-              <TabsList className="grid grid-cols-1 w-full">
-                <TabsTrigger value="immediate" className="gap-1.5">
-                  <Zap className="h-3.5 w-3.5" />{t.immediate}
-                </TabsTrigger>
-              </TabsList>
+              {/* S296: 即時切替のみの運用になり、単一タブの見出しボタンは不要なので非表示にした。 */}
               <TabsContent value="immediate" className="mt-3">
                 <div className="rounded-md border bg-card p-3 text-xs space-y-1.5">
                   <div className="font-medium text-sm flex items-center gap-2">
