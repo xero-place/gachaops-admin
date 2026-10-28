@@ -165,7 +165,7 @@ export function PlayWizard({ initialProgramId, onClose }: { initialProgramId?: s
       const [d, c, p, g] = await Promise.all([
         api.get<{ items?: Machine[] } | Machine[]>('/devices?limit=200'),
         api.get<{ items?: Customer[] } | Customer[]>('/customers?limit=200').catch(() => [] as Customer[]),
-        api.get<{ items?: Program[] } | Program[]>('/programs?limit=100').catch(() => [] as Program[]),
+        api.get<{ items?: Program[] } | Program[]>('/programs?limit=500').catch(() => [] as Program[]),
         api.get<{ items?: Group[] } | Group[]>('/device-groups?limit=200').catch(() => [] as Group[]),
       ]);
       setMachines(asList(d));
@@ -186,7 +186,7 @@ export function PlayWizard({ initialProgramId, onClose }: { initialProgramId?: s
     if (!anyProcessing) return;
     const t = setInterval(async () => {
       try {
-        const p = await api.get<{ items?: Program[] } | Program[]>('/programs?limit=100');
+        const p = await api.get<{ items?: Program[] } | Program[]>('/programs?limit=500');
         setPrograms(asList(p).filter((x) => x.published !== false));
       } catch { /* 次の回で読み直す */ }
     }, 5000);

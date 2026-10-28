@@ -104,8 +104,8 @@ export default function VideosPage() {
       const ownerParam = isSuperAdmin ? `&owner=${ownerTab}` : '';
       const headers = { Authorization: `Bearer ${token}` };
       const [pr, ar] = await Promise.all([
-        fetch(`${apiBase}/programs?limit=100${ownerParam}`, { headers }),
-        fetch(`${apiBase}/assets?limit=100${ownerParam}`, { headers }),
+        fetch(`${apiBase}/programs?limit=500${ownerParam}`, { headers }),
+        fetch(`${apiBase}/assets?limit=500${ownerParam}`, { headers }),
       ]);
       const pj = pr.ok ? await pr.json() : { items: [] };
       const aj = ar.ok ? await ar.json() : { items: [] };
