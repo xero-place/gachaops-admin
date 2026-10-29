@@ -83,7 +83,7 @@ export function LiveControlSheet({
       try {
         const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.xero-place.com/v1';
         const token = tokenStore.getAccess();
-        const res = await fetch(`${apiBase}/programs?limit=100`, {
+        const res = await fetch(`${apiBase}/programs?limit=500`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
