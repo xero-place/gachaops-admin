@@ -163,7 +163,7 @@ export default function DeviceDetailPage() {
   const [provCode, setProvCode] = useState<string | null>(null);
   const [provIssuing, setProvIssuing] = useState(false);
   const [provCopied, setProvCopied] = useState(false);
-  // const [savingBrightness, setSavingBrightness] = useState(false); // S141: 輝度UI非表示
+  const [savingBrightness, setSavingBrightness] = useState(false); // S303: 輝度UI復活（root制御）
 
   const issueProvCode = async () => {
     if (provIssuing) return;
@@ -208,7 +208,7 @@ export default function DeviceDetailPage() {
 
   const sendDeviceCommand = async (type: 'set_volume' | 'set_brightness', value: number) => {
     const payload = type === 'set_volume' ? { volume: value } : { brightness: value };
-    const setSaving = setSavingVolume; // S141: 輝度UI非表示につき音量のみ
+    const setSaving = type === 'set_brightness' ? setSavingBrightness : setSavingVolume; // S303
     setSaving(true);
     try {
       await api.post(`/devices/${params.id}/commands`, { type, payload });
@@ -832,15 +832,14 @@ export default function DeviceDetailPage() {
                     saving={savingVolume}
                     onCommit={(v) => void sendDeviceCommand('set_volume', v)}
                   />
-                  {/* S141: 輝度リモート制御は端末(HiSilicon)がソフト輝度制御非対応のため非表示。
-                      signage側 applyDeviceBrightness は残置(将来の対応端末向け)。本体で輝度固定運用。
+                  {/* S303: 輝度リモート制御を復活（root で /sys/class/backlight を直接制御）。屋外視認性対策。 */}
                   <RemoteSliderRow
                     icon={<Sun className="h-4 w-4" />}
-                    label="輝度"
+                    label="輝度（屋外で見えにくい時は最大へ）"
                     value={detail.brightness}
                     saving={savingBrightness}
                     onCommit={(v) => void sendDeviceCommand('set_brightness', v)}
-                  /> */}
+                  />
 
                   {/* S147c: 表示モード（屋外視認性対策・自分の什器のみ操作可。backendがcustomer_id絞り込みで保証）*/}
                   {detail && (
