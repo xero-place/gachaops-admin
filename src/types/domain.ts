@@ -133,6 +133,10 @@ export interface Device {
   brightness: number;
   /** S197: 表示モード(normal/grayscale/hc1-hc4) */
   display_mode?: string;
+  /** S304: 演出の実効ON/OFF（端末個別→未設定は所属グループ既定） */
+  effect_on?: boolean | null;
+  /** S304: 演出ON時の既定演出パック名（素材名。一覧「演出」列） */
+  effect_name?: string | null;
   /** 所属プール (gacha_machines.pool_id), Session 51 */
   pool_id: string | null;
   pool_name: string | null;

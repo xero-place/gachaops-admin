@@ -422,6 +422,7 @@ export default function DevicesPage() {
               {/* S147c: モード列は非表示。play_modeは制御モードでUSB等の映像ソース実態を表せず誤解を生むため。発送後にルート1(signage連携で実ソース取得)で「映像」列として復活。 */}
               {/* <TableHead>モード</TableHead> */}
               <TableHead>{t.colPlaying}</TableHead>
+              <TableHead>{t.colEffect}</TableHead>
               <TableHead>{t.colVolume}</TableHead>
               <TableHead>{t.colStock}</TableHead>
               <TableHead>{t.colLastSeen}</TableHead>
@@ -494,6 +495,11 @@ export default function DevicesPage() {
                       <PlaybackStatus playback={playbackStates[d.id]} compact />
                     </div>
                   )}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {d.effect_on
+                    ? <span className="block max-w-[150px] truncate" title={d.effect_name ?? 'ON'}>{d.effect_name ?? 'ON'}</span>
+                    : <span className="text-muted-foreground">OFF</span>}
                 </TableCell>
                 <TableCell className="text-xs tabular-nums">
                   <div className="flex items-center gap-1.5">
