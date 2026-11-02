@@ -398,7 +398,7 @@ export default function DevicesPage() {
 
       {/* Device table */}
       <Card>
-        <Table className="min-w-[1020px]">
+        <Table className="min-w-[1020px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -477,7 +477,9 @@ export default function DevicesPage() {
                 </TableCell>
                 */}
                 <TableCell className="text-xs">
-                  {d.current_program_name ?? <span className="text-muted-foreground">—</span>}
+                  {d.current_program_name
+                    ? <span className="block max-w-[200px] truncate" title={d.current_program_name}>{d.current_program_name}</span>
+                    : <span className="text-muted-foreground">—</span>}
                   {d.current_program_has_media === false && (
                     <div className="mt-0.5 text-[11px] font-bold text-destructive">映像が入っていません（別の映像を流してください）</div>
                   )}
