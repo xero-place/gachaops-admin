@@ -448,10 +448,35 @@ export default function SalesEventsPage() {
       const sp = new URLSearchParams();
       if (customerFilter !== 'all') sp.set('customer_id', customerFilter);
       sp.set('days', String(days));
+      if (dateFrom) sp.set('from_date', dateFrom);  // S312: 日別を指定期間どおりに（JST暦日）
+      if (dateTo) sp.set('to_date', dateTo);
       const r = await api.get<typeof daily>(`/stats/sales?${sp.toString()}`);
       daily = Array.isArray(r) ? r : [];
     } catch (e) {
       console.error('[report] stats/sales failed:', e);
+    }
+
+    // S311: 絞り込み（店舗／グループ／マシン／決済種別／PSP）があるときだけ、その合成条件1つ分の日別を追加取得。
+    //   顧客全体の日別（上）はそのまま。期間(days)も同じにして上下を比較できるようにする。
+    const hasNarrow = storeFilter !== 'all' || groupFilter !== 'all' || !!effectiveDeviceId || kindFilter !== 'all' || providerFilter !== 'all';
+    let dailyNarrow: typeof daily = [];
+    if (hasNarrow) {
+      try {
+        const sp = new URLSearchParams();
+        if (customerFilter !== 'all') sp.set('customer_id', customerFilter);
+        sp.set('days', String(days));
+        if (dateFrom) sp.set('from_date', dateFrom);  // S312: 日別を指定期間どおりに（JST暦日）
+        if (dateTo) sp.set('to_date', dateTo);
+        if (storeFilter !== 'all') sp.set('store_id', storeFilter);
+        if (groupFilter !== 'all') sp.set('group_id', groupFilter);
+        if (effectiveDeviceId) sp.set('device_id', effectiveDeviceId);
+        if (kindFilter !== 'all') sp.set('payment_method', kindFilter);
+        if (providerFilter !== 'all') sp.set('provider', providerFilter);
+        const r = await api.get<typeof daily>(`/stats/sales?${sp.toString()}`);
+        dailyNarrow = Array.isArray(r) ? r : [];
+      } catch (e) {
+        console.error('[report] stats/sales (narrow) failed:', e);
+      }
     }
 
     const esc = (s: string) => (s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
@@ -469,6 +494,8 @@ export default function SalesEventsPage() {
     if (storeName) condParts.push(t.condStore(esc(storeName)));
     if (machineName) condParts.push(t.condMachine(esc(machineName)));
     if (kindLabel) condParts.push(t.condKind(kindLabel));
+    const providerName = providerFilter === 'all' ? '' : providerLabelOf(providerFilter, t);
+    if (providerName) condParts.push(t.condProvider(esc(providerName)));
     condParts.push(t.condPeriod(periodLabel));
     condParts.push(t.condIssued(issued));
     const condHtml = condParts.join('<br>');
@@ -487,6 +514,35 @@ export default function SalesEventsPage() {
       total: a.total + (r.total_sales ?? ((r.cash_total || 0) + (r.qr_total || 0))),
       medal: a.medal + (r.medal_count || 0),
     }), { cash: 0, qr: 0, total: 0, medal: 0 });
+
+    const narrowName = [storeName, groupName, machineName, kindLabel, providerName].filter(Boolean).map((x) => esc(x)).join(' ＋ ');
+    const dailyTable = (rowsSrc: typeof daily) => {
+      const rows = rowsSrc.map((d) => `
+      <tr>
+        <td>${d.date}</td>
+        <td class="num">${yen(d.qr_revenue_yen)}</td>
+        <td class="num">${yen(d.cash_revenue_yen)}</td>
+        <td class="num strong">${yen(d.revenue_yen)}</td>
+        <td class="num">${(d.medal_count ?? 0).toLocaleString('ja-JP')}</td>
+      </tr>`).join('');
+      const tot = rowsSrc.reduce((a, d) => ({
+        qr: a.qr + (d.qr_revenue_yen || 0),
+        cash: a.cash + (d.cash_revenue_yen || 0),
+        rev: a.rev + (d.revenue_yen || 0),
+        medal: a.medal + (d.medal_count || 0),
+      }), { qr: 0, cash: 0, rev: 0, medal: 0 });
+      return `<table>
+    <thead><tr><th>${t.colDate}</th><th class="num">${t.colQrSales}</th><th class="num">${t.cashSales}</th><th class="num">${t.colTotal}</th><th class="num">${t.colMedalCount}</th></tr></thead>
+    <tbody>
+      ${rows || `<tr><td colspan="5" style="text-align:center;color:#999;">${t.noData}</td></tr>`}
+      <tr class="total"><td>${t.totalLabel}</td><td class="num">${yen(tot.qr)}</td><td class="num">${yen(tot.cash)}</td><td class="num">${yen(tot.rev)}</td><td class="num">${tot.medal.toLocaleString('ja-JP')}</td></tr>
+    </tbody>
+  </table>`;
+    };
+    const narrowBlock = hasNarrow ? `
+  <h2>${t.dailyTrendNarrow(narrowName)}</h2>
+  <div class="cap">${t.dailyCaptionNarrow}</div>
+  ${dailyTable(dailyNarrow)}` : '';
 
     const dailyRows = daily.map((d) => `
       <tr>
@@ -560,8 +616,8 @@ export default function SalesEventsPage() {
     </tbody>
   </table>
 
-  <h2>${t.dailyTrend}</h2>
-  <div class="cap">${t.dailyCaption}</div>
+  <h2>${hasNarrow ? t.dailyTrendAll : t.dailyTrend}</h2>
+  <div class="cap">${hasNarrow ? t.dailyCaptionAll : t.dailyCaption}</div>
   <table>
     <thead><tr><th>${t.colDate}</th><th class="num">${t.colQrSales}</th><th class="num">${t.cashSales}</th><th class="num">${t.colTotal}</th><th class="num">${t.colMedalCount}</th></tr></thead>
     <tbody>
@@ -569,6 +625,7 @@ export default function SalesEventsPage() {
       <tr class="total"><td>${t.totalLabel}</td><td class="num">${yen(dailyTotal.qr)}</td><td class="num">${yen(dailyTotal.cash)}</td><td class="num">${yen(dailyTotal.rev)}</td><td class="num">${dailyTotal.medal.toLocaleString('ja-JP')}</td></tr>
     </tbody>
   </table>
+${narrowBlock}
 
   <div class="foot">${t.reportFoot}</div>
   <script>window.onload = function() { setTimeout(function(){ window.print(); }, 300); };</script>
@@ -578,7 +635,7 @@ export default function SalesEventsPage() {
     if (!w) { window.alert(t.popupBlocked); return; }
     w.document.write(html);
     w.document.close();
-  }, [summary, customerFilter, customers, dateFrom, dateTo, byDevice, deviceFilter, groupFilter, storeFilter, groups, stores, devices, effectiveDeviceId, kindFilter, t]);
+  }, [summary, customerFilter, customers, dateFrom, dateTo, byDevice, deviceFilter, groupFilter, storeFilter, groups, stores, devices, effectiveDeviceId, kindFilter, providerFilter, t]);
 
   type _LedgerRow = { month: string; order_count: number; gross_yen: number; after_fee_yen: number; carried_in_yen: number; running_total_yen: number; is_transfer: boolean; transfer_done: boolean; transfer_fee_yen: number; transfer_yen: number; carried_out_yen: number; pay_date: string; is_provisional: boolean; is_partial?: boolean };
   type _Ledger = { customer_id: string; customer_name: string; rows: _LedgerRow[]; total_transferred_yen: number; total_scheduled_yen: number; outstanding_carry_yen: number; machines?: { device_id: string; device_name: string; qr_yen: number }[]; is_partial?: boolean };
