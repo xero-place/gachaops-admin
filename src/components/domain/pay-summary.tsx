@@ -47,8 +47,36 @@ function Word({ tone, children }: { tone: 'cash' | 'qr' | 'token' | 'none' | 'wa
 }
 
 /** 例：「1回 400円　QR・現金なし」「1回 100円　現金・QR」「メダル」「料金未設定」 */
-export function PaySummaryText({ s, className }: { s: PaySummary | undefined; className?: string }) {
+export function PaySummaryText({ s, className, stacked = false }: { s: PaySummary | undefined; className?: string; stacked?: boolean }) {
   if (!s) return <span className={`text-muted-foreground ${className ?? ''}`}>—</span>;
+  // S314: stacked=true は一覧用の2行表示（1行目=料金、2行目=支払い方法）。未指定なら従来どおり1行。
+  if (stacked) {
+    const price = s.price_per_draw != null
+      ? <b className="text-foreground">1回 {yen(s.price_per_draw)}</b>
+      : <Word tone="warn">料金未設定</Word>;
+    const ws: React.ReactNode[] = [];
+    if (s.accept_mode === 'token') {
+      ws.push(<Word key="t" tone="token">メダル</Word>);
+      if (s.qr_enabled) ws.push(<Word key="q" tone="qr">QR</Word>);
+    } else if (s.accept_mode === 'cash') {
+      ws.push(<Word key="c" tone="cash">現金</Word>);
+      if (s.qr_enabled) ws.push(<Word key="q" tone="qr">QR</Word>);
+    } else {
+      if (s.qr_enabled) ws.push(<Word key="q" tone="qr">QR</Word>);
+      ws.push(<Word key="n" tone="none">現金なし</Word>);
+    }
+    const methods = <span>{ws.map((w, i) => <span key={i}>{i > 0 && '・'}{w}</span>)}</span>;
+    // メダルのみ(QRなし)は料金を使わないので1行
+    if (s.accept_mode === 'token' && !s.qr_enabled) {
+      return <span className={`block whitespace-nowrap ${className ?? ''}`}>{methods}</span>;
+    }
+    return (
+      <span className={`flex flex-col gap-0.5 whitespace-nowrap ${className ?? ''}`}>
+        <span>{price}</span>
+        {methods}
+      </span>
+    );
+  }
   if (s.accept_mode === 'token') {
     return (
       <span className={`whitespace-nowrap ${className ?? ''}`}>

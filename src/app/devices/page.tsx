@@ -398,7 +398,7 @@ export default function DevicesPage() {
 
       {/* Device table */}
       <Card>
-        <Table className="min-w-[1020px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+        <Table className="min-w-[880px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -417,7 +417,7 @@ export default function DevicesPage() {
               </TableHead>
               <TableHead>{t.colDevice}</TableHead>
               <TableHead>{t.colGroup}</TableHead>
-              <TableHead>{t.colStatus}</TableHead>
+              <TableHead>{t.colStatusLastSeen}</TableHead>
               {paySummary && <TableHead>料金・支払い</TableHead>}
               {/* S147c: モード列は非表示。play_modeは制御モードでUSB等の映像ソース実態を表せず誤解を生むため。発送後にルート1(signage連携で実ソース取得)で「映像」列として復活。 */}
               {/* <TableHead>モード</TableHead> */}
@@ -425,7 +425,6 @@ export default function DevicesPage() {
               <TableHead>{t.colEffect}</TableHead>
               <TableHead>{t.colVolume}</TableHead>
               <TableHead>{t.colStock}</TableHead>
-              <TableHead>{t.colLastSeen}</TableHead>
               <TableHead className="text-right">{t.colAction}</TableHead>
             </TableRow>
           </TableHeader>
@@ -451,9 +450,17 @@ export default function DevicesPage() {
                         if (dvc == null) return null;
                         return dvc >= latestApkCode
                           ? <span className="text-[11px] text-muted-foreground">{t.latest}</span>
-                          : <span className="text-[11px] font-bold text-warn">{t.needsUpdate}</span>;
+                          : null;
                       })()}
                     </div>
+                    {/* S314: 「アプリの更新が必要」は対象マシンのみ、常にマシン名の下の行に出す */}
+                    {(() => {
+                      if (latestApkCode == null) return null;
+                      const nums = [...(d.app_version ?? '').matchAll(/\(vc(\d+)\)/g)].map((x) => Number(x[1]));
+                      const dvc = nums.length ? Math.max(...nums) : null;
+                      if (dvc == null || dvc >= latestApkCode) return null;
+                      return <div className="text-[11px] font-bold text-warn">{t.needsUpdate}</div>;
+                    })()}
                     {isSuperAdmin && d.customer_name && (
                       <div className="text-xs text-muted-foreground">{d.customer_name}</div>
                     )}
@@ -464,9 +471,13 @@ export default function DevicesPage() {
                     ? d.group_names.join(t.groupSep)
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
-                <TableCell><DeviceStatusBadge status={d.status as DeviceStatus} /></TableCell>
+                <TableCell>
+                  <DeviceStatusBadge status={d.status as DeviceStatus} />
+                  {/* S314: 最終接続は状態の下に小さく（列を1つ減らして横幅を詰める） */}
+                  <div className="mt-1 text-[11px] text-muted-foreground">{fmtRelative(d.last_heartbeat_at)}</div>
+                </TableCell>
                 {paySummary && (
-                  <TableCell className="text-xs"><PaySummaryText s={paySummary[d.id]} /></TableCell>
+                  <TableCell className="text-xs"><PaySummaryText s={paySummary[d.id]} stacked /></TableCell>
                 )}
                 {/* S147c: モード列セル非表示（ヘッダーと対応）。発送後ルート1で復活。
                 <TableCell>
@@ -548,9 +559,6 @@ export default function DevicesPage() {
                       </div>
                     );
                   })()}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {fmtRelative(d.last_heartbeat_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
