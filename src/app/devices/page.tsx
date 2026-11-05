@@ -398,7 +398,7 @@ export default function DevicesPage() {
 
       {/* Device table */}
       <Card>
-        <Table className="min-w-[880px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+        <Table className="min-w-[880px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_th]:px-2.5 [&_td]:px-2.5">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -533,9 +533,9 @@ export default function DevicesPage() {
                     // S235: フリーモード中は個数ではなく Free と表示
                     if (st.free_mode) {
                       return (
-                        <div className="flex flex-col gap-0.5 min-w-[64px]">
-                          <span className="font-semibold text-primary">{t.freeMode}</span>
-                          <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] font-semibold text-primary">{t.freeMode}</span>
+                          <div className="h-1 w-14 rounded-full bg-muted overflow-hidden">
                             <div className="h-full w-full rounded-full bg-primary" />
                           </div>
                         </div>
@@ -545,7 +545,7 @@ export default function DevicesPage() {
                     const _denom = st.total_balls > 0 ? st.total_balls : Math.max(st.remaining_balls, 1);
                     const pct = Math.min(100, Math.round((st.remaining_balls / _denom) * 100));
                     return (
-                      <div className="flex flex-col gap-0.5 min-w-[64px]">
+                      <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <span className={st.is_low ? 'text-destructive font-semibold' : ''}>{st.remaining_balls}</span>
                           <span className="text-muted-foreground">/ {st.total_balls}</span>
@@ -553,7 +553,7 @@ export default function DevicesPage() {
                             <span className="text-[11px] font-bold text-destructive">{t.refill}</span>
                           )}
                         </div>
-                        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                        <div className="h-1 w-14 rounded-full bg-muted overflow-hidden">
                           <div className={`h-full rounded-full ${st.is_low ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
                         </div>
                       </div>
