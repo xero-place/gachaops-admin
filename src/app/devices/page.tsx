@@ -499,9 +499,15 @@ export default function DevicesPage() {
                   )}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {d.effect_on
-                    ? <span className="block max-w-[150px] truncate" title={d.effect_name ?? 'ON'}>{d.effect_name ?? 'ON'}</span>
-                    : <span className="text-muted-foreground">OFF</span>}
+                  {/* S313: 詳細「演出」タブの「いまの設定」と同じ素材名。旧来の既定パック名や「ON」は出さない */}
+                  {!d.effect_on
+                    ? <span className="text-muted-foreground">OFF</span>
+                    : d.effect_name
+                      ? <span className="flex max-w-[170px] items-baseline gap-1" title={(d.effect_names?.length ? d.effect_names : [d.effect_name]).join(' ／ ')}>
+                          <span className="truncate">{d.effect_name}</span>
+                          {(d.effect_more ?? 0) > 0 && <span className="shrink-0 text-muted-foreground">{t.effectMore(d.effect_more ?? 0)}</span>}
+                        </span>
+                      : <span className="text-muted-foreground">{t.effectUnset}</span>}
                 </TableCell>
                 <TableCell className="text-xs tabular-nums">
                   <div className="flex items-center gap-1.5">

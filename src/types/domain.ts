@@ -135,8 +135,12 @@ export interface Device {
   display_mode?: string;
   /** S304: 演出の実効ON/OFF（端末個別→未設定は所属グループ既定） */
   effect_on?: boolean | null;
-  /** S304: 演出ON時の既定演出パック名（素材名。一覧「演出」列） */
+  /** S313: 演出ON時の素材名（詳細「演出」タブの排出順割り当てで最も多いもの。未設定は null） */
   effect_name?: string | null;
+  /** S313: 割り当てに他の素材が何種類あるか */
+  effect_more?: number;
+  /** S313: 割り当て中の素材名すべて（多い順） */
+  effect_names?: string[];
   /** 所属プール (gacha_machines.pool_id), Session 51 */
   pool_id: string | null;
   pool_name: string | null;
