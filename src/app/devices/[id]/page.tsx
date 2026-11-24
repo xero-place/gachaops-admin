@@ -495,29 +495,32 @@ export default function DeviceDetailPage() {
   const [stockHistLoaded, setStockHistLoaded] = useState(false);
   const [stockHistSort, setStockHistSort] = useState<'ts' | 'payment_method' | 'amount'>('ts');
   const [stockHistDir, setStockHistDir] = useState<'asc' | 'desc'>('desc');
-  const loadStockHist = async () => {
-    if (stockHistLoaded || stockHistLoading) return;
+  // ★S344: 旧実装は最新500件だけ取得していたため、1台で500回を超えると古い販売が出なかった。
+  //   全件をサーバーで並べ替え、200件ずつページで表示する（件数はサーバーが数えた正確な値）。
+  const STOCK_PAGE = 200;
+  const [stockHistPage, setStockHistPage] = useState(0);
+  const [stockHistTotal, setStockHistTotal] = useState(0);
+  const loadStockHist = async (pg = stockHistPage, sortKey = stockHistSort, dir = stockHistDir) => {
     setStockHistLoading(true);
     try {
-      const res = await api.get<StockMove[]>(`/inventories/movements?device_id=${params.id}&limit=500`);
-      setStockHist(Array.isArray(res) ? res : []);
+      const res = await api.get<{ items?: StockMove[]; total?: number }>(
+        `/inventories/movements/page?device_id=${params.id}&offset=${pg * STOCK_PAGE}&limit=${STOCK_PAGE}&sort=${sortKey}&dir=${dir}`,
+      );
+      setStockHist(res?.items ?? []);
+      setStockHistTotal(res?.total ?? 0);
       setStockHistLoaded(true);
     } catch (e) { console.error('[stock-history] fetch failed', e); }
     finally { setStockHistLoading(false); }
   };
-  const toggleStockHist = () => { const n = !stockHistOpen; setStockHistOpen(n); if (n) loadStockHist(); };
+  const toggleStockHist = () => { const n = !stockHistOpen; setStockHistOpen(n); if (n && !stockHistLoaded) loadStockHist(0); };
   const sortStockHist = (k: 'ts' | 'payment_method' | 'amount') => {
-    if (stockHistSort === k) setStockHistDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setStockHistSort(k); setStockHistDir('desc'); }
+    const dir: 'asc' | 'desc' = stockHistSort === k ? (stockHistDir === 'asc' ? 'desc' : 'asc') : 'desc';
+    setStockHistSort(k); setStockHistDir(dir); setStockHistPage(0);
+    loadStockHist(0, k, dir);
   };
-  const sortedStockHist = [...stockHist].sort((a, b) => {
-    const dir = stockHistDir === 'asc' ? 1 : -1;
-    let av: number | string; let bv: number | string;
-    if (stockHistSort === 'amount') { av = a.amount ?? -1; bv = b.amount ?? -1; }
-    else if (stockHistSort === 'payment_method') { av = a.payment_method ?? ''; bv = b.payment_method ?? ''; }
-    else { av = a.ts; bv = b.ts; }
-    return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
-  });
+  const gotoStockHistPage = (pg: number) => { setStockHistPage(pg); loadStockHist(pg); };
+  const stockHistPageCount = Math.max(1, Math.ceil(stockHistTotal / STOCK_PAGE));
+  const sortedStockHist = stockHist;  // 並べ替えはサーバー側で全件に対して行う
   // ── S124 フェーズ2: 演出・価格（専用プール設定）──
   const [effectPacks, setEffectPacks] = useState<GachaEffectPack[]>([]);
   const [curPool, setCurPool] = useState<GachaPool | null>(null);
@@ -1480,7 +1483,7 @@ export default function DeviceDetailPage() {
                           {stockHistOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           {tp.stockHistTitle}
                           <span className="text-xs text-muted-foreground font-normal">
-                            {stockHistLoaded ? tp.countUnit2(stockHist.length) : tp.clickToShow}
+                            {stockHistLoaded ? tp.countUnit2(stockHistTotal) : tp.clickToShow}
                           </span>
                         </button>
                         {stockHistOpen && (
@@ -1507,7 +1510,7 @@ export default function DeviceDetailPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {sortedStockHist.slice(0, 500).map((m, i) => (
+                                  {sortedStockHist.map((m, i) => (
                                     <tr key={`${m.ts}-${i}`} className="border-b border-muted/40">
                                       <td className="py-1.5 whitespace-nowrap">{fmtDate(m.ts)}</td>
                                       <td className="py-1.5">{m.kind === 'sale' ? tp.kindSale : m.kind === 'replenish' ? tp.kindReplenish : tp.kindAdjust}</td>
@@ -1518,6 +1521,28 @@ export default function DeviceDetailPage() {
                                   ))}
                                 </tbody>
                               </table>
+                            )}
+                            {stockHistLoaded && stockHistTotal > STOCK_PAGE && (
+                              <div className="flex items-center justify-between gap-3 pt-3 text-xs text-muted-foreground">
+                                <span className="tabular-nums">
+                                  {(stockHistPage * STOCK_PAGE + 1).toLocaleString('ja-JP')}–{Math.min((stockHistPage + 1) * STOCK_PAGE, stockHistTotal).toLocaleString('ja-JP')} / {stockHistTotal.toLocaleString('ja-JP')}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
+                                    disabled={stockHistLoading || stockHistPage === 0}
+                                    onClick={() => gotoStockHistPage(stockHistPage - 1)}
+                                  >‹</button>
+                                  <span className="tabular-nums">{stockHistPage + 1} / {stockHistPageCount}</span>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border px-3 py-1.5 hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
+                                    disabled={stockHistLoading || stockHistPage + 1 >= stockHistPageCount}
+                                    onClick={() => gotoStockHistPage(stockHistPage + 1)}
+                                  >›</button>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}
